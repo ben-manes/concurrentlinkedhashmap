@@ -1,0 +1,66 @@
+<project name="ConcurrentLinkedHashMap" default="dist" basedir=".">
+  <description>A concurrent version of java.util.LinkedHashMap</description>
+
+  <!-- set global properties for this build -->
+  <property name="test-output" location="test-output"/>
+  <property name="test" location="unittest"/>
+  <property name="build" location="build"/>
+  <property name="dist" location="dist"/>
+  <property name="lib" location="lib"/>
+  <property name="src" location="src"/>
+
+  <path id="test.classpath">
+    <fileset dir="${dist}" includes="**/*.jar"/>
+    <pathelement location="${lib}/testng.jar"/>
+    <pathelement location="${lib}/ehcache-1.4.0.jar"/>
+    <pathelement location="${lib}/commons-lang-2.3.jar"/>
+    <pathelement location="${lib}/commons-collections-3.2.jar"/>
+    <pathelement location="${lib}/commons-math-1.2.jar"/>
+    <pathelement location="${lib}/clhm-${DSTAMP}.jar"/>
+  </path>
+
+  <taskdef name="testng" classname="org.testng.TestNGAntTask"/>
+  
+  <target name="init">
+    <!-- Create the time stamp -->
+    <tstamp/>
+    <!-- Create the build directory structure used by compile -->
+    <mkdir dir="${build}"/>
+    <mkdir dir="${build}/api"/>
+    <mkdir dir="${build}/test"/>
+  </target>
+
+  <target name="compile" depends="init" description="compile the source" >
+    <!-- Compile the java code from ${src} into ${build} -->
+    <javac srcdir="${src}" destdir="${build}/api"/>
+  </target>
+
+  <target name="test" depends="init" description="run the rest" >
+    <!-- Compile the java code from ${test} into ${build} -->
+    <javac srcdir="${test}" destdir="${build}/test" classpathref="test.classpath"/>
+
+    <!-- Execute TestNG -->
+    <testng classpathref="test.classpath" groups="server">
+      <classpath>
+        <pathelement location="${build}/test"/>
+      </classpath>
+      <classfileset dir="${build}" includes="test/**/*"/>
+    </testng>
+  </target>
+
+  <target name="dist" depends="compile" description="generate the distribution" >
+    <!-- Create the distribution directory -->
+    <mkdir dir="${dist}"/>
+
+    <!-- Put everything in ${build} into the clhm-${DSTAMP}.jar file -->
+    <jar jarfile="${dist}/clhm-${DSTAMP}.jar" basedir="${build}/api"/>
+    <jar jarfile="${dist}/clhm-test-${DSTAMP}.jar" basedir="${build}/test"/>
+  </target>
+
+  <target name="clean" description="clean up" >
+    <!-- Delete the build and test artifacts -->
+    <delete dir="${test-output}"/>
+    <delete dir="${build}"/>
+    <delete dir="${dist}"/>
+  </target>
+</project>
