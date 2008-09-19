@@ -138,12 +138,27 @@ public final class Validator extends Assert {
         }
     }
     
+    /**
+     * Validates that all data nodes dead.
+     */
     public static void validateNodesDead(ConcurrentLinkedHashMap<?, ?> map) {
-        Node<?, ?> current = map.head;
-        do {
+        Node<?, ?> current = map.head.getNext();
+        while (current != map.tail) {
             assertNull(current.getValue(), "Node not dead");
             assertFalse(current.isMarked(), "Node marked as saved");
             current = current.getNext();
-        } while (current != map.tail);
+        }
+    }
+    
+    /**
+     * Prints the nodes in list order.
+     */
+    public static void printLinkedList(ConcurrentLinkedHashMap<?, ?> map) {
+        Node<?, ?> current = map.head.getNext();
+        while (current != map.tail) {
+            System.out.println(current);
+            current = current.getNext();
+        }
+        System.out.println();
     }
 }
