@@ -84,11 +84,8 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
      * @param listeners        The listeners registered for notification when an entry is evicted.
      */
     public ConcurrentLinkedHashMap(EvictionPolicy policy, int maximumCapacity, int concurrencyLevel, EvictionListener<K, V>... listeners) {
-        if (policy == null) {
-            throw new IllegalArgumentException("Null eviction policy");
-        }
-        if (maximumCapacity < 1) {
-            throw new IllegalArgumentException("The maximum capacity must be positive");
+        if ((policy == null) || (maximumCapacity < 0) || (concurrencyLevel <= 0)) {
+            throw new IllegalArgumentException();
         }
         this.listeners = (listeners == null) ? Collections.<EvictionListener<K, V>>emptyList() : Arrays.asList(listeners);
         this.data = new ConcurrentHashMap<K, Node<K, V>>(maximumCapacity, 0.75f, concurrencyLevel);
@@ -120,8 +117,8 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
      * @param capacity The maximum capacity of the map.
      */
     public void setCapacity(int capacity) {
-        if (capacity < 1) {
-            throw new IllegalArgumentException("The maximum capacity must be positive");
+        if (capacity < 0) {
+            throw new IllegalArgumentException("The capacity cannot be negative");
         }
         this.capacity.set(capacity);
         while (isOverflow()) {
@@ -195,7 +192,7 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
     /**
      * Notifies the listeners that an entry was evicted from the map.
      * 
-     * @param node The node evicted.
+     * @param node The evicted node.
      */
     private void notifyEviction(Node<K, V> node) {
         for (EvictionListener<K, V> listener : listeners) {

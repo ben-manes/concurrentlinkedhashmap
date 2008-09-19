@@ -35,7 +35,7 @@
     <javac srcdir="${src}" destdir="${build}/api"/>
   </target>
 
-  <target name="test" depends="init" description="run the rest" >
+  <target name="test" depends="dist" description="run the rest" >
     <!-- Compile the java code from ${test} into ${build} -->
     <javac srcdir="${test}" destdir="${build}/test" classpathref="test.classpath"/>
 

@@ -8,6 +8,7 @@ import static com.rc.util.concurrent.performance.CacheEfficiencyTestHarness.dete
 import static java.lang.String.format;
 
 import java.io.Serializable;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -54,7 +55,7 @@ public final class ConcurrentLinkedHashMapTest extends Assert {
      */
     @Test(groups="server")
     public void putAll() {
-        ConcurrentLinkedHashMap<Integer, Integer> expected = createWarmedMap(size);
+        ConcurrentLinkedHashMap<Integer, Integer> expected = createWarmedMap(EvictionPolicy.SECOND_CHANCE, size);
         ConcurrentLinkedHashMap<Integer, Integer> cache = new ConcurrentLinkedHashMap<Integer, Integer>(EvictionPolicy.SECOND_CHANCE, size, guard);
         cache.putAll(expected);
 
@@ -93,7 +94,7 @@ public final class ConcurrentLinkedHashMapTest extends Assert {
         assertEquals(cache.size(), size, "Not warmed to max size");
         validate(cache);
         validateNodesMarked(cache, false);
-        assertEquals(cache, createWarmedMap(size));
+        assertEquals(cache, createWarmedMap(EvictionPolicy.SECOND_CHANCE, size));
     }
     
     /**
@@ -101,7 +102,7 @@ public final class ConcurrentLinkedHashMapTest extends Assert {
      */
     @Test(groups="server")
     public void retrieval() {
-        ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap(size, guard);
+        ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap(EvictionPolicy.SECOND_CHANCE, size, guard);
         for (Integer i=-size; i<0; i++) {
             assertNull(cache.get(i));
             assertFalse(cache.containsKey(i));
@@ -127,7 +128,7 @@ public final class ConcurrentLinkedHashMapTest extends Assert {
     @Test(groups="server")
     public void remove() {
         // Map#remove()
-        ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap(size, guard);
+        ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap(EvictionPolicy.SECOND_CHANCE, size, guard);
         for (Integer i=0; i<size; i++) {
             assertEquals(cache.remove(i), i, format("Failure on index #%d", i));
             assertNull(cache.remove(i), "Not fully removed");
@@ -137,7 +138,7 @@ public final class ConcurrentLinkedHashMapTest extends Assert {
         validateEmpty(cache);
         
         // ConcurrentMap#remove()
-        cache = createWarmedMap(size, guard);
+        cache = createWarmedMap(EvictionPolicy.SECOND_CHANCE, size, guard);
         for (Integer i=0; i<size; i++) {
             assertFalse(cache.remove(i, -1));
             assertTrue(cache.remove(i, i));
@@ -155,7 +156,7 @@ public final class ConcurrentLinkedHashMapTest extends Assert {
     @Test(groups="server")
     public void replace() {
         Integer dummy = -1;
-        ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap(size, guard);
+        ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap(EvictionPolicy.SECOND_CHANCE, size, guard);
         for (Integer i=0; i<size; i++) {
             assertNotNull(cache.replace(i, dummy));
             assertFalse(cache.replace(i, i, i));
@@ -174,7 +175,7 @@ public final class ConcurrentLinkedHashMapTest extends Assert {
      */
     @Test(groups="server")
     public void clear() {
-        ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap(size, guard);
+        ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap(EvictionPolicy.SECOND_CHANCE, size, guard);
         cache.clear();
         validate(cache);
     }
@@ -184,12 +185,12 @@ public final class ConcurrentLinkedHashMapTest extends Assert {
      */
     @Test(groups="server")
     public void capacity() {
-        ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap(size);
+        ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap(EvictionPolicy.SECOND_CHANCE, size);
         
         int capacity = 2*size;
         cache.setCapacity(capacity);
         assertEquals(cache.capacity(), capacity);
-        assertEquals(cache, createWarmedMap(size));
+        assertEquals(cache, createWarmedMap(EvictionPolicy.SECOND_CHANCE, size));
         validate(cache);
         
         capacity = size/2;
@@ -303,16 +304,6 @@ public final class ConcurrentLinkedHashMapTest extends Assert {
     }
     
     /**
-     * Tests that entries are evicted in LRU order using a complex working set.
-     */
-    @Test()
-    public void evictAsLru() {
-        ConcurrentLinkedHashMap<Integer, Integer> actual = new ConcurrentLinkedHashMap<Integer, Integer>(EvictionPolicy.LRU, size);
-        Map<Integer, Integer> expected = Caches.create(Cache.SYNC_LRU, size, size, 1);
-        doEfficencyTest(actual, expected, false); // cannot be strictly equal due to dead nodes in the list.
-    }
-    
-    /**
      * Executes a complex eviction test.
      */
     private void doEfficencyTest(ConcurrentLinkedHashMap<Integer, Integer> actual, Map<Integer, Integer> expected, boolean strict) {
@@ -328,12 +319,71 @@ public final class ConcurrentLinkedHashMapTest extends Assert {
     }
     
     /**
+     * Tests that entries are evicted in LRU order using a complex working set.
+     * 
+     * This cannot be directly compared to a {@link java.util.LinkedHashMap} due to dead nodes on the list.
+     */
+    @Test(groups="server")
+    public void evictAsLru() {
+        ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap(EvictionPolicy.LRU, 10);
+        assertTrue(cache.keySet().containsAll(Arrays.asList(0, 1, 2, 3, 4, 5, 6, 7, 8, 9)), "Instead: " + cache.keySet());
+        assertEquals(cache.size(), 10);
+        
+        //System.out.println("Initial");
+        //printLinkedList(cache);
+        
+        // re-order
+        cache.get(0);
+        cache.get(1);
+        cache.get(2);
+        
+        assertTrue(cache.keySet().containsAll(Arrays.asList(3, 4, 5, 6, 7, 8, 9, 0, 1, 2)), "Instead: " + cache.keySet());
+        assertEquals(cache.size(), 10);
+        
+        //System.out.println("Reordered #1");
+        //printLinkedList(cache);
+        
+        // evict 3, 4, 5
+        cache.put(10, 10);
+        cache.put(11, 11);
+        cache.put(12, 12);
+        
+        assertTrue(cache.keySet().containsAll(Arrays.asList(6, 7, 8, 9, 0, 1, 2, 10, 11, 12)), "Instead: " + cache.keySet());
+        assertEquals(cache.size(), 10);
+        
+        //System.out.println("Evict #1");
+        //printLinkedList(cache);
+        
+        // re-order
+        cache.get(6);
+        cache.get(7);
+        cache.get(8);
+        
+        assertTrue(cache.keySet().containsAll(Arrays.asList(9, 0, 1, 2, 10, 11, 12, 6, 7, 8)), "Instead: " + cache.keySet());
+        assertEquals(cache.size(), 10);
+        
+        //System.out.println("Reordered #2");
+        //printLinkedList(cache);
+        
+        // evict 9, 0, 1
+        cache.put(13, 13);
+        cache.put(14, 14);
+        cache.put(15, 15);
+        
+        assertTrue(cache.keySet().containsAll(Arrays.asList(2, 10, 11, 12, 6, 7, 8, 13, 14, 15)), "Instead: " + cache.keySet());
+        assertEquals(cache.size(), 10);
+        
+        //System.out.println("Evict #2");
+        //printLinkedList(cache);
+    }
+    
+    /**
      * Tests that a full scan was required to evict an entry.
      */
     @Test(groups="server")
     public void evictSecondChanceFullScan() {
         EvictionMonitor<Integer, Integer> monitor = EvictionMonitor.newMonitor();
-        ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap(size, monitor);
+        ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap(EvictionPolicy.SECOND_CHANCE, size, monitor);
         for (int i=0; i<size; i++) {
             cache.get(i);
         }
@@ -351,7 +401,7 @@ public final class ConcurrentLinkedHashMapTest extends Assert {
      */
     @Test(groups="server")
     public void object() {
-        ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap(size, guard);
+        ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap(EvictionPolicy.SECOND_CHANCE, size, guard);
         Map<Integer, Integer> expected = new ConcurrentHashMap<Integer, Integer>(size);
         for (Integer i=0; i<size; i++) {
             expected.put(i, i);
@@ -366,7 +416,7 @@ public final class ConcurrentLinkedHashMapTest extends Assert {
      */
     @Test(groups="server")
     public void serialize() {
-        ConcurrentLinkedHashMap<Integer, Integer> expected = createWarmedMap(size, guard);
+        ConcurrentLinkedHashMap<Integer, Integer> expected = createWarmedMap(EvictionPolicy.SECOND_CHANCE, size, guard);
         Object cache = SerializationUtils.deserialize(SerializationUtils.serialize(expected));
         assertEquals(cache, expected);
         validate((ConcurrentLinkedHashMap<Integer, Integer>) cache);
@@ -385,9 +435,8 @@ public final class ConcurrentLinkedHashMapTest extends Assert {
     /**
      * Creates a map warmed to the specified maximum size.
      */
-    private ConcurrentLinkedHashMap<Integer, Integer> createWarmedMap(int size, EvictionListener<Integer, Integer>... listeners) {
-        ConcurrentLinkedHashMap<Integer, Integer> cache = 
-            new ConcurrentLinkedHashMap<Integer, Integer>(EvictionPolicy.SECOND_CHANCE, size, listeners);
+    private ConcurrentLinkedHashMap<Integer, Integer> createWarmedMap(EvictionPolicy policy, int size, EvictionListener<Integer, Integer>... listeners) {
+        ConcurrentLinkedHashMap<Integer, Integer> cache = new ConcurrentLinkedHashMap<Integer, Integer>(policy, size, listeners);
         for (Integer i=0; i<size; i++) {
             assertNull(cache.put(i, i));
             assertEquals(cache.data.get(i).getValue(), i);
