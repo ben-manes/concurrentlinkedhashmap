@@ -178,9 +178,11 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
             if (node == null) {
                 return;
             } else if (policy.onEvict(this, node)) {
-                if (node.getValue() != null) {
-                    data.remove(node.getKey());
-                    notifyEviction(node);
+                V value = node.getValue();
+                if (value != null) {
+                    K key = node.getKey();
+                    data.remove(key);
+                    notifyEviction(key, value);
                 }
                 length.decrementAndGet();
                 return;
@@ -194,9 +196,9 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
      * 
      * @param node The evicted node.
      */
-    private void notifyEviction(Node<K, V> node) {
+    private void notifyEviction(K key, V value) {
         for (EvictionListener<K, V> listener : listeners) {
-            listener.onEviction(node.getKey(), node.getValue());
+            listener.onEviction(key, value);
         }
     }
     
@@ -295,6 +297,9 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
      * {@inheritDoc}
      */
     public V put(K key, V value) {
+        if (value == null) {
+            throw new IllegalArgumentException();
+        }
         Node<K, V> old = putIfAbsent(new Node<K, V>(key, value));
         return (old == null) ? null : old.getAndSetValue(value);
     }
@@ -303,6 +308,9 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
      * {@inheritDoc}
      */
     public V putIfAbsent(K key, V value) {
+        if (value == null) {
+            throw new IllegalArgumentException();
+        }
         Node<K, V> old = putIfAbsent(new Node<K, V>(key, value));
         return (old == null) ? null : old.getValue();
     }
@@ -315,7 +323,7 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
         if (node != null) {
             V value = node.getValue();
             policy.onRemove(this, node);
-            notifyEviction(node);
+            notifyEviction(node.getKey(), value);
             return value;
         }
         return null;
@@ -328,7 +336,7 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
         Node<K, V> node = (Node<K, V>) data.get(key);
         if ((node != null) && node.value.equals(value) && data.remove(key, node)) {
             policy.onRemove(this, node);
-            notifyEviction(node);
+            notifyEviction((K) key, (V) value);
             return true;
         }
         return false;
@@ -338,6 +346,9 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
      * {@inheritDoc}
      */
     public V replace(K key, V value) {
+        if (value == null) {
+            throw new IllegalArgumentException();
+        }
         Node<K, V> node = data.get(key);
         return (node == null) ? null : node.getAndSetValue(value);
     }
@@ -346,6 +357,9 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
      * {@inheritDoc}
      */
     public boolean replace(K key, V oldValue, V newValue) {
+        if (newValue == null) {
+            throw new IllegalArgumentException();
+        }
         Node<K, V> node = data.get(key);
         return (node == null) ? false : node.casValue(oldValue, newValue);
     }
