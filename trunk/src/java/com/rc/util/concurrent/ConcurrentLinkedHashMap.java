@@ -67,7 +67,8 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
     /**
      * Creates a new, empty, unbounded map with the specified maximum capacity and the default
      * concurrencyLevel.
-     * 
+     *
+     * @param policy          The eviction policy to apply when the size exceeds the maximum capacity.
      * @param maximumCapacity The maximum capacity to coerces to. The size may exceed it temporarily.
      * @param listeners       The listeners registered for notification when an entry is evicted.
      */
@@ -78,6 +79,7 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
     /**
      * Creates a new, empty, unbounded map with the specified maximum capacity and concurrency level.
      *
+     * @param policy           The eviction policy to apply when the size exceeds the maximum capacity.
      * @param maximumCapacity  The maximum capacity to coerces to. The size may exceed it temporarily.
      * @param concurrencyLevel The estimated number of concurrently updating threads. The implementation
      *                         performs internal sizing to try to accommodate this many threads.
@@ -194,7 +196,8 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
     /**
      * Notifies the listeners that an entry was evicted from the map.
      * 
-     * @param node The evicted node.
+     * @param key   The entry's key.
+     * @param value The entry's value.
      */
     private void notifyEviction(K key, V value) {
         for (EvictionListener<K, V> listener : listeners) {
