@@ -221,6 +221,7 @@
      groups="${testng.groups}"
      outputdir="${testng.outputdir}"
     >
+      <sysproperty key="exhaustive" value="${testng.exhaustive}"/>
       <classfileset dir="${test.build.dir}"/>
     </testng>
   </target>
