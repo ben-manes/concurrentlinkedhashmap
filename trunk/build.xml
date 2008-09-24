@@ -1,66 +1,227 @@
-<project name="ConcurrentLinkedHashMap" default="dist" basedir=".">
+<?xml version="1.0" encoding="UTF-8"?>
+<project name="ConcurrentLinkedHashMap" default="package" basedir=".">
   <description>A concurrent version of java.util.LinkedHashMap</description>
 
-  <!-- set global properties for this build -->
-  <property name="test-output" location="test-output"/>
-  <property name="test" location="unittest"/>
-  <property name="build" location="build"/>
-  <property name="dist" location="dist"/>
-  <property name="lib" location="lib"/>
-  <property name="src" location="src"/>
+  <!-- Load user overrides -->
+  <property file="${user.home}/.${ant.project.name}-build.properties"/>
+  <property file="${user.home}/.build.properties"/>
+  <property file="build.properties"/>
 
-  <path id="test.classpath">
-    <fileset dir="${dist}" includes="**/*.jar"/>
-    <pathelement location="${lib}/testng.jar"/>
-    <pathelement location="${lib}/ehcache-1.4.0.jar"/>
-    <pathelement location="${lib}/commons-lang-2.3.jar"/>
-    <pathelement location="${lib}/commons-collections-3.2.jar"/>
-    <pathelement location="${lib}/commons-math-1.2.jar"/>
-    <pathelement location="${lib}/clhm-${DSTAMP}.jar"/>
+  <!-- Load environment variables -->
+  <property environment="env"/>
+
+  <!-- Load tool settings -->
+  <import file="${external.import}"/>
+
+  <path id="deploy.path">
+    <path refid="commons.collections.deploy.path"/>
+    <path refid="commons.lang.deploy.path"/>
+    <path refid="commons.math.deploy.path"/>
+    <path refid="ehcache.deploy.path"/>
+    <path refid="testng.deploy.path"/>
   </path>
 
-  <taskdef name="testng" classname="org.testng.TestNGAntTask"/>
-  
+  <path id="test.path">
+    <path refid="deploy.path"/>
+    <pathelement location="${api.build.dir}"/>
+    <pathelement location="${test.build.dir}"/>
+  </path>
+
+  <!--
+  Do not provide a target with a description attribute unless the target
+  is valid to call from outside the build file.
+  -->
   <target name="init">
-    <!-- Create the time stamp -->
     <tstamp/>
-    <!-- Create the build directory structure used by compile -->
-    <mkdir dir="${build}"/>
-    <mkdir dir="${build}/api"/>
-    <mkdir dir="${build}/test"/>
+    <mkdir dir="${api.build.dir}"/>
+    <mkdir dir="${dist.dir}"/>
+    <mkdir dir="${test.build.dir}"/>
+    <mkdir dir="${tools.build.dir}"/>
   </target>
 
-  <target name="compile" depends="init" description="compile the source" >
-    <!-- Compile the java code from ${src} into ${build} -->
-    <javac srcdir="${src}" destdir="${build}/api"/>
+  <target name="clean" description="Removes all build artifacts.">
+    <delete dir="${build.dir}"/>
+    <delete dir="${dist.dir}"/>
   </target>
 
-  <target name="test" depends="dist" description="run the rest" >
-    <!-- Compile the java code from ${test} into ${build} -->
-    <javac srcdir="${test}" destdir="${build}/test" classpathref="test.classpath"/>
+  <target
+   name="compile"
+   depends="init"
+   description="Compiles Java sources into class files."
+  >
+    <depend
+     srcDir="${api.src.dir}"
+     destDir="${api.build.dir}"
+     cache="${api.build.dir}"
+    />
 
-    <!-- Execute TestNG -->
-    <testng classpathref="test.classpath" groups="server">
-      <classpath>
-        <pathelement location="${build}/test"/>
-      </classpath>
-      <classfileset dir="${build}" includes="test/**/*"/>
+    <javac
+     srcdir="${api.src.dir}"
+     destdir="${api.build.dir}"
+     debug="${javac.debug}"
+     deprecation="${javac.deprecation}"
+     fork="${javac.fork}"
+     optimize="${javac.optimize}"
+     source="${javac.source}"
+     target="${javac.target}"
+     verbose="${javac.verbose}"
+    >
+      <compilerarg value="-Xlint:all,-path" compiler="javac1.6"/>
+    </javac>
+
+    <depend
+     srcDir="${test.src.dir}"
+     destDir="${test.build.dir}"
+     cache="${test.build.dir}"
+     classpath="${api.build.dir}"
+    />
+
+    <javac
+     srcdir="${test.src.dir}"
+     destdir="${test.build.dir}"
+     classpathref="test.path"
+     debug="${javac.debug}"
+     deprecation="${javac.deprecation}"
+     fork="${javac.fork}"
+     optimize="${javac.optimize}"
+     source="${javac.source}"
+     target="${javac.target}"
+     verbose="${javac.verbose}"
+    >
+      <compilerarg value="-Xlint:all,-path" compiler="javac1.6"/>
+    </javac>
+  </target>
+
+  <target
+   name="document"
+   depends="compile"
+   description="Generates API documentation in HTML format."
+  >
+    <javadoc sourcepath="${api.src.dir}" destdir="${javadoc.build.dir}"/>
+  </target>
+
+  <target
+   name="package"
+   depends="compile"
+   description="Packages build artifacts into a jar."
+  >
+    <jar
+     destfile="${dist.dir}/${manifest.impl.vendor}-${DSTAMP}.jar"
+     duplicate="fail"
+    >
+      <fileset dir="${api.build.dir}" excludes="dependencies.txt"/>
+      <manifest>
+        <attribute name="Built-By" value="${user.name}"/>
+        <section name="common">
+          <attribute
+           name="Implementation-Title"
+           value="${manifest.impl.title}"
+          />
+          <attribute
+           name="Implementation-URL"
+           value="${manifest.impl.url}"
+          />
+          <attribute
+           name="Implementation-Vendor"
+           value="${manifest.impl.vendor}"
+          />
+          <attribute
+           name="Implementation-Version"
+           value="${manifest.impl.version}"
+          />
+        </section>
+      </manifest>
+    </jar>
+
+    <jar
+     destfile="${dist.dir}/${manifest.impl.vendor}-test-${DSTAMP}.jar"
+     duplicate="fail"
+    >
+      <fileset dir="${test.build.dir}" excludes="dependencies.txt"/>
+      <manifest>
+        <attribute name="Built-By" value="${user.name}"/>
+        <section name="common">
+          <attribute
+           name="Implementation-Title"
+           value="${manifest.impl.title} Test"
+          />
+          <attribute
+           name="Implementation-URL"
+           value="${manifest.impl.url}"
+          />
+          <attribute
+           name="Implementation-Vendor"
+           value="${manifest.impl.vendor}"
+          />
+          <attribute
+           name="Implementation-Version"
+           value="${manifest.impl.version}"
+          />
+        </section>
+      </manifest>
+    </jar>
+  </target>
+
+  <!-- Tasks devoted to code reviews. -->
+  <target
+   name="run-analyzers"
+   depends="run-findbugs, run-pmd"
+   description="Runs various code analyzers."
+  />
+
+  <target
+   name="run-findbugs"
+   depends="compile"
+   description="Runs the FindBugs tool."
+  >
+    <findbugs
+     failOnError="${findbugs.failOnError}"
+     home="${findbugs.home}"
+     jvmargs="-Xms128m -Xmx128m"
+     output="html"
+     outputFile="${findbugs.outputFile}"
+     reportLevel="${findbugs.reportLevel}"
+    >
+      <auxClasspath refid="deploy.path"/>
+      <class location="${api.build.dir}"/>
+      <class location="${test.build.dir}"/>
+      <sourcePath path="${api.src.dir}"/>
+      <sourcePath path="${test.src.dir}"/>
+    </findbugs>
+  </target>
+
+  <target
+   name="run-pmd"
+   depends="compile"
+   description="Runs the PMD tool."
+  >
+    <pmd
+     failOnError="${pmd.failOnError}"
+     failOnRuleViolation="${pmd.failOnRuleViolation}"
+     rulesetfiles="${pmd.rulesetfiles}"
+     shortFilenames="${pmd.shortFilenames}"
+     targetjdk="${pmd.targetjdk}"
+    >
+      <fileset dir="${api.src.dir}" includes="**/*.java"/>
+      <fileset dir="${test.src.dir}" includes="**/*.java"/>
+      <formatter type="html" toFile="${pmd.toFile}"/>
+    </pmd>
+  </target>
+
+  <target
+   name="run-tests"
+   depends="compile"
+   description="Runs unit tests over the build artifacts."
+  >
+    <testng
+     classpathref="test.path"
+     dumpCommand="${testng.dumpCommand}"
+     haltonfailure="${testng.haltonfailure}"
+     haltonskipped="${testng.haltonskipped}"
+     groups="${testng.groups}"
+     outputdir="${testng.outputdir}"
+    >
+      <classfileset dir="${test.build.dir}"/>
     </testng>
-  </target>
-
-  <target name="dist" depends="compile" description="generate the distribution" >
-    <!-- Create the distribution directory -->
-    <mkdir dir="${dist}"/>
-
-    <!-- Put everything in ${build} into the clhm-${DSTAMP}.jar file -->
-    <jar jarfile="${dist}/clhm-${DSTAMP}.jar" basedir="${build}/api"/>
-    <jar jarfile="${dist}/clhm-test-${DSTAMP}.jar" basedir="${build}/test"/>
-  </target>
-
-  <target name="clean" description="clean up" >
-    <!-- Delete the build and test artifacts -->
-    <delete dir="${test-output}"/>
-    <delete dir="${build}"/>
-    <delete dir="${dist}"/>
   </target>
 </project>
