@@ -336,7 +336,7 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
      * {@inheritDoc}
      */
     public boolean remove(Object key, Object value) {
-        Node<K, V> node = (Node<K, V>) data.get(key);
+        Node<K, V> node = data.get(key);
         if ((node != null) && node.value.equals(value) && data.remove(key, node)) {
             policy.onRemove(this, node);
             notifyEviction((K) key, (V) value);
