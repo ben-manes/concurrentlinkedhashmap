@@ -19,7 +19,7 @@ public final class ConcurrentFifoMap<K, V> implements ConcurrentMap<K, V> {
     private final AtomicInteger capacity;
     private final AtomicInteger size;
     private final Queue<K> queue;
-    
+
     public ConcurrentFifoMap(int capacity) {
         if (capacity <= 0) {
             throw new IllegalArgumentException("The capacity must be positive");
@@ -29,20 +29,20 @@ public final class ConcurrentFifoMap<K, V> implements ConcurrentMap<K, V> {
         this.capacity = new AtomicInteger(capacity);
         this.size = new AtomicInteger();
     }
-    
+
     /**
      * Retrieves the maximum capacity of the queue.
-     * 
+     *
      * @return The queue's capacity.
      */
     public int capacity() {
         return capacity.get();
     }
-    
+
     /**
      * Sets the maximum capacity of the map and eagerly evicts entries until the
      * queue shrinks to the appropriate size.
-     * 
+     *
      * @param capacity The maximum capacity of the queue.
      */
     public void setMaximumCapacity(int capacity) {
@@ -51,9 +51,9 @@ public final class ConcurrentFifoMap<K, V> implements ConcurrentMap<K, V> {
             evict();
         }
     }
-    
+
     /**
-     * Evicts a single entry from the map if it exceeds capacity. 
+     * Evicts a single entry from the map if it exceeds capacity.
      */
     private void evict() {
         while (size() > capacity()) {
@@ -137,7 +137,7 @@ public final class ConcurrentFifoMap<K, V> implements ConcurrentMap<K, V> {
             put(entry.getKey(), entry.getValue());
         }
     }
-    
+
     /**
      * {@inheritDoc}
      */

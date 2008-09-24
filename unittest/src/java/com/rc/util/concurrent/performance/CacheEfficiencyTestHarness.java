@@ -19,7 +19,7 @@ public final class CacheEfficiencyTestHarness {
         EXPONENTIAL("Random value from the exponential distribution with expected value = mean [arguments: mean]"),
         GAUSSIAN("Random value with the given mean and standard deviation [arguments: mean, sigma]"),
         POISSON("Random value with the given mean [arguments: mean]");
-        
+
         private final String help;
         private static final RandomData random = new RandomDataImpl();
         private Distribution(String help) {
@@ -27,7 +27,7 @@ public final class CacheEfficiencyTestHarness {
         }
         public double next(double... args) {
             switch (this) {
-                case UNIFORM: 
+                case UNIFORM:
                     return random.nextUniform(args[0], args[1]);
                 case EXPONENTIAL:
                     return random.nextExponential(args[0]);
@@ -43,10 +43,10 @@ public final class CacheEfficiencyTestHarness {
             return toString() + ": " + help;
         }
     }
-    
+
     /**
      * Creates a random working set based on an exponential distribution.
-     * 
+     *
      * @param mean The mean value of the distribution.
      * @param size The size of the working set.
      * @return     A random working set.
@@ -58,10 +58,10 @@ public final class CacheEfficiencyTestHarness {
         }
         return workingSet;
     }
-    
+
     /**
      * Determines the hit-rate of the cache.
-     * 
+     *
      * @param cache      The self-evicting map.
      * @param workingSet The request working set.
      * @return           The hit-rate.
@@ -77,20 +77,20 @@ public final class CacheEfficiencyTestHarness {
         }
         return hits;
     }
-    
+
     /**
      * Returns a pretty-printed string of the results.
-     * 
+     *
      * @param type The name of the cache type.
      * @param size The size of the working set.
      * @param hits The hit-rate.
      */
     public static String prettyPrint(String type, int size, int hits) {
         int misses = size - hits;
-        return String.format("%s: hits=%s (%s percent), misses=%s (%s percent)", type, 
-                DecimalFormat.getInstance().format(hits), 
+        return String.format("%s: hits=%s (%s percent), misses=%s (%s percent)", type,
+                DecimalFormat.getInstance().format(hits),
                 DecimalFormat.getPercentInstance().format(hits/size),
-                DecimalFormat.getInstance().format(misses), 
+                DecimalFormat.getInstance().format(misses),
                 DecimalFormat.getPercentInstance().format(misses/size));
     }
 }

@@ -12,7 +12,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * A {@link ConcurrentMap} that evicts elements once the capacity is reached.
- * 
+ *
  * This implementation uses a second-chance FIFO algorithm. This trades off
  * slightly worse efficiency than an LRU for a simpler, faster approach with
  * much lower lock contention.
@@ -24,10 +24,10 @@ public final class SecondChanceMap<K, V> implements ConcurrentMap<K, V> {
     private final AtomicInteger capacity;
     private final AtomicInteger size;
     private final Queue<K> queue;
-    
+
     /**
      * A self-evicting map that is bounded to a maximum capacity.
-     * 
+     *
      * @param capacity     The maximum size that the map can grow to.
      */
     public SecondChanceMap(int capacity) {
@@ -39,20 +39,20 @@ public final class SecondChanceMap<K, V> implements ConcurrentMap<K, V> {
         this.capacity = new AtomicInteger(capacity);
         this.size = new AtomicInteger();
     }
-    
+
     /**
      * Retrieves the maximum capacity of the queue.
-     * 
+     *
      * @return The queue's capacity.
      */
     public int capacity() {
         return capacity.get();
     }
-    
+
     /**
      * Sets the maximum capacity of the map and eagerly evicts entries until the
      * queue shrinks to the appropriate size.
-     * 
+     *
      * @param capacity The maximum capacity of the queue.
      */
     public void setMaximumCapacity(int capacity) {
@@ -61,9 +61,9 @@ public final class SecondChanceMap<K, V> implements ConcurrentMap<K, V> {
             evict();
         }
     }
-    
+
     /**
-     * Evicts a single entry from the map if it exceeds capacity. 
+     * Evicts a single entry from the map if it exceeds capacity.
      */
     private void evict() {
         while (size() > capacity()) {
@@ -76,7 +76,7 @@ public final class SecondChanceMap<K, V> implements ConcurrentMap<K, V> {
                 if (value.isSavedAndReset() && (map.putIfAbsent(key, value) == null)) {
                     queue.offer(key);
                 } else {
-                    size.decrementAndGet();   
+                    size.decrementAndGet();
                 }
             }
         }
@@ -160,7 +160,7 @@ public final class SecondChanceMap<K, V> implements ConcurrentMap<K, V> {
             put(entry.getKey(), entry.getValue());
         }
     }
-    
+
     /**
      * {@inheritDoc}
      */
@@ -192,6 +192,7 @@ public final class SecondChanceMap<K, V> implements ConcurrentMap<K, V> {
     /**
      * {@inheritDoc}
      */
+    @SuppressWarnings("unchecked")
     public boolean remove(Object key, Object value) {
         if (map.remove(key, new Value<V>((V) value))) {
             size.decrementAndGet();
@@ -243,7 +244,7 @@ public final class SecondChanceMap<K, V> implements ConcurrentMap<K, V> {
     private static final class Value<V> {
         private final V value;
         private final AtomicBoolean saved;
-        
+
         public Value(V value) {
             if (value == null) {
                 throw new IllegalArgumentException("Null value");

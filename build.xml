@@ -218,11 +218,10 @@
      dumpCommand="${testng.dumpCommand}"
      haltonfailure="${testng.haltonfailure}"
      haltonskipped="${testng.haltonskipped}"
-     groups="${testng.groups}"
      outputdir="${testng.outputdir}"
     >
-      <sysproperty key="exhaustive" value="${testng.exhaustive}"/>
       <classfileset dir="${test.build.dir}"/>
+      <sysproperty key="exhaustive" value="${testng.exhaustive}"/>
     </testng>
   </target>
 </project>

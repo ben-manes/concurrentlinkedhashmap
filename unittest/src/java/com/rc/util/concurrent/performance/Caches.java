@@ -41,10 +41,10 @@ public final class Caches {
         UNBOUNDED("ConcurrentMap with no eviction policy, initially sized at the capacity"),
         EHCACHE_FIFO("Ehcache, using FIFO eviction"),
         EHCACHE_LRU("Ehcache, using LRU eviction"),
-        
+
         // for clients command-line usage for caches to test
         ALL("Performs the test on all of the cache types");
-        
+
         private final String help;
         private Cache(String help) {
             this.help = help;
@@ -53,17 +53,18 @@ public final class Caches {
             return toString() + ": " + help;
         }
     }
-    
+
     private static volatile CacheManager ehcacheManager;
-    
+
     /**
      * Creates the local cache instance.
-     * 
+     *
      * @param type     The cache type.
      * @param capacity The cache's capacity.
      * @param maxSize  The unbounded, max possible size.
      * @return         A {@link Map} that automatically evicts.
      */
+    @SuppressWarnings("unchecked")
     public static <K, V> Map<K, V> create(Cache type, int capacity, int max, int nThreads) {
         switch (type) {
             case CONCURRENT_FIFO:
@@ -96,10 +97,10 @@ public final class Caches {
                 throw new IllegalStateException("Unknown mode: " + type);
         }
     }
-    
+
     /**
      * Creates an {@link Ehcache} from the local cache's settings.
-     * 
+     *
      * @param accessOrder The eviction policy: true=LRU, false=FIFO.
      */
     private static <K, V> Map<K, V> createEhcacheMap(String name, boolean accessOrder, int capacity) {
@@ -112,7 +113,7 @@ public final class Caches {
         ehcacheManager.addCache(ehcache);
         return new EhcacheMap<K, V>(ehcache);
     }
-    
+
     private static Ehcache createEhcache(String name, boolean accessOrder, int capacity) {
         MemoryStoreEvictionPolicy policy = (accessOrder ? MemoryStoreEvictionPolicy.LRU : MemoryStoreEvictionPolicy.FIFO);
         return new net.sf.ehcache.Cache(name, capacity, policy, false, null, false, 0, 0, false, 0, null, null, 0, 0);
@@ -122,8 +123,8 @@ public final class Caches {
     private static class UnsafeMap<K, V> extends LinkedHashMap<K, V> {
         private static final long serialVersionUID = 1L;
         private final int capacity;
-        
-        /** 
+
+        /**
          * @param accessOrder The eviction policy: true=LRU, false=FIFO.
          * @param capacity    The maximum capacity of the map.
          */
@@ -136,14 +137,14 @@ public final class Caches {
             return size() > capacity;
         }
     }
-    
+
     /** A self-evicting map that is protected by a reentrant locks. */
     private static class LockMap<K, V> extends UnsafeMap<K, V> {
         private static final long serialVersionUID = 1L;
         private final Lock readLock;
         private final Lock writeLock;
-        
-        /** 
+
+        /**
          * @param accessOrder FIFO=RW locks, LRU=Single lock
          * @param capacity    The maximum capacity of the map.
          */
@@ -195,11 +196,11 @@ public final class Caches {
             }
         }
     }
-    
+
     /** Exposes the cache as a {@link Map}. */
     private static final class EhcacheMap<K, V> extends AbstractMap<K, V> {
         private final Ehcache cache;
-        
+
         public EhcacheMap(Ehcache cache) {
             this.cache = cache;
         }

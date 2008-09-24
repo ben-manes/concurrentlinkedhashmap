@@ -18,7 +18,7 @@ import com.rc.util.concurrent.ConcurrentLinkedHashMap.Node.State;
  * @author <a href="mailto:ben.manes@reardencommerce.com">Ben Manes</a>
  */
 public final class Validator extends Assert {
-    
+
     /**
      * Validates that the map is in a correct state.
      */
@@ -29,12 +29,12 @@ public final class Validator extends Assert {
         assertTrue(map.capacity() >= map.size(), format("Overflow: c=%d s=%d", map.capacity(), map.size()));
         assertNotNull(map.head.getNext());
         assertNotNull(map.tail.getPrev());
-        
+
         if (exhaustive) {
             validateLinks(map);
         }
     }
-    
+
     /**
      * Validates that the map is empty.
      */
@@ -48,7 +48,7 @@ public final class Validator extends Assert {
         assertEquals(map.hashCode(), Collections.emptyMap().hashCode(), "Not equal hash codes");
         assertEquals(map.toString(), Collections.emptyMap().toString(), "Not equal string representations");
     }
-    
+
     /**
      * Validates that the linked map is empty.
      */
@@ -58,14 +58,14 @@ public final class Validator extends Assert {
         assertEquals(map.size(), map.data.size(), "Internel size != 0");
         validateNodesDead(map);
     }
-    
+
     /**
      * Validates that the doubly-linked list running through the map is in a correct state.
      */
     private static void validateLinks(ConcurrentLinkedHashMap<?, ?> map) {
         validateSentinelNode(map, map.head, true);
         validateSentinelNode(map, map.tail, false);
-        
+
         Map<Node<?, ?>, Object> seen = new IdentityHashMap<Node<?, ?>, Object>();
         Node<?, ?> current = map.head;
         Object dummy = new Object();
@@ -81,16 +81,16 @@ public final class Validator extends Assert {
                 validateDataNode(map, current);
             }
             if (current == map.tail) {
-                break;   
+                break;
             }
             current = current.getNext();
         }
         assertEquals(map.size(), seen.size()-dead, "Size != active list size");
     }
-    
+
     /**
      * Validates that the sentinel node is in a proper state.
-     * 
+     *
      * @param node  The sentinel node.
      * @param order The self-linked side - <tt>true</tt> if left, <tt>false</tt> if right.
      */
@@ -103,10 +103,10 @@ public final class Validator extends Assert {
         assertNotSame(node, order ? node.getNext() : node.getPrev());
         assertFalse(map.data.containsValue(node));
     }
-    
+
     /**
      * Validates the the data node is in a proper state.
-     * 
+     *
      * @param node The data node.
      */
     public static void validateDataNode(ConcurrentLinkedHashMap<?, ?> map, Node<?, ?> node) {
@@ -114,7 +114,7 @@ public final class Validator extends Assert {
         assertNotNull(node.getKey());
         if (node.getValue() == null) {
             if (map.policy != EvictionPolicy.LRU) {
-                assertFalse(map.containsKey(node.getKey()), "Dead node referenced by key");   
+                assertFalse(map.containsKey(node.getKey()), "Dead node referenced by key");
             }
         } else {
             assertTrue(map.containsKey(node.getKey()), "Live node has null value");
@@ -129,10 +129,10 @@ public final class Validator extends Assert {
         assertSame(node, node.getPrev().getNext());
         assertSame(node, node.getNext().getPrev());
     }
-    
+
     /**
      * Validates that all data nodes are marked as specified.
-     * 
+     *
      * @param mark Whether the nodes are saved from eviction.
      */
     public static void validateNodesMarked(ConcurrentLinkedHashMap<?, ?> map, boolean isMarked) {
@@ -140,7 +140,7 @@ public final class Validator extends Assert {
             assertEquals(node.isMarked(), isMarked, format("Node #%d", node.getKey()));
         }
     }
-    
+
     /**
      * Validates that all data nodes dead.
      */
@@ -152,7 +152,7 @@ public final class Validator extends Assert {
             current = current.getNext();
         }
     }
-    
+
     /**
      * Prints the nodes in list order.
      */

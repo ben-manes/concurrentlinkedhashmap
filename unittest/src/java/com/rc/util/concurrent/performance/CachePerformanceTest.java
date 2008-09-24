@@ -21,15 +21,15 @@ import com.rc.util.concurrent.performance.CacheEfficiencyTestHarness.Distributio
 import com.rc.util.concurrent.performance.Caches.Cache;
 
 /**
- * This test can be run at the command-line to evaluate the performance of different cache implementations. 
+ * This test can be run at the command-line to evaluate the performance of different cache implementations.
  *
  * @author <a href="mailto:ben.manes@reardencommerce.com">Ben Manes</a>
  */
 public final class CachePerformanceTest {
-    private enum TestType { 
+    private enum TestType {
         EFFICENCY("[working set size] [cache capacity] [distribution type] [...]"),
         CONCURRENCY("[runs] [cache type] [num threads] [max contention] [iterations] [percent writes] [cache capacity]");
-        
+
         private final String help;
         private TestType(String help) {
             this.help = help;
@@ -38,7 +38,7 @@ public final class CachePerformanceTest {
             return toString() + ": " + help;
         }
     }
-    
+
     private final Map<Integer, Integer> cache;
     private final boolean contention;
     private final List<Integer> keys;
@@ -47,7 +47,7 @@ public final class CachePerformanceTest {
 
     /**
      * A test that the cache evicts entries under high load.
-     * 
+     *
      * @param mode         The cache eviction mode.
      * @param nThreads     The number of threads to operate concurrently.
      * @param contention   Whether to create the maximum contention.
@@ -69,11 +69,11 @@ public final class CachePerformanceTest {
         this.keys = Collections.unmodifiableList(keys);
         this.cache = create(type, capacity, iterations, nThreads);
     }
-    
+
     public Map<Integer, Integer> getCache() {
         return cache;
     }
-    
+
     /**
      * @return The execution time of the test.
      */
@@ -82,20 +82,20 @@ public final class CachePerformanceTest {
         cache.clear();
         return time;
     }
-    
+
     /**
      * Executes read or write operations against the cache, thereby testing the efficiency of the
      * concurrency constructs guarding the cache. The worse the lock, the longer the execution time.
      */
     private final class CacheThrasher implements Callable<Long> {
         private final CyclicBarrier barrier = new CyclicBarrier(nThreads);
-        
+
         public Long call() throws InterruptedException, BrokenBarrierException {
             List<Integer> keys = new ArrayList<Integer>(CachePerformanceTest.this.keys);
             Random random = new Random();
             Collections.shuffle(keys);
             barrier.await();
-            
+
             for (Integer key : keys) {
                 if (percentWrite > random.nextInt(100)) {
                     cache.put(key, key);
@@ -109,7 +109,7 @@ public final class CachePerformanceTest {
             return null;
         }
     }
-    
+
     /**
      * Generates a working set and executes it against each cache implementation to determine its hit/miss rate.
      */
@@ -125,11 +125,11 @@ public final class CachePerformanceTest {
             System.out.println(prettyPrint(type.toString(), size, hits));
         }
     }
-    
+
     /**
      * Forces contention on the cache, thereby determining its performance under various concurrency scenarios.
      */
-    private static void doThrashingTest(int runs, Cache type, int nThreads, boolean contention, int iterations, 
+    private static void doThrashingTest(int runs, Cache type, int nThreads, boolean contention, int iterations,
                                         int percentWrite, int capacity) throws InterruptedException {
         long sum = 0;
         List<Long> times = new ArrayList<Long>(runs);
@@ -154,17 +154,17 @@ public final class CachePerformanceTest {
         }
         System.out.printf("Corrected Average: %s ms\n", DecimalFormat.getInstance().format(sum/(runs-2*bound)));
     }
-    
+
     /** Prints the command's help message. */
     private static void printHelp() {
         System.out.println("\nCachePerformanceTest [test type] [arguments...]\n");
         System.out.println("Test types:");
         for (TestType test : TestType.values()) {
-            System.out.println("\t" + test.toHelp());   
+            System.out.println("\t" + test.toHelp());
         }
         System.out.println("Distribution types:");
         for (Distribution distribution : Distribution.values()) {
-            System.out.println("\t" + distribution.toHelp());   
+            System.out.println("\t" + distribution.toHelp());
         }
         System.out.println("Cache types:");
         for (Cache type : Cache.values()) {
@@ -172,7 +172,7 @@ public final class CachePerformanceTest {
         }
         System.out.println();
     }
-    
+
     /** Executes the performance test via the command-line. */
     public static void main(String[] args) throws Exception {
         if (args.length == 0) {
@@ -181,7 +181,7 @@ public final class CachePerformanceTest {
         }
         try {
             switch (TestType.valueOf(args[0].toUpperCase())) {
-                case EFFICENCY: 
+                case EFFICENCY:
                     int size = Integer.valueOf(args[1]);
                     int cache_capacity = Integer.valueOf(args[2]);
                     Distribution distribution = Distribution.valueOf(args[3].toUpperCase());
@@ -203,7 +203,7 @@ public final class CachePerformanceTest {
                         for (Cache cacheType : Cache.values()) {
                             if (cacheType != Cache.ALL) {
                                 System.out.println("\n" + cacheType + ":");
-                                doThrashingTest(runs, cacheType, nThreads, contention, iterations, percentWrite, capacity);   
+                                doThrashingTest(runs, cacheType, nThreads, contention, iterations, percentWrite, capacity);
                             }
                         }
                     } else {
