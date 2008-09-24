@@ -22,14 +22,17 @@ public final class Validator extends Assert {
     /**
      * Validates that the map is in a correct state.
      */
-    public static void validate(ConcurrentLinkedHashMap<?, ?> map) {
+    public static void validate(ConcurrentLinkedHashMap<?, ?> map, boolean exhaustive) {
         assertEquals(map.capacity(), map.capacity.get(), "Tracked capacity != reported capacity");
         assertTrue(map.length.get() <= map.capacity.get(), "The list size is greater than the capacity");
         assertEquals(map.data.size(), map.size(), "Internal size != reported size");
         assertTrue(map.capacity() >= map.size(), format("Overflow: c=%d s=%d", map.capacity(), map.size()));
         assertNotNull(map.head.getNext());
         assertNotNull(map.tail.getPrev());
-        validateLinks(map);
+        
+        if (exhaustive) {
+            validateLinks(map);
+        }
     }
     
     /**
@@ -59,7 +62,7 @@ public final class Validator extends Assert {
     /**
      * Validates that the doubly-linked list running through the map is in a correct state.
      */
-    public static void validateLinks(ConcurrentLinkedHashMap<?, ?> map) {
+    private static void validateLinks(ConcurrentLinkedHashMap<?, ?> map) {
         validateSentinelNode(map, map.head, true);
         validateSentinelNode(map, map.tail, false);
         

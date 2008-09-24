@@ -335,6 +335,7 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
     /**
      * {@inheritDoc}
      */
+    @SuppressWarnings("unchecked")
     public boolean remove(Object key, Object value) {
         Node<K, V> node = data.get(key);
         if ((node != null) && node.value.equals(value) && data.remove(key, node)) {
@@ -471,6 +472,7 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
     /**
      * A node on the double-linked list. This list cross-cuts the data store.
      */
+    @SuppressWarnings("unchecked")
     static final class Node<K, V> implements Serializable {
         private static final long serialVersionUID = 1461281468985304519L;
         private static final AtomicReferenceFieldUpdater<Node, Object> valueUpdater = 
@@ -518,9 +520,8 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
             return value;
         }
         public void setValue(V value) {
-            this.valueUpdater.set(this, value);
+            valueUpdater.set(this, value);
         }
-        @SuppressWarnings("unchecked")
         public V getAndSetValue(V value) {
             return (V) valueUpdater.getAndSet(this, value);
         }
@@ -715,7 +716,7 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
             } else if (!(obj instanceof Entry)) {
                 return false;
             }
-            Entry entry = (Entry) obj;
+            Entry<?, ?> entry = (Entry<?, ?>) obj;
             return eq(key, entry.getKey()) && eq(value, entry.getValue());
         }
         public int hashCode() {
