@@ -221,6 +221,7 @@
      outputdir="${testng.outputdir}"
     >
       <classfileset dir="${test.build.dir}"/>
+      <jvmarg value="-Xss4m"/>
       <sysproperty key="exhaustive" value="${testng.exhaustive}"/>
     </testng>
   </target>
