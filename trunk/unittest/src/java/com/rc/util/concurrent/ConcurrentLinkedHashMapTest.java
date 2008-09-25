@@ -437,7 +437,7 @@ public final class ConcurrentLinkedHashMapTest extends Assert {
     @Test
     public void serialize() {
         ConcurrentLinkedHashMap<Integer, Integer> expected = createWarmedMap(EvictionPolicy.SECOND_CHANCE, size, guard);
-        Object cache = SerializationUtils.deserialize(SerializationUtils.serialize(expected));
+        Object cache = SerializationUtils.clone(expected);
         assertEquals(cache, expected);
         validate((ConcurrentLinkedHashMap<Integer, Integer>) cache, exhaustive);
     }
