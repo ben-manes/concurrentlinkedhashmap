@@ -126,9 +126,8 @@ public class NullFutureTask<V> implements Future<V>, Serializable {
   public V get() throws InterruptedException, ExecutionException {
     if (exception == null) {
       return value;
-    } else {
-      throw new ExecutionException(exception);
     }
+    throw new ExecutionException(exception);
   }
 
   /**
@@ -347,9 +346,6 @@ public final class SelfPopulatingMap<K, V> extends AbstractMap<K, V> implements 
    */
   @SuppressWarnings("unchecked")
   private static <T> T coerce(Object object) {
-    if (object == null) {
-      throw new IllegalArgumentException();
-    }
     // A hack due to the inability to perform an instanceof on generic types.
     // This should be replaced with java.reflect.Type tricks to perform a
     // runtime comparison. This is quite complex, but described in:
