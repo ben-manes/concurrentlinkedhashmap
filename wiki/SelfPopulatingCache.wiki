@@ -198,7 +198,7 @@ public final class SelfPopulatingMap<K, V> extends AbstractMap<K, V> implements 
   /**
    * An implementation that decorates the specified map.
    * 
-   * @param map   The backing map to decorate.
+   * @param map     The backing map to decorate.
    * @param factory The factory for creating entries on a miss.
    */
   public SelfPopulatingMap(ConcurrentMap<K, Future<V>> map, EntryFactory<K, V> factory) {
@@ -341,9 +341,9 @@ public final class SelfPopulatingMap<K, V> extends AbstractMap<K, V> implements 
   /**
    * Coerces the object to the desired generic type.
    * 
-   * @param <T>  The generic type desired.
+   * @param <T>    The generic type desired.
    * @param object The raw object, which may not be <tt>null</tt>.
-   * @return     The typed object or <tt>null</tt> not compatible.
+   * @return       The typed object or <tt>null</tt> not compatible.
    */
   @SuppressWarnings("unchecked")
   private static <T> T coerce(Object object) {
@@ -383,7 +383,7 @@ public final class SelfPopulatingMap<K, V> extends AbstractMap<K, V> implements 
      * Creates the entry.
      * 
      * @param key The key.
-     * @return  The value.
+     * @return    The value.
      */
     V createEntry(K key) throws Exception;
   }
