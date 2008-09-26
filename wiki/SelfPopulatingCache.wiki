@@ -6,7 +6,7 @@ The [http://java.sun.com/javase/6/docs/api/java/util/concurrent/package-summary.
 
 = Single-item Memoization =
 
-A [http://java.sun.com/j2se/1.5.0/docs/api/java/util/concurrent/Future.html Future] provides a promise of the results of a computation that may be performed on some thread. It will block the _get()_ call until the results are available.
+A [http://java.sun.com/j2se/1.5.0/docs/api/java/util/concurrent/Future.html Future] provides a promise of the results of a computation that may be performed on some thread. It will block the _get()_ call until the result is available.
 
 {{{
 public class Example {
@@ -28,7 +28,7 @@ public class Example {
 
 = Multi-item Memoization =
 
-By using a Map, multiple items can be lazily loaded. If unbounded this provides a configuration pool, while if bounded and self-evicting this provides a convenient cache.
+By using a Map multiple items can be lazily loaded. If unbounded this provides a configuration pool, while if bounded and self-evicting this provides a convenient cache.
 
 {{{
 public class SelfPopulatingMap<K, V> implements Map<K, V> {
@@ -41,14 +41,14 @@ public class SelfPopulatingMap<K, V> implements Map<K, V> {
   }
 
   // Retrieves the value, creating it if needed.
-  public V get(K key) {
+  public V get(final K key) {
     FutureTask<V> task = new FutureTask<V>(
       new Callable<V>() {
         public V call() throws Exception {
-          return factory.createEntry(typedKey);
+          return factory.createEntry(key);
         }
       });
-    Future<V> future = map.putIfAbsent(typedKey, task);
+    Future<V> future = map.putIfAbsent(key, task);
     try {
       if (future == null) {
         future = task;
