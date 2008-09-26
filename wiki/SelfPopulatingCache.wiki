@@ -10,7 +10,7 @@ A [http://java.sun.com/j2se/1.5.0/docs/api/java/util/concurrent/Future.html Futu
 
 {{{
 public class Example {
-  private final FutureTask<Computation> future = new FutureTask<Computation>(new ComputateOperation());
+  private final FutureTask<Computation> future = new FutureTask<Computation>(new Computable());
 
   // Lazily computes the work and returns the value
   public X getComputation() throws Exception {
@@ -18,7 +18,7 @@ public class Example {
     return future.get();
   }
 
-  private static final class ComputateOperation implements Callable<Computation> {
+  private static final class Computable implements Callable<Computation> {
     public Computation call() {
       // do work, return
     }
