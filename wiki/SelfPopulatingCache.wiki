@@ -179,7 +179,7 @@ import java.util.concurrent.FutureTask;
  * callers for that entry during its creation process.
  * 
  * @author <a href="mailto:ben.manes@reardencommerce.com">Ben Manes</a>
- * @see <tt>Java Concurrency in Practice<tt>'s Memoizer example.
+ * @see <tt>Java Concurrency in Practice</tt>'s Memoizer example.
  */
 public final class SelfPopulatingMap<K, V> extends AbstractMap<K, V> implements ConcurrentMap<K, V>, Serializable {
   private static final long serialVersionUID = -8699265986166521725L;
