@@ -1,6 +1,6 @@
 = Introduction =
 
-The [http://java.sun.com/javase/6/docs/api/java/util/concurrent/package-summary.html java.util.concurrent] package makes it easy to implement the [http://en.wikipedia.org/wiki/Memoization Memoization] - a function that lazily remembers the results of the input. The examples discussed here are further described in [http://jcip.net/ Java Concurrency in Practice].
+The [http://java.sun.com/javase/6/docs/api/java/util/concurrent/package-summary.html java.util.concurrent] package makes it easy to implement the [http://en.wikipedia.org/wiki/Memoization Memoization] idiom - a function that lazily remembers the results of the input. The examples discussed here are further described in [http://jcip.net/ Java Concurrency in Practice].
 
 = Single-item Memoization =
 
