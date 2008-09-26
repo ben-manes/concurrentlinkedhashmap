@@ -202,7 +202,7 @@ public final class SelfPopulatingMap<K, V> extends AbstractMap<K, V> implements 
    * @param factory The factory for creating entries on a miss.
    */
   public SelfPopulatingMap(ConcurrentMap<K, Future<V>> map, EntryFactory<K, V> factory) {
-    if ((map == null) || (factory == null) {
+    if ((map == null) || (factory == null)) {
       throw new IllegalArgumentException();
     }
     this.map = map;
