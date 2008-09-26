@@ -222,7 +222,9 @@
     >
       <classfileset dir="${test.build.dir}"/>
       <jvmarg value="-Xss4m"/>
+      <sysproperty key="debugMode" value="${testng.debugMode}"/>
       <sysproperty key="exhaustive" value="${testng.exhaustive}"/>
+      <sysproperty key="maximumCapacity" value="${testng.maximumCapacity}"/>
     </testng>
   </target>
 </project>

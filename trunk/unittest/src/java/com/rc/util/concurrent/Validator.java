@@ -13,16 +13,33 @@ import com.rc.util.concurrent.ConcurrentLinkedHashMap.Node;
 import com.rc.util.concurrent.ConcurrentLinkedHashMap.Node.State;
 
 /**
- * Validations for concurrent data structures.
+ * Validations for the concurrent data structure.
  *
  * @author <a href="mailto:ben.manes@reardencommerce.com">Ben Manes</a>
  */
 public final class Validator extends Assert {
+    private final boolean exhaustive;
+
+    /**
+     * A validator for the {@link ConcurrentLinkedHashMap}.
+     * 
+     * @param exhaustive Whether to perform deep validations.
+     */
+    public Validator(boolean exhaustive) {
+        this.exhaustive = exhaustive;
+    }
+    
+    /**
+     * @return Whether in exhaustive validation mode.
+     */
+    public boolean isExhaustive() {
+        return exhaustive;
+    }
 
     /**
      * Validates that the map is in a correct state.
      */
-    public static void validate(ConcurrentLinkedHashMap<?, ?> map, boolean exhaustive) {
+    public void state(ConcurrentLinkedHashMap<?, ?> map) {
         assertEquals(map.capacity(), map.capacity.get(), "Tracked capacity != reported capacity");
         assertTrue(map.length.get() <= map.capacity.get(), "The list size is greater than the capacity");
         assertEquals(map.data.size(), map.size(), "Internal size != reported size");
@@ -31,40 +48,35 @@ public final class Validator extends Assert {
         assertNotNull(map.tail.getPrev());
 
         if (exhaustive) {
-            validateLinks(map);
+            links(map);
         }
     }
 
     /**
-     * Validates that the map is empty.
+     * Validates that the linked map is empty.
      */
-    public static void validateEmpty(Map<?, ?> map) {
+    public void empty(ConcurrentLinkedHashMap<?, ?> map) {
         assertTrue(map.isEmpty(), "Not empty");
+        assertTrue(map.data.isEmpty(), "Internel not empty");
+        
         assertEquals(map.size(), 0, "Size != 0");
+        assertEquals(map.size(), map.data.size(), "Internel size != 0");
+        
         assertTrue(map.keySet().isEmpty(), "Not empty key set");
         assertTrue(map.values().isEmpty(), "Not empty value set");
         assertTrue(map.entrySet().isEmpty(), "Not empty entry set");
         assertEquals(map, Collections.emptyMap(), "Not equal to empty map");
         assertEquals(map.hashCode(), Collections.emptyMap().hashCode(), "Not equal hash codes");
         assertEquals(map.toString(), Collections.emptyMap().toString(), "Not equal string representations");
-    }
-
-    /**
-     * Validates that the linked map is empty.
-     */
-    public static void validateEmpty(ConcurrentLinkedHashMap<?, ?> map) {
-        validateEmpty((Map<?, ?>) map);
-        assertTrue(map.data.isEmpty(), "Internel not empty");
-        assertEquals(map.size(), map.data.size(), "Internel size != 0");
-        validateNodesDead(map);
+        allNodesDead(map);
     }
 
     /**
      * Validates that the doubly-linked list running through the map is in a correct state.
      */
-    private static void validateLinks(ConcurrentLinkedHashMap<?, ?> map) {
-        validateSentinelNode(map, map.head, true);
-        validateSentinelNode(map, map.tail, false);
+    private void links(ConcurrentLinkedHashMap<?, ?> map) {
+        sentinelNode(map, map.head, true);
+        sentinelNode(map, map.tail, false);
 
         Map<Node<?, ?>, Object> seen = new IdentityHashMap<Node<?, ?>, Object>();
         Node<?, ?> current = map.head;
@@ -76,9 +88,9 @@ public final class Validator extends Assert {
                 dead++;
             }
             if (current.getState() == State.SENTINEL) {
-                validateSentinelNode(map, current, current == map.head);
+                sentinelNode(map, current, current == map.head);
             } else {
-                validateDataNode(map, current);
+                dataNode(map, current);
             }
             if (current == map.tail) {
                 break;
@@ -94,7 +106,7 @@ public final class Validator extends Assert {
      * @param node  The sentinel node.
      * @param order The self-linked side - <tt>true</tt> if left, <tt>false</tt> if right.
      */
-    public static void validateSentinelNode(ConcurrentLinkedHashMap<?, ?> map, Node<?, ?> node, boolean order) {
+    public void sentinelNode(ConcurrentLinkedHashMap<?, ?> map, Node<?, ?> node, boolean order) {
         assertEquals(node.getState(), State.SENTINEL);
         assertNull(node.getKey());
         assertNull(node.getValue());
@@ -109,7 +121,7 @@ public final class Validator extends Assert {
      *
      * @param node The data node.
      */
-    public static void validateDataNode(ConcurrentLinkedHashMap<?, ?> map, Node<?, ?> node) {
+    public void dataNode(ConcurrentLinkedHashMap<?, ?> map, Node<?, ?> node) {
         assertEquals(node.getState(), State.LINKED);
         assertNotNull(node.getKey());
         if (node.getValue() == null) {
@@ -135,7 +147,7 @@ public final class Validator extends Assert {
      *
      * @param mark Whether the nodes are saved from eviction.
      */
-    public static void validateNodesMarked(ConcurrentLinkedHashMap<?, ?> map, boolean isMarked) {
+    public void allNodesMarked(ConcurrentLinkedHashMap<?, ?> map, boolean isMarked) {
         for (Node<?, ?> node : map.data.values()) {
             assertEquals(node.isMarked(), isMarked, format("Node #%d", node.getKey()));
         }
@@ -144,7 +156,7 @@ public final class Validator extends Assert {
     /**
      * Validates that all data nodes dead.
      */
-    public static void validateNodesDead(ConcurrentLinkedHashMap<?, ?> map) {
+    public void allNodesDead(ConcurrentLinkedHashMap<?, ?> map) {
         Node<?, ?> current = map.head.getNext();
         while (current != map.tail) {
             assertNull(current.getValue(), "Node not dead");
@@ -154,14 +166,15 @@ public final class Validator extends Assert {
     }
 
     /**
-     * Prints the nodes in list order.
+     * A string representation of the map's list nodes in the list's current order.
      */
-    public static void printLinkedList(ConcurrentLinkedHashMap<?, ?> map) {
+    public String externalizeLinkedList(ConcurrentLinkedHashMap<?, ?> map) {
+        StringBuilder builder = new StringBuilder();
         Node<?, ?> current = map.head.getNext();
         while (current != map.tail) {
-            System.out.println(current);
+            builder.append(current).append('\n');
             current = current.getNext();
         }
-        System.out.println();
+        return builder.toString();
     }
 }
