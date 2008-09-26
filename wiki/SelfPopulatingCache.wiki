@@ -4,7 +4,7 @@ The [http://java.sun.com/javase/6/docs/api/java/util/concurrent/package-summary.
 
 = Single-item Memoization =
 
-A [http://java.sun.com/j2se/1.5.0/docs/api/java/util/concurrent/Future.html Future] provides a promise of the results of a computation that may be performed on some thread. It will block the _get_ call until the results are available.
+A [http://java.sun.com/j2se/1.5.0/docs/api/java/util/concurrent/Future.html Future] provides a promise of the results of a computation that may be performed on some thread. It will block the _get()_ call until the results are available.
 
 {{{
 public class Example {
