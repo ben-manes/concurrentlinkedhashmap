@@ -1,0 +1,533 @@
+= Introduction =
+
+The java.util.concurrent library makes it easy to implement the [Memoization http://en.wikipedia.org/wiki/Memoization] - a function that lazily remembers the results of the input. The examples discussed here are further described in [http://jcip.net/ Java Concurrency in Practice].
+
+= Single-item Memoization =
+
+A [http://java.sun.com/j2se/1.5.0/docs/api/java/util/concurrent/Future.html Future] provides a promise of the results of a computation that may be performed on some thread. It will block the _get_ call until the results are available.
+
+{{{
+public class Example {
+  private final FutureTask<Computation> future = new FutureTask<Computation>(new CreateItemOperation());
+
+  // Lazily computes the work and returns the value
+  public X getComputation() throws Exception {
+    future.run();
+    return future.get();
+  }
+
+  private static final class CreateItemOperation implements Callable<Computation> {
+    public Computation call() {
+      // do work, return
+    }
+  }
+}
+}}}
+
+= Multi-item Memoization =
+
+By using a Map, multiple items can be lazily loaded. If unbounded, this provides a configuration pool (e.g. for persistant socket connections). If bounded and self-evicting, this provides a convenient cache.
+
+{{{
+public class SelfPopulatingMap<K, V> implements Map<K, V> {
+  private final ConcurrentMap<K, Future<V>> map;
+  private final EntryFactory<K, V> factory;
+
+  public SelfPopulatingMap(ConcurrentMap<K, Future<V>> map, EntryFactory<K, V> factory) {
+    this.map = map;
+    this.factory = factory;
+  }
+
+  // Retrieves the value, creating it if needed.
+  public V get(K key) {
+    FutureTask<V> task = new FutureTask<V>(
+      new Callable<V>() {
+        public V call() throws Exception {
+          return factory.createEntry(typedKey);
+        }
+      });
+    Future<V> future = map.putIfAbsent(typedKey, task);
+    try {
+      if (future == null) {
+        future = task;
+        task.run();
+      }
+      return future.get();
+    } catch (Exception e) {
+      remove(key);
+      throw new RuntimeException(e);
+    }
+  }
+
+  public static interface EntryFactory<K, V> {
+    V createEntry(K key) throws Exception;
+  }
+
+  // further implementation details for a Map<K, V>
+}
+}}}
+
+= A Full Multi-item Memoization Implementation =
+
+{{{
+import java.io.Serializable;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+
+/**
+ * A {@link Future} warmed with a return value.
+ * 
+ * @author <a href="mailto:ben.manes@reardencommerce.com">Ben Manes</a>
+ */
+public class NullFutureTask<V> implements Future<V>, Serializable {
+  private static final Runnable runner = new Runnable() { public void run() {} };
+  private static final long serialVersionUID = 925553552559539354L;
+  private final Exception exception;
+  private final V value;
+  
+  /**
+   * A {@link Future} with a value <tt>null</tt>.
+   */
+  public NullFutureTask() {
+    this((V) null);
+  }
+  
+  /**
+   * A {@link Future} warmed with the given value.
+   */
+  public NullFutureTask(V result) {
+    this(Executors.callable(runner, result));
+  }
+  
+  /**
+   * A {@link Future} warmed with the given value.
+   */
+  public NullFutureTask(Callable<V> callable) {
+    V value = null;
+    Exception exception = null;
+    try {
+      value = callable.call();
+    } catch (Exception e) {
+      exception = e;
+    }
+    this.value = value;
+    this.exception = exception;
+  }
+
+  /**
+   * {@inheritDoc}
+   */
+  public V get() throws InterruptedException, ExecutionException {
+    if (exception == null) {
+      return value;
+    } else {
+      throw new ExecutionException(exception);
+    }
+  }
+
+  /**
+   * {@inheritDoc}
+   */
+  public V get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
+    return get();
+  }
+  
+  /**
+   * Always returns <tt>true</tt> as the task has completed.
+   */
+  public boolean isDone() {
+    return true;
+  }
+  
+  /**
+   * Always returns <tt>false</tt> as the task has completed.
+   */
+  public boolean cancel(boolean mayInterruptIfRunning) {
+    return false;
+  }
+
+  /**
+   * Always returns <tt>false</tt> as the task has completed.
+   */
+  public boolean isCancelled() {
+    return false;
+  }
+}
+}}}
+
+{{{
+import java.io.Serializable;
+import java.util.AbstractMap;
+import java.util.AbstractSet;
+import java.util.Iterator;
+import java.util.Set;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.concurrent.FutureTask;
+
+/**
+ * A {@link ConcurrentMap} that automatically creates an entry when not found and blocks other
+ * callers for that entry during its creation process.
+ * 
+ * @author <a href="mailto:ben.manes@reardencommerce.com">Ben Manes</a>
+ * @see <tt>Java Concurrency in Practice<tt>'s Memoizer example.
+ */
+public final class SelfPopulatingMap<K, V> extends AbstractMap<K, V> implements ConcurrentMap<K, V>, Serializable {
+  private static final long serialVersionUID = -8699265986166521725L;
+  private final ConcurrentMap<K, Future<V>> map;
+  private final EntryFactory<K, V> factory;
+  
+  /**
+   * An unbounded implementation using an {@link ConcurrentHashMap}.
+   * 
+   * @param factory The factory for creating entries on a miss.
+   */
+  public SelfPopulatingMap(EntryFactory<K, V> factory) {
+    this(new ConcurrentHashMap<K, Future<V>>(), factory);
+  }
+  
+  /**
+   * An implementation that decorates the specified map.
+   * 
+   * @param map   The backing map to decorate.
+   * @param factory The factory for creating entries on a miss.
+   */
+  public SelfPopulatingMap(ConcurrentMap<K, Future<V>> map, EntryFactory<K, V> factory) {
+    if ((map == null) || (factory == null) {
+      throw new IllegalArgumentException();
+    }
+    this.map = map;
+    this.factory = factory;
+  }
+  
+  /**
+   * {@inheritDoc}
+   */
+  @Override
+  public boolean isEmpty() {
+    return map.isEmpty();
+  }
+  
+  /**
+   * {@inheritDoc}
+   */
+  @Override
+  public int size() {
+    return map.size();
+  }
+  
+  /**
+   * {@inheritDoc}
+   */
+  @Override
+  public void clear() {
+    map.clear();
+  }
+
+  /**
+   * {@inheritDoc}
+   */
+  @Override
+  public boolean containsKey(Object key) {
+    return map.containsKey(key);
+  }
+
+  /**
+   * {@inheritDoc}
+   */
+  @Override
+  public boolean containsValue(Object value) {
+    return map.containsKey(new NullFutureTask<Object>(value));
+  }
+  
+  /**
+   * {@inheritDoc}
+   */
+  @Override
+  public V get(Object key) {
+    final K typedKey = SelfPopulatingMap.<K>coerce(key);
+    if (typedKey == null) {
+      return null;
+    }
+    
+    FutureTask<V> task = new FutureTask<V>(
+      new Callable<V>() {
+        public V call() throws Exception {
+          return factory.createEntry(typedKey);
+        }
+      });
+    Future<V> future = map.putIfAbsent(typedKey, task);
+    try {
+      if (future == null) {
+        future = task;
+        task.run();
+      }
+      return future.get();
+    } catch (Exception e) {
+      remove(key);
+      throw new RuntimeException(e);
+    }
+  }
+  
+  /**
+   * {@inheritDoc}
+   */
+  @Override
+  public V put(K key, V value) {
+    return fromFuture(map.put(key, new NullFutureTask<V>(value)));
+  }
+  
+  /**
+   * {@inheritDoc}
+   */
+  public V putIfAbsent(K key, V value) {
+    Future<V> future = map.putIfAbsent(key, new NullFutureTask<V>(value));
+    return (future == null) ? null : fromFuture(future);
+  }
+  
+  /**
+   * {@inheritDoc}
+   */
+  @Override
+  public V remove(Object key) {
+    return fromFuture(map.remove(key));
+  }
+
+  /**
+   * {@inheritDoc}
+   */
+  public boolean remove(Object key, Object value) {
+    return map.remove(key, new NullFutureTask<V>(SelfPopulatingMap.<V>coerce(value)));
+  }
+
+  /**
+   * {@inheritDoc}
+   */
+  public V replace(K key, V value) {
+    return fromFuture(map.replace(key, new NullFutureTask<V>(value)));
+  }
+
+  /**
+   * {@inheritDoc}
+   */
+  public boolean replace(K key, V oldValue, V newValue) {
+    return map.replace(key, new NullFutureTask<V>(oldValue), new NullFutureTask<V>(oldValue));
+  }
+  
+  /**
+   * {@inheritDoc}
+   */
+  @Override
+  public Set<K> keySet() {
+    return map.keySet();
+  }
+  
+  /**
+   * {@inheritDoc}
+   */
+  public Set<Entry<K, V>> entrySet() {
+    return new EntrySetAdapter();
+  }
+  
+  /**
+   * Coerces the object to the desired generic type.
+   * 
+   * @param <T>  The generic type desired.
+   * @param object The raw object, which may not be <tt>null</tt>.
+   * @return     The typed object or <tt>null</tt> not compatible.
+   */
+  @SuppressWarnings("unchecked")
+  private static <T> T coerce(Object object) {
+    if (object == null) {
+      throw new IllegalArgumentException();
+    }
+    // A hack due to the inability to perform an instanceof on generic types.
+    // This should be replaced with java.reflect.Type tricks to perform a
+    // runtime comparison. This is quite complex, but described in:
+    // http://www.artima.com/weblogs/viewpost.jsp?thread=208860
+    try {
+      return (T) object;
+    } catch (ClassCastException e) {
+      return null;
+    }
+  }
+  
+  /**
+   * Unwraps a {@link Future} and throws a runtime exception on a failure.
+   */
+  private static final <V> V fromFuture(Future<V> future) {
+    try {
+      return (future == null) ? null : future.get();
+    } catch (ExecutionException e) {
+      throw new RuntimeException(e);
+    } catch (InterruptedException e) {
+      throw new RuntimeException(e);
+    }
+  }
+  
+  /**
+   * A factory for creating an entry.
+   */
+  public static interface EntryFactory<K, V> {
+    
+    /**
+     * Creates the entry.
+     * 
+     * @param key The key.
+     * @return  The value.
+     */
+    V createEntry(K key) throws Exception;
+  }
+  
+  /**
+   * An adapter to represent the data in the external type.
+   */
+  private final class EntrySetAdapter extends AbstractSet<Entry<K,V>> {
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void clear() {
+      SelfPopulatingMap.this.clear();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public int size() {
+      return SelfPopulatingMap.this.size();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public Iterator<Entry<K, V>> iterator() {
+      return new EntryIteratorAdapter(SelfPopulatingMap.this.map.entrySet().iterator());
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean contains(Object obj) {
+      if (obj == this) {
+        return true;
+      } else if (!(obj instanceof Entry)) {
+        return false;
+      }
+      Entry<?, ?> entry = (Entry<?, ?>) obj;
+      V value = SelfPopulatingMap.this.get(entry.getKey());
+      return (value != null) && (value.equals(entry.getValue()));
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean add(Entry<K, V> entry) {
+      return (SelfPopulatingMap.this.putIfAbsent(entry.getKey(), entry.getValue()) == null);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean remove(Object obj) {
+      if (!(obj instanceof Entry)) {
+        return false;
+      }
+      Entry<?, ?> entry = (Entry<?, ?>) obj;
+      return SelfPopulatingMap.this.remove(entry.getKey(), entry.getValue());
+    }
+  }
+
+  /**
+   * An adapter to represent the data's entry iterator in the external type.
+   */
+  private final class EntryIteratorAdapter implements Iterator<Entry<K, V>> {
+    private final Iterator<Entry<K, Future<V>>> iterator;
+    private Entry<K, Future<V>> current;
+
+    public EntryIteratorAdapter(Iterator<Entry<K, Future<V>>> iterator) {
+      this.iterator = iterator;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public boolean hasNext() {
+      return iterator.hasNext();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public Entry<K, V> next() {
+      current = iterator.next();
+      return new SimpleEntry<K, V>(current.getKey(), fromFuture(current.getValue()));
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public void remove() {
+      if (current == null) {
+        throw new IllegalStateException();
+      }
+      SelfPopulatingMap.this.remove(current.getKey(), current.getValue());
+      current = null;
+    }
+  }
+
+  /**
+   * This duplicates {@link java.util.AbstractMap.SimpleEntry} until the class is made accessible.
+   */
+  private static final class SimpleEntry<K,V> implements Entry<K,V> {
+    private final K key;
+    private V value;
+
+    public SimpleEntry(K key, V value) {
+      this.key   = key;
+      this.value = value;
+    }
+    public K getKey() {
+      return key;
+    }
+    public V getValue() {
+      return value;
+    }
+    public V setValue(V value) {
+      V oldValue = this.value;
+      this.value = value;
+      return oldValue;
+    }
+    public boolean equals(Object obj) {
+      if (obj == this) {
+        return true;
+      } else if (!(obj instanceof Entry)) {
+        return false;
+      }
+      Entry<?, ?> entry = (Entry<?, ?>) obj;
+      return eq(key, entry.getKey()) && eq(value, entry.getValue());
+    }
+    public int hashCode() {
+      return ((key   == null)   ? 0 :   key.hashCode()) ^
+           ((value == null)   ? 0 : value.hashCode());
+    }
+    public String toString() {
+      return key + "=" + value;
+    }
+    private static boolean eq(Object o1, Object o2) {
+      return (o1 == null) ? (o2 == null) : o1.equals(o2);
+    }
+  }
+}
+}}}
