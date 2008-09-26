@@ -15,7 +15,7 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
  * This harness can be used for performance tests, investigations of lock contention,
  * etc.
  *
- * This code was adapted from <tt>Java Concurrency in Practice<tt>, using an example
+ * This code was adapted from <tt>Java Concurrency in Practice</tt>, using an example
  * of a {@link CountDownLatch} for starting and stopping threads in timing tests.
  *
  * @author  <a href="mailto:ben.manes@reardencommerce.com">Ben Manes</a>
