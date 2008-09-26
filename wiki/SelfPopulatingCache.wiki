@@ -26,7 +26,7 @@ public class Example {
 
 = Multi-item Memoization =
 
-By using a Map, multiple items can be lazily loaded. If unbounded this provides a configuration pool while if bounded and self-evicting this provides a convenient cache.
+By using a Map, multiple items can be lazily loaded. If unbounded this provides a configuration pool, while if bounded and self-evicting this provides a convenient cache.
 
 {{{
 public class SelfPopulatingMap<K, V> implements Map<K, V> {
