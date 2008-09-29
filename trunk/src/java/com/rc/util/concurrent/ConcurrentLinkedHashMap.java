@@ -290,15 +290,6 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
     /**
      * {@inheritDoc}
      */
-    public void putAll(Map<? extends K, ? extends V> map) {
-        for (Map.Entry<? extends K, ? extends V> entry : map.entrySet()) {
-            put(entry.getKey(), entry.getValue());
-        }
-    }
-
-    /**
-     * {@inheritDoc}
-     */
     public V put(K key, V value) {
         if (value == null) {
             throw new IllegalArgumentException();
