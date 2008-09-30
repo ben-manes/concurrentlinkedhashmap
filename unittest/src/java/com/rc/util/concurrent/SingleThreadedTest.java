@@ -114,10 +114,10 @@ public final class SingleThreadedTest extends BaseTest {
      */
     @Test
     public void remove() {
-        EvictionMonitor monitor = EvictionMonitor.newMonitor();
+        EvictionMonitor guard = EvictionMonitor.newGuard();
 
         // Map#remove()
-        ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap(monitor);
+        ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap(guard);
         for (Integer i=0; i<capacity; i++) {
             assertEquals(cache.remove(i), i, format("Failure on index #%d", i));
             assertNull(cache.remove(i), "Not fully removed");
@@ -125,11 +125,9 @@ public final class SingleThreadedTest extends BaseTest {
         }
         validator.state(cache);
         validator.empty(cache);
-        assertEquals(monitor.evicted.size(), capacity);
 
         // ConcurrentMap#remove()
-        monitor.evicted.clear();
-        cache = createWarmedMap(monitor);
+        cache = createWarmedMap(guard);
         for (Integer i=0; i<capacity; i++) {
             assertFalse(cache.remove(i, -1));
             assertTrue(cache.remove(i, i));
@@ -139,7 +137,6 @@ public final class SingleThreadedTest extends BaseTest {
         validator.state(cache);
         validator.empty(cache);
         validator.allNodesMarked(cache, false);
-        assertEquals(monitor.evicted.size(), capacity);
     }
 
     /**
@@ -167,11 +164,10 @@ public final class SingleThreadedTest extends BaseTest {
      */
     @Test
     public void clear() {
-        EvictionMonitor monitor = EvictionMonitor.newMonitor();
-        ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap(monitor);
+        EvictionMonitor guard = EvictionMonitor.newGuard();
+        ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap(guard);
         cache.clear();
         validator.state(cache);
-        assertEquals(monitor.evicted.size(), capacity);
     }
 
     /**

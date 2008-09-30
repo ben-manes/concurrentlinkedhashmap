@@ -39,6 +39,7 @@ public final class Caches {
         SYNC_FIFO("LinkedHashMap in FIFO eviction, guarded by synchronized monitor"),
         SYNC_LRU("LinkedHashMap in LRU eviction, guarded by synchronized monitor"),
         UNBOUNDED("ConcurrentMap with no eviction policy, initially sized at the capacity"),
+        UNBOUNDED_NO_RESIZE("ConcurrentMap with no eviction policy, initially sized to avoid internal resizing"),
         EHCACHE_FIFO("Ehcache, using FIFO eviction"),
         EHCACHE_LRU("Ehcache, using LRU eviction"),
 
@@ -68,11 +69,11 @@ public final class Caches {
     public static <K, V> Map<K, V> create(Cache type, int capacity, int max, int nThreads) {
         switch (type) {
             case CONCURRENT_FIFO:
-                return new ConcurrentLinkedHashMap<K, V>(EvictionPolicy.FIFO, max, nThreads);
+                return new ConcurrentLinkedHashMap<K, V>(EvictionPolicy.FIFO, capacity, nThreads);
             case CONCURRENT_SECOND_CHANCE:
-                return new ConcurrentLinkedHashMap<K, V>(EvictionPolicy.SECOND_CHANCE, max, nThreads);
+                return new ConcurrentLinkedHashMap<K, V>(EvictionPolicy.SECOND_CHANCE, capacity, nThreads);
             case CONCURRENT_LRU:
-                return new ConcurrentLinkedHashMap<K, V>(EvictionPolicy.LRU, max, nThreads);
+                return new ConcurrentLinkedHashMap<K, V>(EvictionPolicy.LRU, capacity, nThreads);
             case FAST_FIFO:
                 return new ConcurrentFifoMap<K, V>(capacity);
             case FAST_FIFO_2C:
@@ -89,6 +90,8 @@ public final class Caches {
                 return Collections.synchronizedMap(new UnsafeMap<K, V>(true, capacity));
             case UNBOUNDED:
                 return new ConcurrentHashMap<K, V>(capacity, 0.75f, 1000);
+            case UNBOUNDED_NO_RESIZE:
+                return new ConcurrentHashMap<K, V>(max, 0.75f, 1000);
             case EHCACHE_FIFO:
                 return createEhcacheMap("FIFO", false, capacity);
             case EHCACHE_LRU:
