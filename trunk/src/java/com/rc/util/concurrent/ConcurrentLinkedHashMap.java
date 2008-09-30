@@ -7,7 +7,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -120,7 +119,7 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
      */
     public void setCapacity(int capacity) {
         if (capacity < 0) {
-            throw new IllegalArgumentException("The capacity cannot be negative");
+            throw new IllegalArgumentException();
         }
         this.capacity.set(capacity);
         while (isOverflow()) {
@@ -317,7 +316,6 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
         if (node != null) {
             V value = node.getValue();
             policy.onRemove(this, node);
-            notifyEviction(node.getKey(), value);
             return value;
         }
         return null;
@@ -326,12 +324,10 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
     /**
      * {@inheritDoc}
      */
-    @SuppressWarnings("unchecked")
     public boolean remove(Object key, Object value) {
         Node<K, V> node = data.get(key);
         if ((node != null) && node.value.equals(value) && data.remove(key, node)) {
             policy.onRemove(this, node);
-            notifyEviction((K) key, (V) value);
             return true;
         }
         return false;
@@ -369,7 +365,7 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
     /**
      * A listener registered for notification when an entry is evicted.
      */
-    public static interface EvictionListener<K, V> {
+    public interface EvictionListener<K, V> {
 
         /**
          * A call-back notification that the entry was evicted.
@@ -395,9 +391,6 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
             <K, V> boolean onEvict(ConcurrentLinkedHashMap<K, V> map, Node<K, V> node) {
                 return true;
             }
-            <K, V> void onRemove(ConcurrentLinkedHashMap<K, V> map, Node<K, V> node) {
-                node.setValue(null);
-            }
         },
 
         /**
@@ -407,16 +400,16 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
             <K, V> void onGet(ConcurrentLinkedHashMap<K, V> map, Node<K, V> node) {
                 node.setMarked(true);
             }
+            <K, V> void onRemove(ConcurrentLinkedHashMap<K, V> map, Node<K, V> node) {
+                super.onRemove(map, node);
+                node.setMarked(false);
+            }
             <K, V> boolean onEvict(ConcurrentLinkedHashMap<K, V> map, Node<K, V> node) {
                 if (node.isMarked()) {
                     node.setMarked(false);
                     return false;
                 }
                 return true;
-            }
-            <K, V> void onRemove(ConcurrentLinkedHashMap<K, V> map, Node<K, V> node) {
-                node.setMarked(false);
-                node.setValue(null);
             }
         },
 
@@ -436,9 +429,6 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
             <K, V> boolean onEvict(ConcurrentLinkedHashMap<K, V> map, Node<K, V> node) {
                 return true;
             }
-            <K, V> void onRemove(ConcurrentLinkedHashMap<K, V> map, Node<K, V> node) {
-                node.setValue(null);
-            }
         };
 
         /**
@@ -451,7 +441,9 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
          * caller of this method should have already removed the node from the mapping so that
          * no key can look it up. When the node reaches the head of the list it will be evicted.
          */
-        abstract <K, V> void onRemove(ConcurrentLinkedHashMap<K, V> map, Node<K, V> node);
+        <K, V> void onRemove(ConcurrentLinkedHashMap<K, V> map, Node<K, V> node) {
+            node.setValue(null);
+        }
 
         /**
          * Determines whether to evict the node at the head of the list. If false, the node is offered
@@ -567,8 +559,18 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
             } else if (!(obj instanceof Node)) {
                 return false;
             }
+            V value = getValue();
             Node<?, ?> node = (Node<?, ?>) obj;
-            return (getValue() == null) ? (node.getValue() == null) : getValue().equals(node.getValue());
+            return (value == null) ? (node.getValue() == null) : value.equals(node.getValue());
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public int hashCode() {
+            return ((key   == null) ? 0 : key.hashCode()) ^
+                   ((value == null) ? 0 : value.hashCode());
         }
 
         @Override
@@ -610,9 +612,7 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
          */
         @Override
         public boolean contains(Object obj) {
-            if (obj == this) {
-                return true;
-            } else if (!(obj instanceof Entry)) {
+            if (!(obj instanceof Entry)) {
                 return false;
             }
             Entry<?, ?> entry = (Entry<?, ?>) obj;
