@@ -186,7 +186,7 @@ public final class SelfPopulatingMap<K, V> extends AbstractMap<K, V> implements 
   private final EntryFactory<K, V> factory;
   
   /**
-   * An unbounded implementation using an {@link ConcurrentHashMap}.
+   * An unbounded implementation using a {@link ConcurrentHashMap}.
    * 
    * @param factory The factory for creating entries on a miss.
    */
