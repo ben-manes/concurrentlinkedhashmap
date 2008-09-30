@@ -226,7 +226,6 @@
       <sysproperty key="test.debugMode" value="${test.debugMode}"/>
       <sysproperty key="test.exhaustive" value="${test.exhaustive}"/>
       <sysproperty key="test.maximumCapacity" value="${test.maximumCapacity}"/>
-
       <sysproperty key="efficiency.workingSetSize" value="${efficiency.workingSetSize}"/>
       <sysproperty key="efficiency.distribution" value="${efficiency.distribution}"/>
       <sysproperty key="efficiency.distribution.uniform.lower" value="${efficiency.distribution.uniform.lower}"/>
