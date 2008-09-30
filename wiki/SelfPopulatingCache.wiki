@@ -253,7 +253,7 @@ public final class SelfPopulatingMap<K, V> extends AbstractMap<K, V> implements 
    */
   @Override
   public V get(Object key) {
-    final K typedKey = SelfPopulatingMap.<K>coerce(key);
+    final K typedKey = coerce(key);
     if (typedKey == null) {
       return null;
     }
