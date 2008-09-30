@@ -416,9 +416,7 @@ public final class SelfPopulatingMap<K, V> extends AbstractMap<K, V> implements 
      */
     @Override
     public boolean contains(Object obj) {
-      if (obj == this) {
-        return true;
-      } else if (!(obj instanceof Entry)) {
+      if (!(obj instanceof Entry)) {
         return false;
       }
       Entry<?, ?> entry = (Entry<?, ?>) obj;
