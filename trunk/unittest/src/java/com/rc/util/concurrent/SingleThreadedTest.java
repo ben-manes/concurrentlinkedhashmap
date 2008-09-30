@@ -320,8 +320,8 @@ public final class SingleThreadedTest extends BaseTest {
     @Test
     public void evictAsLru() {
         ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap(EvictionPolicy.LRU, 10);
-        
-        debug("Initial: %s", validator.externalizeLinkedList(cache));        
+
+        debug("Initial: %s", validator.externalizeLinkedList(cache));
         assertTrue(cache.keySet().containsAll(Arrays.asList(0, 1, 2, 3, 4, 5, 6, 7, 8, 9)), "Instead: " + cache.keySet());
         assertEquals(cache.size(), 10);
 

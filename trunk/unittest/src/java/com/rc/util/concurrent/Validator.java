@@ -22,13 +22,13 @@ public final class Validator extends Assert {
 
     /**
      * A validator for the {@link ConcurrentLinkedHashMap}.
-     * 
+     *
      * @param exhaustive Whether to perform deep validations.
      */
     public Validator(boolean exhaustive) {
         this.exhaustive = exhaustive;
     }
-    
+
     /**
      * @return Whether in exhaustive validation mode.
      */
@@ -58,10 +58,10 @@ public final class Validator extends Assert {
     public void empty(ConcurrentLinkedHashMap<?, ?> map) {
         assertTrue(map.isEmpty(), "Not empty");
         assertTrue(map.data.isEmpty(), "Internel not empty");
-        
+
         assertEquals(map.size(), 0, "Size != 0");
         assertEquals(map.size(), map.data.size(), "Internel size != 0");
-        
+
         assertTrue(map.keySet().isEmpty(), "Not empty key set");
         assertTrue(map.values().isEmpty(), "Not empty value set");
         assertTrue(map.entrySet().isEmpty(), "Not empty entry set");
