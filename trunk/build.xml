@@ -216,15 +216,25 @@
     <testng
      classpathref="test.path"
      dumpCommand="${testng.dumpCommand}"
+     groups="${testng.groups}"
      haltonfailure="${testng.haltonfailure}"
      haltonskipped="${testng.haltonskipped}"
      outputdir="${testng.outputdir}"
     >
       <classfileset dir="${test.build.dir}"/>
       <jvmarg value="-Xss4m"/>
-      <sysproperty key="debugMode" value="${testng.debugMode}"/>
-      <sysproperty key="exhaustive" value="${testng.exhaustive}"/>
-      <sysproperty key="maximumCapacity" value="${testng.maximumCapacity}"/>
+      <sysproperty key="test.debugMode" value="${test.debugMode}"/>
+      <sysproperty key="test.exhaustive" value="${test.exhaustive}"/>
+      <sysproperty key="test.maximumCapacity" value="${test.maximumCapacity}"/>
+
+      <sysproperty key="efficiency.workingSetSize" value="${efficiency.workingSetSize}"/>
+      <sysproperty key="efficiency.distribution" value="${efficiency.distribution}"/>
+      <sysproperty key="efficiency.distribution.uniform.lower" value="${efficiency.distribution.uniform.lower}"/>
+      <sysproperty key="efficiency.distribution.uniform.upper" value="${efficiency.distribution.uniform.upper}"/>
+      <sysproperty key="efficiency.distribution.exponential.mean" value="${efficiency.distribution.exponential.mean}"/>
+      <sysproperty key="efficiency.distribution.gaussian.mean" value="${efficiency.distribution.gaussian.mean}"/>
+      <sysproperty key="efficiency.distribution.gaussian.sigma" value="${efficiency.distribution.gaussian.sigma}"/>
+      <sysproperty key="efficiency.distribution.poisson.mean" value="${efficiency.distribution.poisson.mean}"/>
     </testng>
   </target>
 </project>

@@ -26,22 +26,19 @@ public abstract class BaseTest extends Assert {
     /**
      * Initializes the test with runtime properties.
      */
-    @BeforeClass()
+    @BeforeClass(alwaysRun=true)
     public void before() {
-        validator = new Validator(Boolean.valueOf(System.getProperty("exhaustive")));
-        capacity = Integer.valueOf(System.getProperty("maximumCapacity"));
-        debug = Boolean.valueOf(System.getProperty("debugMode"));
+        validator = new Validator(Boolean.valueOf(System.getProperty("test.exhaustive")));
+        capacity = Integer.valueOf(System.getProperty("test.maximumCapacity"));
+        debug = Boolean.valueOf(System.getProperty("test.debugMode"));
 
-        info("%s:", getClass().getSimpleName());
-        info("\texhaustive testing=%b", validator.isExhaustive());
-        info("\tmaximum capacity=%d", capacity);
-        info("");
+        info("%s:\n", getClass().getSimpleName());
     }
 
     /**
      * Logs a statement.
      */
-    protected void info(String message, Object... args) {
+    protected static void info(String message, Object... args) {
         System.out.printf(message, args);
         System.out.println();
     }
