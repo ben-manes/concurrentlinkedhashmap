@@ -10,10 +10,8 @@ import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
 import com.rc.util.concurrent.ConcurrentLinkedHashMap.EvictionPolicy;
+import com.rc.util.concurrent.caches.Cache;
 import com.rc.util.concurrent.distribution.Distribution;
-import com.rc.util.concurrent.performance.Caches;
-import com.rc.util.concurrent.performance.SecondChanceMap;
-import com.rc.util.concurrent.performance.Caches.CacheType;
 
 /**
  * Group: development
@@ -24,6 +22,7 @@ import com.rc.util.concurrent.performance.Caches.CacheType;
  *
  * @author <a href="mailto:ben.manes@reardencommerce.com">Ben Manes</a>
  */
+@SuppressWarnings("unchecked")
 public final class EfficiencyTest extends BaseTest {
     private Distribution distribution;
     private int size;
@@ -40,11 +39,8 @@ public final class EfficiencyTest extends BaseTest {
     @Test(groups="efficiency")
     public void efficency() {
         List<Long> workingSet = createWorkingSet(distribution, size);
-        for (CacheType type : CacheType.values()) {
-            if (type == CacheType.ALL) {
-                continue;
-            }
-            Map<Long, Long> cache = Caches.create(type, capacity, size, 1);
+        for (Cache type : Cache.values()) {
+            Map<Long, Long> cache = type.create(capacity, size, 1);
             double hits = determineEfficiency(cache, workingSet);
             double misses = size - hits;
             info("%s: hits=%s (%s percent), misses=%s (%s percent)",
@@ -62,7 +58,7 @@ public final class EfficiencyTest extends BaseTest {
     @Test(groups="development")
     public void efficencyTestAsFifo() {
         ConcurrentLinkedHashMap<Long, Long> actual = create(EvictionPolicy.FIFO);
-        Map<Long, Long> expected = Caches.create(CacheType.SYNC_FIFO, capacity, capacity, 1);
+        Map<Long, Long> expected = Cache.SYNC_FIFO.create(capacity, capacity, 1);
         doEfficencyTest(actual, expected);
     }
 
@@ -72,7 +68,7 @@ public final class EfficiencyTest extends BaseTest {
     @Test(groups="development")
     public void efficencyTestAsSecondChance() {
         ConcurrentLinkedHashMap<Long, Long> actual = create(EvictionPolicy.SECOND_CHANCE);
-        Map<Long, Long> expected = new SecondChanceMap<Long, Long>(capacity);
+        Map<Long, Long> expected = Cache.FAST_FIFO_2C.create(capacity, capacity, 1);
         doEfficencyTest(actual, expected);
     }
     

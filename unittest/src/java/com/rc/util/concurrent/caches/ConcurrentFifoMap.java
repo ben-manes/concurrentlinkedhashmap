@@ -1,4 +1,4 @@
-package com.rc.util.concurrent.performance;
+package com.rc.util.concurrent.caches;
 
 import java.util.Collection;
 import java.util.Map;
@@ -11,10 +11,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * A {@link ConcurrentMap} that evicts elements in FIFO order once the capacity is reached.
+ * 
+ * <b>Note: This was the 1st prototype of a fast caching algorithm.</b>
  *
  * @author <a href="mailto:ben.manes@reardencommerce.com">Ben Manes</a>
  */
-public final class ConcurrentFifoMap<K, V> implements ConcurrentMap<K, V> {
+final class ConcurrentFifoMap<K, V> implements ConcurrentMap<K, V> {
     private final ConcurrentMap<K, V> map;
     private final AtomicInteger capacity;
     private final AtomicInteger size;

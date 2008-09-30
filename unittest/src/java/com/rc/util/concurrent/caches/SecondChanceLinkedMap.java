@@ -1,4 +1,4 @@
-package com.rc.util.concurrent.performance;
+package com.rc.util.concurrent.caches;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -25,17 +25,13 @@ import org.apache.commons.collections.Transformer;
  * an LRU without the overhead of maintaining the access order. In order to
  * avoid added operations against the data store, key-value relationships
  * are maintained through links.
- *
- * The remove operations are O(n) to remove the key from the queue. This is
- * required to ensure a one-to-one mapping between the data store and the
- * eviction queue. If this became a performance bottleneck, then the queue
- * should be replaced with a hand-coded concurrent double-linked list. This
- * then creates a concurrent variant of the {@link java.util.LinkedHashMap}.
+ * 
+ * <b>Note: This was the 3rd prototype of a fast caching algorithm.</b>
  *
  * @author <a href="mailto:ben.manes@reardencommerce.com">Ben Manes</a>
  */
 @SuppressWarnings("unchecked")
-public final class SecondChanceLinkedMap<K, V> implements ConcurrentMap<K, V> {
+final class SecondChanceLinkedMap<K, V> implements ConcurrentMap<K, V> {
     private final ConcurrentMap<EntryKey<K, V>, EntryValue<K, V>> map;
     private final Queue<EntryKey<K, V>> queue;
     private final AtomicInteger capacity;

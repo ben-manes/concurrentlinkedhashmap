@@ -1,7 +1,5 @@
 package com.rc.util.concurrent.performance;
 
-import static com.rc.util.concurrent.performance.Caches.create;
-
 import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -14,7 +12,7 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 
 import com.rc.util.concurrent.ConcurrentTestHarness;
-import com.rc.util.concurrent.performance.Caches.CacheType;
+import com.rc.util.concurrent.caches.Cache;
 
 /**
  * This test can be run at the command-line to evaluate the performance of different cache implementations.
@@ -50,7 +48,7 @@ public final class CachePerformanceTest {
      * @param percentWrite The percentage of writes (e.g. 20 => 20% writes / 80% reads)
      * @param capacity     The maximum capacity of the cache.
      */
-    public CachePerformanceTest(CacheType type, int nThreads, boolean contention, int iterations, int percentWrite, int capacity) {
+    public CachePerformanceTest(Cache type, int nThreads, boolean contention, int iterations, int percentWrite, int capacity) {
         if ((iterations < 1) || (percentWrite < 0) || (percentWrite > 100)) {
             throw new IllegalArgumentException("Write percentage out of bounds");
         }
@@ -62,7 +60,7 @@ public final class CachePerformanceTest {
         this.contention = contention;
         this.percentWrite = percentWrite;
         this.keys = Collections.unmodifiableList(keys);
-        this.cache = create(type, capacity, iterations, nThreads);
+        this.cache = type.create(capacity, iterations, nThreads);
     }
 
     public Map<Integer, Integer> getCache() {
@@ -108,7 +106,7 @@ public final class CachePerformanceTest {
     /**
      * Forces contention on the cache, thereby determining its performance under various concurrency scenarios.
      */
-    private static void doThrashingTest(int runs, CacheType type, int nThreads, boolean contention, int iterations,
+    private static void doThrashingTest(int runs, Cache type, int nThreads, boolean contention, int iterations,
                                         int percentWrite, int capacity) throws InterruptedException {
         long sum = 0;
         List<Long> times = new ArrayList<Long>(runs);
@@ -142,8 +140,8 @@ public final class CachePerformanceTest {
             System.out.println("\t" + test.toHelp());
         }
         System.out.println("Cache types:");
-        for (CacheType type : CacheType.values()) {
-            System.out.println("\t" + type.toHelp());
+        for (Cache type : Cache.values()) {
+            System.out.println("\t" + type);
         }
         System.out.println();
     }
@@ -158,22 +156,13 @@ public final class CachePerformanceTest {
             switch (TestType.valueOf(args[0].toUpperCase())) {
                 case CONCURRENCY:
                     int runs = Integer.valueOf(args[1]);
-                    CacheType type = CacheType.valueOf(args[2].toUpperCase());
+                    Cache type = Cache.valueOf(args[2].toUpperCase());
                     int nThreads = Integer.valueOf(args[3]);
                     boolean contention = Boolean.valueOf(args[4]);
                     int iterations = Integer.valueOf(args[5]);
                     int percentWrite = Integer.valueOf(args[6]);
                     int capacity = Integer.valueOf(args[7]);
-                    if (type == CacheType.ALL) {
-                        for (CacheType cacheType : CacheType.values()) {
-                            if (cacheType != CacheType.ALL) {
-                                System.out.println("\n" + cacheType + ":");
-                                doThrashingTest(runs, cacheType, nThreads, contention, iterations, percentWrite, capacity);
-                            }
-                        }
-                    } else {
-                        doThrashingTest(runs, type, nThreads, contention, iterations, percentWrite, capacity);
-                    }
+                    doThrashingTest(runs, type, nThreads, contention, iterations, percentWrite, capacity);
                     break;
             }
         } catch (Exception e) {
