@@ -2,6 +2,7 @@ package com.rc.util.concurrent.performance;
 
 import static net.sf.ehcache.Cache.DEFAULT_CACHE_NAME;
 
+import java.io.InputStream;
 import java.util.AbstractMap;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -27,7 +28,7 @@ import com.rc.util.concurrent.ConcurrentLinkedHashMap.EvictionPolicy;
  * @author <a href="mailto:ben.manes@reardencommerce.com">Ben Manes</a>
  */
 public final class Caches {
-    public static enum Cache {
+    public static enum CacheType {
         CONCURRENT_FIFO("A concurrent linked hashmap, using FIFO eviction"),
         CONCURRENT_SECOND_CHANCE("A concurrent linked hashmap, using second-chance FIFO eviction"),
         CONCURRENT_LRU("A concurrent linked hashmap, using LRU eviction"),
@@ -47,7 +48,7 @@ public final class Caches {
         ALL("Performs the test on all of the cache types");
 
         private final String help;
-        private Cache(String help) {
+        private CacheType(String help) {
             this.help = help;
         }
         public String toHelp() {
@@ -55,7 +56,15 @@ public final class Caches {
         }
     }
 
-    private static volatile CacheManager ehcacheManager;
+    private static final CacheManager ehcacheManager = createEhcacheManager();
+    
+    private static CacheManager createEhcacheManager() {
+        InputStream failsafe = ClassLoader.getSystemResourceAsStream("ehcache-failsafe.xml");
+        CacheManager cacheManager = new CacheManager(failsafe);
+        cacheManager.setName(CachePerformanceTest.class.getSimpleName());
+        cacheManager.addCache(createEhcache(DEFAULT_CACHE_NAME, false, 5000));
+        return cacheManager;
+    }
 
     /**
      * Creates the local cache instance.
@@ -66,7 +75,7 @@ public final class Caches {
      * @return         A {@link Map} that automatically evicts.
      */
     @SuppressWarnings("unchecked")
-    public static <K, V> Map<K, V> create(Cache type, int capacity, int max, int nThreads) {
+    public static <K, V> Map<K, V> create(CacheType type, int capacity, int max, int nThreads) {
         switch (type) {
             case CONCURRENT_FIFO:
                 return new ConcurrentLinkedHashMap<K, V>(EvictionPolicy.FIFO, capacity, nThreads);
@@ -107,11 +116,6 @@ public final class Caches {
      * @param accessOrder The eviction policy: true=LRU, false=FIFO.
      */
     private static <K, V> Map<K, V> createEhcacheMap(String name, boolean accessOrder, int capacity) {
-        if (ehcacheManager == null) {
-            ehcacheManager = new CacheManager();
-            ehcacheManager.setName(CachePerformanceTest.class.getSimpleName());
-            ehcacheManager.addCache(createEhcache(DEFAULT_CACHE_NAME, false, 5000));
-        }
         Ehcache ehcache = createEhcache(name, accessOrder, capacity);
         ehcacheManager.addCache(ehcache);
         return new EhcacheMap<K, V>(ehcache);

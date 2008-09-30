@@ -1,8 +1,5 @@
 package com.rc.util.concurrent.performance;
 
-import static com.rc.util.concurrent.performance.CacheEfficiencyTestHarness.createWorkingSet;
-import static com.rc.util.concurrent.performance.CacheEfficiencyTestHarness.determineEfficiency;
-import static com.rc.util.concurrent.performance.CacheEfficiencyTestHarness.prettyPrint;
 import static com.rc.util.concurrent.performance.Caches.create;
 
 import java.text.DecimalFormat;
@@ -17,8 +14,7 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 
 import com.rc.util.concurrent.ConcurrentTestHarness;
-import com.rc.util.concurrent.performance.CacheEfficiencyTestHarness.Distribution;
-import com.rc.util.concurrent.performance.Caches.Cache;
+import com.rc.util.concurrent.performance.Caches.CacheType;
 
 /**
  * This test can be run at the command-line to evaluate the performance of different cache implementations.
@@ -27,7 +23,6 @@ import com.rc.util.concurrent.performance.Caches.Cache;
  */
 public final class CachePerformanceTest {
     private enum TestType {
-        EFFICENCY("[working set size] [cache capacity] [distribution type] [...]"),
         CONCURRENCY("[runs] [cache type] [num threads] [max contention] [iterations] [percent writes] [cache capacity]");
 
         private final String help;
@@ -55,7 +50,7 @@ public final class CachePerformanceTest {
      * @param percentWrite The percentage of writes (e.g. 20 => 20% writes / 80% reads)
      * @param capacity     The maximum capacity of the cache.
      */
-    public CachePerformanceTest(Cache type, int nThreads, boolean contention, int iterations, int percentWrite, int capacity) {
+    public CachePerformanceTest(CacheType type, int nThreads, boolean contention, int iterations, int percentWrite, int capacity) {
         if ((iterations < 1) || (percentWrite < 0) || (percentWrite > 100)) {
             throw new IllegalArgumentException("Write percentage out of bounds");
         }
@@ -111,25 +106,9 @@ public final class CachePerformanceTest {
     }
 
     /**
-     * Generates a working set and executes it against each cache implementation to determine its hit/miss rate.
-     */
-    private static void doEfficiencyTest(int size, int capacity, Distribution distribution, double... args) {
-        List<Integer> workingSet = createWorkingSet(distribution, size, args);
-        System.out.println(workingSet + "\n\n");
-        for (Cache type : Cache.values()) {
-            if (type == Cache.ALL) {
-                continue;
-            }
-            Map<Integer, Integer> cache = create(type, capacity, size, 1);
-            int hits = determineEfficiency(cache, workingSet);
-            System.out.println(prettyPrint(type.toString(), size, hits));
-        }
-    }
-
-    /**
      * Forces contention on the cache, thereby determining its performance under various concurrency scenarios.
      */
-    private static void doThrashingTest(int runs, Cache type, int nThreads, boolean contention, int iterations,
+    private static void doThrashingTest(int runs, CacheType type, int nThreads, boolean contention, int iterations,
                                         int percentWrite, int capacity) throws InterruptedException {
         long sum = 0;
         List<Long> times = new ArrayList<Long>(runs);
@@ -162,12 +141,8 @@ public final class CachePerformanceTest {
         for (TestType test : TestType.values()) {
             System.out.println("\t" + test.toHelp());
         }
-        System.out.println("Distribution types:");
-        for (Distribution distribution : Distribution.values()) {
-            System.out.println("\t" + distribution.toHelp());
-        }
         System.out.println("Cache types:");
-        for (Cache type : Cache.values()) {
+        for (CacheType type : CacheType.values()) {
             System.out.println("\t" + type.toHelp());
         }
         System.out.println();
@@ -181,27 +156,17 @@ public final class CachePerformanceTest {
         }
         try {
             switch (TestType.valueOf(args[0].toUpperCase())) {
-                case EFFICENCY:
-                    int size = Integer.valueOf(args[1]);
-                    int cache_capacity = Integer.valueOf(args[2]);
-                    Distribution distribution = Distribution.valueOf(args[3].toUpperCase());
-                    double[] dist_args = new double[args.length - 4];
-                    for (int i=0; i<dist_args.length; i++) {
-                        dist_args[i] = Double.valueOf(args[i+4]);
-                    }
-                    doEfficiencyTest(size, cache_capacity, distribution, dist_args);
-                    break;
                 case CONCURRENCY:
                     int runs = Integer.valueOf(args[1]);
-                    Cache type = Cache.valueOf(args[2].toUpperCase());
+                    CacheType type = CacheType.valueOf(args[2].toUpperCase());
                     int nThreads = Integer.valueOf(args[3]);
                     boolean contention = Boolean.valueOf(args[4]);
                     int iterations = Integer.valueOf(args[5]);
                     int percentWrite = Integer.valueOf(args[6]);
                     int capacity = Integer.valueOf(args[7]);
-                    if (type == Cache.ALL) {
-                        for (Cache cacheType : Cache.values()) {
-                            if (cacheType != Cache.ALL) {
+                    if (type == CacheType.ALL) {
+                        for (CacheType cacheType : CacheType.values()) {
+                            if (cacheType != CacheType.ALL) {
                                 System.out.println("\n" + cacheType + ":");
                                 doThrashingTest(runs, cacheType, nThreads, contention, iterations, percentWrite, capacity);
                             }
