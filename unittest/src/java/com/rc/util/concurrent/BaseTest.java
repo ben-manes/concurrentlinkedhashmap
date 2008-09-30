@@ -22,7 +22,7 @@ public abstract class BaseTest extends Assert {
     protected Validator validator;
     protected boolean debug;
     protected int capacity;
-    
+
     /**
      * Initializes the test with runtime properties.
      */
@@ -31,13 +31,13 @@ public abstract class BaseTest extends Assert {
         validator = new Validator(Boolean.valueOf(System.getProperty("exhaustive")));
         capacity = Integer.valueOf(System.getProperty("maximumCapacity"));
         debug = Boolean.valueOf(System.getProperty("debugMode"));
-        
+
         info("%s:", getClass().getSimpleName());
         info("\texhaustive testing=%b", validator.isExhaustive());
         info("\tmaximum capacity=%d", capacity);
         info("");
     }
-    
+
     /**
      * Logs a statement.
      */
@@ -45,7 +45,7 @@ public abstract class BaseTest extends Assert {
         System.out.printf(message, args);
         System.out.println();
     }
-    
+
     /**
      * Logs a statement, if debugging is enabled.
      */
@@ -54,7 +54,7 @@ public abstract class BaseTest extends Assert {
             info(message, args);
         }
     }
-    
+
     protected <K, V> ConcurrentLinkedHashMap<K, V> create() {
         return create(defaultPolicy);
     }
@@ -64,14 +64,14 @@ public abstract class BaseTest extends Assert {
     protected <K, V> ConcurrentLinkedHashMap<K, V> create(EvictionPolicy policy, EvictionMonitor<K, V>... monitor) {
         return new ConcurrentLinkedHashMap<K, V>(policy, capacity, monitor);
     }
-    
+
     /**
      * Creates a map warmed to the specified maximum capacity, using the default eviction policy.
      */
     protected ConcurrentLinkedHashMap<Integer, Integer> createWarmedMap(EvictionListener<Integer, Integer>... listeners) {
         return createWarmedMap(defaultPolicy, capacity, listeners);
     }
-    
+
     /**
      * Creates a map warmed to the specified maximum size.
      */
