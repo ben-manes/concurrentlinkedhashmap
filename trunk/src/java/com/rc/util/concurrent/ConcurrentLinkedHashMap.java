@@ -676,9 +676,10 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
             current = null;
         }
     }
-    
+
     /**
      * This duplicates {@link java.util.AbstractMap.SimpleEntry} until the class is made accessible.
+     * Update: SimpleEntry is public in JDK 6.
      */
     private static final class SimpleEntry<K,V> implements Entry<K,V> {
         private final K key;
