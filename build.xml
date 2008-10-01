@@ -66,7 +66,7 @@
      target="${javac.target}"
      verbose="${javac.verbose}"
     >
-      <compilerarg value="-Xlint:all,-path" compiler="javac1.6"/>
+      <compilerarg value="-Xlint:all,-path" compiler="modern"/>
     </javac>
 
     <depend
@@ -88,7 +88,7 @@
      target="${javac.target}"
      verbose="${javac.verbose}"
     >
-      <compilerarg value="-Xlint:all,-path" compiler="javac1.6"/>
+      <compilerarg value="-Xlint:all,-path" compiler="modern"/>
     </javac>
   </target>
 

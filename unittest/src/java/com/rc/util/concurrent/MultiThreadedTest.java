@@ -30,18 +30,18 @@ public final class MultiThreadedTest extends BaseTest {
     private boolean contention;
     private Set<Integer> keys;
     private Set<Cache> types;
-    
+
     @BeforeClass(alwaysRun=true)
     public void beforeMultiThreaded() {
         runs = Integer.valueOf(System.getProperty("performance.runs"));
         nThreads = Integer.valueOf(System.getProperty("performance.threads.num"));
         percentWrite = Integer.valueOf(System.getProperty("performance.percentWrite"));
         contention = Boolean.valueOf(System.getProperty("performance.threads.forceContention"));
-        
+
         String cacheType = System.getProperty("performance.cache").toUpperCase();
         types = "ALL".equals(cacheType) ? EnumSet.allOf(Cache.class)
-                                        : EnumSet.of(Cache.valueOf(cacheType));        
-        
+                                        : EnumSet.of(Cache.valueOf(cacheType));
+
         int iterations = Integer.valueOf(System.getProperty("performance.iterations"));
         keys = createWarmedMap(defaultPolicy, iterations).keySet();
     }
@@ -59,7 +59,7 @@ public final class MultiThreadedTest extends BaseTest {
             validator.state(cache);
         }
     }
-    
+
     /**
      * Compares the concurrency performance of the cache implementations
      */
@@ -78,7 +78,7 @@ public final class MultiThreadedTest extends BaseTest {
                 sum += time;
             }
             info("Average: %s ms", DecimalFormat.getInstance().format(sum/runs));
-            
+
             // upper, lower 10% removed
             sum = 0;
             int bound = runs / 10;
@@ -89,7 +89,7 @@ public final class MultiThreadedTest extends BaseTest {
             info("Corrected Average: %s ms\n", DecimalFormat.getInstance().format(sum/(runs-2*bound)));
         }
     }
-    
+
     /**
      * @return The execution time of the test run.
      */
@@ -98,10 +98,10 @@ public final class MultiThreadedTest extends BaseTest {
         cache.clear();
         return time;
     }
-    
+
     /**
      * Based on the passed in working set, creates N shuffled variants.
-     * 
+     *
      * @param samples    The number of variants to create.
      * @param workingSet The base working set to build from.
      */
@@ -114,7 +114,7 @@ public final class MultiThreadedTest extends BaseTest {
         }
         return sets;
     }
-    
+
     /**
      * Executes read or write operations against the cache, thereby testing the efficiency of the
      * concurrency constructs guarding the cache. The worse the lock, the longer the execution time.
@@ -123,7 +123,7 @@ public final class MultiThreadedTest extends BaseTest {
         private final Map<T, T> cache;
         private final List<List<T>> sets;
         private final AtomicInteger index;
-        
+
         public Thrasher(Map<T, T> cache, List<List<T>> sets) {
             this.index = new AtomicInteger();
             this.cache = cache;

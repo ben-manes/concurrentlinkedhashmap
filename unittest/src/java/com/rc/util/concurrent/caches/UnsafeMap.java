@@ -5,7 +5,7 @@ import java.util.Map;
 
 /**
  * A non-thread safe bounded map. Operates in LRU or FIFO mode.
- * 
+ *
  * @author <a href="mailto:ben.manes@reardencommerce.com">Ben Manes</a>
  */
 class UnsafeMap<K, V> extends LinkedHashMap<K, V> {
@@ -20,7 +20,7 @@ class UnsafeMap<K, V> extends LinkedHashMap<K, V> {
         super(capacity, 0.75f, accessOrder);
         this.capacity = capacity;
     }
-    
+
     /**
      * {@inheritDoc}
      */

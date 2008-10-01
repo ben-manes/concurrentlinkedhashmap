@@ -13,16 +13,16 @@ import org.apache.commons.math.random.RandomDataImpl;
 final class Poisson implements Callable<Double> {
     private final RandomData random = new RandomDataImpl();
     private final double mean;
-    
+
     /**
      * A Poisson distribution.
-     * 
+     *
      * @param mean The mean value of the distribution.
      */
     public Poisson(double mean) {
         this.mean = mean;
     }
-    
+
     /**
      * Random value with expected mean value.
      */

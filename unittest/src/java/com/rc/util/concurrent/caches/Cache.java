@@ -79,14 +79,14 @@ public enum Cache {
             return (T) new EhcacheMap<K, V>(true, capacity);
         }
     };
-    
+
     /**
      * Creates the local cache instance.
      *
      * @param capacity The cache's capacity.
      * @param maxSize  The unbounded, max possible size.
      * @param nThreads The max number of concurrency accesses.
-     * @return         A cache wrapped under a {@link Map} interface. 
+     * @return         A cache wrapped under a {@link Map} interface.
      */
     public abstract <K, V, T> T create(int capacity, int max, int nThreads);
 }

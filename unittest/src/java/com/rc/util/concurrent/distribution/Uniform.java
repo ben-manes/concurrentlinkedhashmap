@@ -14,10 +14,10 @@ final class Uniform implements Callable<Double> {
     private final RandomData random = new RandomDataImpl();
     private final double lower;
     private final double upper;
-    
+
     /**
      * A uniform distribution across the open interval.
-     * 
+     *
      * @param lower The lower bound of the interval.
      * @param upper The lower bound of the interval.
      */
@@ -25,7 +25,7 @@ final class Uniform implements Callable<Double> {
         this.lower = lower;
         this.upper = upper;
     }
-    
+
     /**
      * Random value from the open interval (end-points included).
      */

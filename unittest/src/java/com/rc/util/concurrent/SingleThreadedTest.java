@@ -221,7 +221,7 @@ public final class SingleThreadedTest extends BaseTest {
         assertEquals(cache, expected);
         validator.state((ConcurrentLinkedHashMap<Integer, Integer>) cache);
     }
-    
+
     /**
      * Tests that entries are evicted in FIFO order.
      */
@@ -233,7 +233,7 @@ public final class SingleThreadedTest extends BaseTest {
         // perform test
         doFifoEvictionTest(cache, monitor);
     }
-    
+
     /**
      * Tests that entries are evicted in FIFO order under a SECOND_CHANCE policy where none are saved.
      */
@@ -272,7 +272,7 @@ public final class SingleThreadedTest extends BaseTest {
         assertEquals(cache, expected);
         assertEquals(monitor.evicted.size(), capacity/2);
     }
-    
+
     /**
      * Tests that a full scan was required to evict an entry.
      */
@@ -291,7 +291,7 @@ public final class SingleThreadedTest extends BaseTest {
         validator.allNodesMarked(cache, false);
         assertEquals(monitor.evicted.size(), 1);
     }
-    
+
     /**
      * Tests that entries are evicted in LRU order using a complex working set.
      *
@@ -341,7 +341,7 @@ public final class SingleThreadedTest extends BaseTest {
         assertTrue(cache.keySet().containsAll(Arrays.asList(2, 10, 11, 12, 6, 7, 8, 13, 14, 15)), "Instead: " + cache.keySet());
         assertEquals(cache.size(), 10);
     }
-    
+
     /**
      * Executes a FIFO eviction test.
      */

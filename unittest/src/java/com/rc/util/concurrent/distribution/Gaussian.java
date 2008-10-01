@@ -14,10 +14,10 @@ final class Gaussian implements Callable<Double> {
     private final RandomData random = new RandomDataImpl();
     private final double sigma;
     private final double mean;
-    
+
     /**
      * A Gaussian distribution.
-     * 
+     *
      * @param mean  The mean value of the distribution.
      * @param sigma The standard deviation of the distribution.
      */
@@ -25,7 +25,7 @@ final class Gaussian implements Callable<Double> {
         this.mean = mean;
         this.sigma = sigma;
     }
-    
+
     /**
      * Random value with the given mean and standard deviation.
      */

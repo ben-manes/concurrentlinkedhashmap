@@ -11,7 +11,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * A {@link ConcurrentMap} that evicts elements in FIFO order once the capacity is reached.
- * 
+ *
  * <b>Note: This was the 1st prototype of a fast caching algorithm.</b>
  *
  * @author <a href="mailto:ben.manes@reardencommerce.com">Ben Manes</a>

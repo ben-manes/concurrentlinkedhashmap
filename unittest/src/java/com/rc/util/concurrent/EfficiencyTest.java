@@ -26,13 +26,13 @@ import com.rc.util.concurrent.distribution.Distribution;
 public final class EfficiencyTest extends BaseTest {
     private Distribution distribution;
     private int size;
-    
+
     @BeforeClass(groups="efficiency")
     public void beforeEfficiency() {
         size = Integer.valueOf(System.getProperty("efficiency.workingSetSize"));
         distribution = Distribution.valueOf(System.getProperty("efficiency.distribution").toUpperCase());
     }
-    
+
     /**
      * Compares the hit rate of different cache implementations.
      */
@@ -51,7 +51,7 @@ public final class EfficiencyTest extends BaseTest {
                  DecimalFormat.getPercentInstance().format(misses/size));
         }
     }
-    
+
     /**
      * Tests that entries are evicted in FIFO order using a complex working set.
      */
@@ -71,7 +71,7 @@ public final class EfficiencyTest extends BaseTest {
         Map<Long, Long> expected = Cache.FAST_FIFO_2C.create(capacity, capacity, 1);
         doEfficencyTest(actual, expected);
     }
-    
+
     /**
      * Creates a random working set based on the distribution.
      *
@@ -84,14 +84,14 @@ public final class EfficiencyTest extends BaseTest {
         List<Long> workingSet = new ArrayList<Long>(size);
         for (int i=0; i<size; i++) {
             try {
-                workingSet.add(Math.round(algorithm.call()));   
+                workingSet.add(Math.round(algorithm.call()));
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
         }
         return workingSet;
     }
-    
+
     /**
      * Determines the hit-rate of the cache.
      *
@@ -110,7 +110,7 @@ public final class EfficiencyTest extends BaseTest {
         }
         return hits;
     }
-    
+
     /**
      * Executes a complex eviction test.
      */
