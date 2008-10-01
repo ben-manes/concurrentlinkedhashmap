@@ -3,6 +3,19 @@
   <!-- Ensure property exists -->
   <fail message="Please set external.dir" unless="external.dir"/>
 
+  <!-- Colt -->
+  <path id="colt.compile.path">
+    <fileset dir="${external.dir}/colt/1.2.0">
+      <include name="colt.jar"/>
+    </fileset>
+  </path>
+  <path id="colt.deploy.path">
+    <path refid="colt.compile.path"/>
+    <fileset dir="${external.dir}/colt/1.2.0">
+      <include name="concurrent.jar"/>
+    </fileset>
+  </path>
+
   <!-- Commons Collections -->
   <path id="commons.collections.compile.path">
     <fileset dir="${external.dir}/commons-collections/3.2.1">
@@ -97,18 +110,4 @@
    resource="testngtasks"
    classpathref="testng.compile.path"
   />
-
-  <!-- Ehcache -->
-  <path id="colt.compile.path">
-    <fileset dir="${external.dir}/colt/1.2.0">
-      <include name="colt.jar"/>
-    </fileset>
-  </path>
-  <path id="colt.deploy.path">
-    <path refid="colt.compile.path"/>
-    <fileset dir="${external.dir}/colt/1.2.0">
-      <include name="concurrent.jar"/>
-    </fileset>
-  </path>
-
 </project>
