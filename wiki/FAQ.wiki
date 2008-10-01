@@ -5,6 +5,6 @@
 
 This was done based on a [http://cs.oswego.edu/pipermail/concurrency-interest/2007-March/003802.html recommendation] by Doug Lea.
 
-  The two choices have different tradeoffs. Using fieldUpdaters does have more per-call overhead, but in principle most of it is optimizable away, and on some platforms and some contexts, it often is. Using a separate AtomicReference in essence doubles the length of a list (every second indirection is just a pointer holding the real pointer). And for small nodes as used here, nearly doubles the footprint -- even a one-field object has object header etc overhead, and increases GC overhead. All in all, using fieldUpdaters in this case is the best choice, even though on some programs/platforms it might on average be a  little slower (and on others faster).
+  The two choices have different tradeoffs. Using fieldUpdaters does have more per-call overhead, but in principle most of it is optimizable away, and on some platforms and some contexts, it often is. Using a separate [http://java.sun.com/javase/6/docs/api/java/util/concurrent/atomic/AtomicReference.html AtomicReference] in essence doubles the length of a list (every second indirection is just a pointer holding the real pointer). And for small nodes as used here, nearly doubles the footprint -- even a one-field object has object header etc overhead, and increases GC overhead. All in all, using fieldUpdaters in this case is the best choice, even though on some programs/platforms it might on average be a  little slower (and on others faster).
 
   -Doug
