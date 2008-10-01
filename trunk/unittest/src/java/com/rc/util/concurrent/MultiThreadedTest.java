@@ -61,7 +61,7 @@ public final class MultiThreadedTest extends BaseTest {
     }
     
     /**
-     * Forces contention on the cache, thereby determining its performance under various concurrency scenarios.
+     * Compares the concurrency performance of the cache implementations
      */
     @Test(groups="performance")
     public void concurrency() throws InterruptedException {
@@ -91,7 +91,7 @@ public final class MultiThreadedTest extends BaseTest {
     }
     
     /**
-     * @return The execution time of the test.
+     * @return The execution time of the test run.
      */
     public long execute(Map<?, ?> cache, Runnable runner) throws InterruptedException {
         long time = ConcurrentTestHarness.timeTasks(nThreads, runner);
@@ -100,9 +100,9 @@ public final class MultiThreadedTest extends BaseTest {
     }
     
     /**
-     * Based on the passed in working set, creates N shuffled varients.
+     * Based on the passed in working set, creates N shuffled variants.
      * 
-     * @param samples    The number of varients to create.
+     * @param samples    The number of variants to create.
      * @param workingSet The base working set to build from.
      */
     private <T> List<List<T>> shuffle(int samples, Collection<T> workingSet) {
