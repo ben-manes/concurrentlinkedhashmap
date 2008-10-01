@@ -223,9 +223,13 @@
     >
       <classfileset dir="${test.build.dir}"/>
       <jvmarg value="-Xss4m"/>
+
+      <!-- All tests -->
       <sysproperty key="test.debugMode" value="${test.debugMode}"/>
       <sysproperty key="test.exhaustive" value="${test.exhaustive}"/>
       <sysproperty key="test.maximumCapacity" value="${test.maximumCapacity}"/>
+
+      <!-- Efficiency tests -->
       <sysproperty key="efficiency.workingSetSize" value="${efficiency.workingSetSize}"/>
       <sysproperty key="efficiency.distribution" value="${efficiency.distribution}"/>
       <sysproperty key="efficiency.distribution.uniform.lower" value="${efficiency.distribution.uniform.lower}"/>
@@ -234,6 +238,14 @@
       <sysproperty key="efficiency.distribution.gaussian.mean" value="${efficiency.distribution.gaussian.mean}"/>
       <sysproperty key="efficiency.distribution.gaussian.sigma" value="${efficiency.distribution.gaussian.sigma}"/>
       <sysproperty key="efficiency.distribution.poisson.mean" value="${efficiency.distribution.poisson.mean}"/>
+
+      <!-- Multi-threading tests -->
+      <sysproperty key="performance.runs" value="${performance.runs}"/>
+      <sysproperty key="performance.cache" value="${performance.cache}"/>
+      <sysproperty key="performance.iterations" value="${performance.iterations}"/>
+      <sysproperty key="performance.threads.num" value="${performance.threads.num}"/>
+      <sysproperty key="performance.percentWrite" value="${performance.percentWrite}"/>
+      <sysproperty key="performance.threads.forceContention" value="${performance.threads.forceContention}"/>
     </testng>
   </target>
 </project>
