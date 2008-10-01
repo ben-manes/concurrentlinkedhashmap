@@ -220,9 +220,7 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
                         return node;
                     }
                     State state = node.getState();
-                    if ((state == State.UNLINKED) || (state == State.UNLINKING)) {
-                        break; // retry poll as the node is being removed
-                    } else if (state == State.SENTINEL) {
+                    if (state == State.SENTINEL) {
                         return null;
                     }
                     continue; // retry CAS as the node is being linked by offer
@@ -676,6 +674,49 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
             }
             ConcurrentLinkedHashMap.this.remove(current.getKey(), current.getValue());
             current = null;
+        }
+    }
+    
+    /**
+     * This duplicates {@link java.util.AbstractMap.SimpleEntry} until the class is made accessible.
+     */
+    private static final class SimpleEntry<K,V> implements Entry<K,V> {
+        private final K key;
+        private V value;
+
+        public SimpleEntry(K key, V value) {
+            this.key   = key;
+            this.value = value;
+        }
+        public K getKey() {
+            return key;
+        }
+        public V getValue() {
+            return value;
+        }
+        public V setValue(V value) {
+            V oldValue = this.value;
+            this.value = value;
+            return oldValue;
+        }
+        public boolean equals(Object obj) {
+            if (obj == this) {
+                return true;
+            } else if (!(obj instanceof Entry)) {
+                return false;
+            }
+            Entry<?, ?> entry = (Entry<?, ?>) obj;
+            return eq(key, entry.getKey()) && eq(value, entry.getValue());
+        }
+        public int hashCode() {
+            return ((key   == null)   ? 0 :   key.hashCode()) ^
+                   ((value == null)   ? 0 : value.hashCode());
+        }
+        public String toString() {
+            return key + "=" + value;
+        }
+        private static boolean eq(Object o1, Object o2) {
+            return (o1 == null) ? (o2 == null) : o1.equals(o2);
         }
     }
 }
