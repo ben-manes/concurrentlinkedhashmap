@@ -93,7 +93,7 @@ public final class MultiThreadedTest extends BaseTest {
             averages.put(type, average);
             info("Corrected Average: %s ms\n", average);
         }
-        
+
         info("Comparisions:");
         for (Entry<Cache, String> entry : averages.entrySet()) {
             StringBuilder buffer = new StringBuilder(60);
