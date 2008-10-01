@@ -30,6 +30,7 @@ final class EhcacheMap<K, V> extends AbstractMap<K, V> {
     public EhcacheMap(boolean accessOrder, int capacity) {
         MemoryStoreEvictionPolicy policy = (accessOrder ? MemoryStoreEvictionPolicy.LRU : MemoryStoreEvictionPolicy.FIFO);
         cache = new Cache(Cache.DEFAULT_CACHE_NAME, capacity, policy, false, null, false, 0, 0, false, 0, null, null, 0, 0);
+        cache.initialise();
     }
 
     /**

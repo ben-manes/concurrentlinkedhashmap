@@ -97,4 +97,18 @@
    resource="testngtasks"
    classpathref="testng.compile.path"
   />
+
+  <!-- Ehcache -->
+  <path id="colt.compile.path">
+    <fileset dir="${external.dir}/colt/1.2.0">
+      <include name="colt.jar"/>
+    </fileset>
+  </path>
+  <path id="colt.deploy.path">
+    <path refid="colt.compile.path"/>
+    <fileset dir="${external.dir}/colt/1.2.0">
+      <include name="concurrent.jar"/>
+    </fileset>
+  </path>
+
 </project>
