@@ -16,7 +16,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * This implementation uses a second-chance FIFO algorithm. This trades off
  * slightly worse efficiency than an LRU for a simpler, faster approach with
  * much lower lock contention.
- * 
+ *
  * <b>Note: This was the 2nd prototype of a fast caching algorithm.</b>
  *
  * @author <a href="mailto:ben.manes@reardencommerce.com">Ben Manes</a>

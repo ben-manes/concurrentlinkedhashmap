@@ -25,7 +25,7 @@ import org.apache.commons.collections.Transformer;
  * an LRU without the overhead of maintaining the access order. In order to
  * avoid added operations against the data store, key-value relationships
  * are maintained through links.
- * 
+ *
  * <b>Note: This was the 3rd prototype of a fast caching algorithm.</b>
  *
  * @author <a href="mailto:ben.manes@reardencommerce.com">Ben Manes</a>
@@ -325,7 +325,7 @@ final class SecondChanceLinkedMap<K, V> implements ConcurrentMap<K, V> {
             return value;
         }
         public void setValue(EntryValue<K, V> value) {
-            value = this.value;
+            this.value = value;
         }
         @Override
         public boolean equals(Object obj) {

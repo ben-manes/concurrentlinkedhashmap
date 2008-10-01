@@ -7,7 +7,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
  * A self-evicting map that is protected by reentrant locks. Operates in LRU or FIFO mode.
- * 
+ *
  * @author <a href="mailto:ben.manes@reardencommerce.com">Ben Manes</a>
  */
 final class LockMap<K, V> extends UnsafeMap<K, V> {
@@ -30,7 +30,7 @@ final class LockMap<K, V> extends UnsafeMap<K, V> {
             writeLock = lock.writeLock();
         }
     }
-    
+
     @Override
     public V get(Object key) {
         readLock.lock();
@@ -40,7 +40,7 @@ final class LockMap<K, V> extends UnsafeMap<K, V> {
             readLock.unlock();
         }
     }
-    
+
     @Override
     public V put(K key, V value) {
         writeLock.lock();
@@ -50,7 +50,7 @@ final class LockMap<K, V> extends UnsafeMap<K, V> {
             writeLock.unlock();
         }
     }
-    
+
     @Override
     public int size() {
         readLock.lock();
@@ -60,7 +60,7 @@ final class LockMap<K, V> extends UnsafeMap<K, V> {
             readLock.unlock();
         }
     }
-    
+
     @Override
     public void clear() {
         writeLock.lock();

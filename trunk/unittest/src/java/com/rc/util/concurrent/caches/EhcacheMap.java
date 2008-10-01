@@ -16,7 +16,7 @@ import net.sf.ehcache.store.MemoryStoreEvictionPolicy;
 
 /**
  * Exposes <tt>ehcache</tt> as a {@link Map}.
- * 
+ *
  * @author <a href="mailto:ben.manes@reardencommerce.com">Ben Manes</a>
  */
 @SuppressWarnings("unchecked")
@@ -31,7 +31,7 @@ final class EhcacheMap<K, V> extends AbstractMap<K, V> {
         MemoryStoreEvictionPolicy policy = (accessOrder ? MemoryStoreEvictionPolicy.LRU : MemoryStoreEvictionPolicy.FIFO);
         cache = new Cache(Cache.DEFAULT_CACHE_NAME, capacity, policy, false, null, false, 0, 0, false, 0, null, null, 0, 0);
     }
-    
+
     /**
      * {@inheritDoc}
      */
@@ -39,7 +39,7 @@ final class EhcacheMap<K, V> extends AbstractMap<K, V> {
     public void clear() {
         cache.removeAll();
     }
-    
+
     /**
      * {@inheritDoc}
      */
@@ -47,7 +47,7 @@ final class EhcacheMap<K, V> extends AbstractMap<K, V> {
     public int size() {
         return keySet().size();
     }
-    
+
     /**
      * {@inheritDoc}
      */
@@ -63,7 +63,7 @@ final class EhcacheMap<K, V> extends AbstractMap<K, V> {
     public boolean containsValue(Object value) {
         return cache.isValueInCache(value);
     }
-    
+
     /**
      * {@inheritDoc}
      */
@@ -86,7 +86,7 @@ final class EhcacheMap<K, V> extends AbstractMap<K, V> {
         }
         return results;
     }
-    
+
     /**
      * {@inheritDoc}
      */
@@ -119,7 +119,7 @@ final class EhcacheMap<K, V> extends AbstractMap<K, V> {
         }
         return old;
     }
-    
+
     /**
      * {@inheritDoc}
      */
@@ -139,7 +139,7 @@ final class EhcacheMap<K, V> extends AbstractMap<K, V> {
             remove(key);
         }
     }
-    
+
     /**
      * {@inheritDoc}
      */
@@ -169,7 +169,7 @@ final class EhcacheMap<K, V> extends AbstractMap<K, V> {
     public Set<K> keySet() {
         return new KeySetAdapter<K>(cache.getKeys());
     }
-    
+
     /**
      * {@inheritDoc}
      */
@@ -177,13 +177,13 @@ final class EhcacheMap<K, V> extends AbstractMap<K, V> {
     public Set<Entry<K, V>> entrySet() {
         return getAll(keySet()).entrySet();
     }
-    
+
     /**
      * Represents the list of keys as a set, which is guaranteed to be true by {@link Ehcache#getKeys()}'s contract.
      */
     private static final class KeySetAdapter<K> implements Set<K> {
         private final List<K> keys;
-        
+
         public KeySetAdapter(List<K> keys) {
             this.keys = keys;
         }

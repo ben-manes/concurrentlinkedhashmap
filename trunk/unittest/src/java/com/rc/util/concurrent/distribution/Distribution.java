@@ -34,7 +34,7 @@ public enum Distribution {
             return new Poisson(mean);
         }
     };
-    
+
     /**
      * Retrieves a new distribution, based on the required system property values.
      */
