@@ -73,7 +73,7 @@ public final class MultiThreadedTest extends BaseTest {
             long sum = 0;
             info("Cache Type: %s:", type);
             List<Long> times = new ArrayList<Long>(runs);
-            for (int i=0; i<runs; i++) {
+            for (int i=1; i<=runs; i++) {
                 Map<Integer, Integer> cache = type.create(capacity, capacity, nThreads);
                 long time = TimeUnit.NANOSECONDS.toMillis(execute(cache, new Thrasher<Integer>(cache, sets)));
                 info("#%d: %s ms", i, time);
