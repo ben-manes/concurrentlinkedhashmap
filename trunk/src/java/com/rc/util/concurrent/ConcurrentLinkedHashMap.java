@@ -616,8 +616,8 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
                 return false;
             }
             Entry<?, ?> entry = (Entry<?, ?>) obj;
-            V value = map.get(entry.getKey());
-            return (value != null) && (value.equals(entry.getValue()));
+            Node<K, V> node = map.data.get(entry.getKey());
+            return (node != null) && (node.value.equals(entry.getValue()));
         }
 
         /**
