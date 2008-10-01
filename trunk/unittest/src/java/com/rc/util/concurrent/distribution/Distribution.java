@@ -33,6 +33,12 @@ public enum Distribution {
             double mean = Double.valueOf(System.getProperty("efficiency.distribution.poisson.mean"));
             return new Poisson(mean);
         }
+    },
+    ZIPFIAN() {
+        public Callable<Double> getAlgorithm() {
+            double skew = Double.valueOf(System.getProperty("efficiency.distribution.zipfian.skew"));
+            return new Zipfian(skew);
+        }
     };
 
     /**

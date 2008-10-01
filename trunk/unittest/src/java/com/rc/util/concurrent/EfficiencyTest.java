@@ -39,6 +39,7 @@ public final class EfficiencyTest extends BaseTest {
     @Test(groups="efficiency")
     public void efficency() {
         List<Long> workingSet = createWorkingSet(distribution, size);
+        debug("WorkingSet:\n%s", workingSet);
         for (Cache type : Cache.values()) {
             Map<Long, Long> cache = type.create(capacity, size, 1);
             double hits = determineEfficiency(cache, workingSet);

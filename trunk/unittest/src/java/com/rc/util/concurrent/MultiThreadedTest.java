@@ -4,11 +4,13 @@ import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
+import java.util.Map.Entry;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -66,6 +68,7 @@ public final class MultiThreadedTest extends BaseTest {
     @Test(groups="performance")
     public void concurrency() throws InterruptedException {
         List<List<Integer>> sets = shuffle(nThreads, keys);
+        Map<Cache, String> averages = new EnumMap<Cache, String>(Cache.class);
         for (Cache type : types) {
             long sum = 0;
             info("Cache Type: %s:", type);
@@ -86,7 +89,25 @@ public final class MultiThreadedTest extends BaseTest {
             for (int i=bound; i<(runs-bound); i++) {
                 sum += times.get(i);
             }
-            info("Corrected Average: %s ms\n", DecimalFormat.getInstance().format(sum/(runs-2*bound)));
+            String average = DecimalFormat.getInstance().format(sum/(runs-2*bound));
+            averages.put(type, average);
+            info("Corrected Average: %s ms\n", average);
+        }
+        
+        info("Comparisions:");
+        for (Entry<Cache, String> entry : averages.entrySet()) {
+            StringBuilder buffer = new StringBuilder(60);
+            String cacheName = entry.getKey().toString();
+            buffer.append("\t - ")
+                  .append(cacheName)
+                  .append(':');
+            int spaces = 25 - cacheName.length();
+            for (int j=0; j<spaces; j++) {
+                buffer.append(' ');
+            }
+            buffer.append(entry.getValue())
+                  .append(" ms");
+            info(buffer.toString());
         }
     }
 
