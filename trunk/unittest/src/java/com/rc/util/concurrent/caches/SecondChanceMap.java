@@ -104,7 +104,7 @@ final class SecondChanceMap<K, V> implements ConcurrentMap<K, V> {
      * {@inheritDoc}
      */
     public boolean containsValue(Object value) {
-        return map.containsValue(value);
+        return map.containsValue(new Value<Object>(value));
     }
 
     /**
