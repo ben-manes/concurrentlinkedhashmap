@@ -94,7 +94,7 @@ public final class MultiThreadedTest extends BaseTest {
             info("Corrected Average: %s ms\n", average);
         }
 
-        info("Comparisions:");
+        info("Comparisons:");
         for (Entry<Cache, String> entry : averages.entrySet()) {
             StringBuilder buffer = new StringBuilder(60);
             String cacheName = entry.getKey().toString();
