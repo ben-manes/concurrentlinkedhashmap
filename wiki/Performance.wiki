@@ -19,6 +19,9 @@ For more details on JBoss Cache, see their [https://www.jboss.org/community/docs
  * 25 threads
  * 20% writes
 
+=Summary=
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/responseTimes.jpg]
+
 =Test #1: Capacity = 5,000===
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/5000/LocalMode-java5-GetChart.png]
 
