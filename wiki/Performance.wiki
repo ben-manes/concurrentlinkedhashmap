@@ -1,4 +1,5 @@
 #summary A comparision of the performance of different caching implementations.
+#labels Featured
 
 =Test Description=
 JBoss's [https://www.jboss.org/community/docs/DOC-9241 Cache Benchmark Framework] was used to compare the performance of the ConcurrentLinkedHashMap with other caching libraries.
