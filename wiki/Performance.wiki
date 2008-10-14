@@ -1,4 +1,4 @@
-#summary A comparision of the performance of different caching implementations.
+#summary A comparison of the performance of different caching implementations.
 #labels Featured
 
 =Test Description=
