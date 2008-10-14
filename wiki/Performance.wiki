@@ -1,6 +1,10 @@
 #summary A comparision of the performance of different caching implementations.
 
 =Test Description=
+JBoss's [https://www.jboss.org/community/docs/DOC-9241 Cache Benchmark Framework] was used to compare the performance of the ConcurrentLinkedHashMap with other caching libraries.
+
+For more details on JBoss's, see their [https://www.jboss.org/community/docs/DOC-10272 MVCC cache] and the [http://jbosscache.blogspot.com/2008/09/naga-beta1-ready-to-rock-and-roll.html announcement] of their caching data structure.
+
 ===Machine Specifications===
  * CentOS
  * 7.5 GB memory
@@ -15,8 +19,16 @@
  * 20% writes
 
 =Test #1: Capacity = 5,000===
-[http://code.google.com/p/concurrentlinkedhashmap/wiki/images/5000/LocalMode-java5-GetChart.png]
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/5000/LocalMode-java5-GetChart.png]
+
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/5000/LocalMode-java5-PutChart.png]
 
 =Test #2: Capacity = 50,000===
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/50000/LocalMode-java5-GetChart.png]
+
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/50000/LocalMode-java5-PutChart.png]
 
 =Test #3: Capacity = 500,000===
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/500000/LocalMode-java5-GetChart.png]
+
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/500000/LocalMode-java5-PutChart.png]
