@@ -2,7 +2,7 @@
 #labels Featured
 
 =Test Description=
-JBoss's [https://www.jboss.org/community/docs/DOC-9241 Cache Benchmark Framework] was used to compare the performance of the ConcurrentLinkedHashMap with other caching libraries.
+JBoss's [https://www.jboss.org/community/docs/DOC-9241 Cache Benchmark Framework] was used to compare the performance with other caching libraries.
 
 For more details on JBoss Cache, see their [https://www.jboss.org/community/docs/DOC-10272 MVCC cache] and the [http://jbosscache.blogspot.com/2008/09/naga-beta1-ready-to-rock-and-roll.html announcement] of their caching data structure.
 
