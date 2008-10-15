@@ -1,7 +1,7 @@
 #summary The efficiencies of different eviction algorithms.
 #labels Featured
 
-==Efficency Tests==
+==Efficiency Tests==
 ==== _Approach_ ====
 3 factor full factorial experiment of three cache replacement strategies.
 
