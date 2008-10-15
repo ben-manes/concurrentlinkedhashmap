@@ -3,6 +3,16 @@
   <!-- Ensure property exists -->
   <fail message="Please set external.dir" unless="external.dir"/>
 
+  <!-- Cache Benchmark Framework -->
+  <path id="cache.benchmark.compile.path">
+    <fileset dir="${external.dir}/cache-benchmark/r6954">
+      <include name="benchmark-fwk.jar"/>
+    </fileset>
+  </path>
+  <path id="cache.benchmark.deploy.path">
+    <path refid="cache.benchmark.compile.path"/>
+  </path>
+
   <!-- Colt -->
   <path id="colt.compile.path">
     <fileset dir="${external.dir}/colt/1.2.0">
