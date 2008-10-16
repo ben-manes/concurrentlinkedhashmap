@@ -1,0 +1,98 @@
+<!--
+	Configures and controls the behaviour of the cache benchmarking framework.
+
+   TODO - sample size is test specific, move it to the test that uses it rather than having it here
+	sampleSize -  this is the number of putsgets to be performed, an average is used in metrics.
+	gcBetweenTestsEnabled - if true, the framework pauses between each test and requests System.gc() - use this if you find yourself running out of mem!
+	sleepBetweenTests - ms to sleep between tests.  useful to allow the JVM some time to do a gc
+	emptyCacheBetweenTests - again, use if you're running out of mem.
+	numThreads - the number of executor threads to use to perform the required number of operations.
+-->
+<cachebench sampleSize="500000" gcBetweenTestsEnabled="true" sleepBetweenTests="1000" emptyCacheBetweenTests="true"
+            numThreads="25">
+
+
+   <!--
+         There are various steps we want to start executing at once: e.g. all the tests should start at the same time,
+      otherwise (part of) cluster operations do not replicate on all instances. We configure here one socket addresses
+      on each cluster node, so that the framework can communicate with all the nodes and barrier whenever needed.
+         - for each node instance socket address is specified. You can make sure that addresses are available by using
+         checkClusterAddresses ant target
+   -->
+   <!--<cluster>-->
+   <!--<member host="cluster01" port="17900"/>-->
+   <!--<member host="cluster02" port="17900"/>-->
+   <!--<member host="cluster03" port="17900"/>-->
+   <!--<member host="cluster04" port="17900"/>-->
+   <!--<member host="cluster05" port="17900"/>-->
+   <!--<member host="cluster06" port="17900"/>-->
+   <!--<member host="cluster07" port="17900"/>-->
+   <!--<member host="cluster08" port="17900"/>-->
+   <!--<member host="cluster09" port="17900"/>-->
+   <!--<member host="cluster10" port="17900"/>-->
+   <!--</cluster>-->
+
+   <!--
+     Locagically groups multiple tests.
+     param stopOnFailre : if true and one of the tests fails unexpectedly then the fwk will not run any other tests in
+                          testcase. By default set to true.
+   -->
+
+   <testcase name="NonClusteredTest" stopOnFailure="true">
+
+      <!-- org.cachebench.warmup.PutGetCacheWarmup warms up the cache by doing operation on it; simulates a real-world environment.
+      If no warmup is needed use org.cachebench.warmup.NoCacheWarmup
+      -->
+      <warmup warmupClass="org.cachebench.warmup.PutGetCacheWarmup">
+         <param name="operationCount" value="50000"/>
+      </warmup>
+
+      <!--
+        validates that replication is enabled and works. If repl does not occur and the stopOnFailure is set to true then exists.
+        Should be used to make sure that replication is enabled; see javadoc for more details
+      -->
+      <!--<test name="replicationOccurrsTest" testClass="org.cachebench.tests.ReplicationOccursTest">-->
+      <!--<param name="partialReplication" value="true"/>-->
+      <!--</test>-->
+
+      <!--
+         * The "name" attrib is just used for display in the reports.
+         * You can write your own custom testClass.
+         * weight is currently unused.
+      -->
+      <test name="Strings" testClass="org.cachebench.tests.simpletests.StringTest" weight="2.0" repeat="20">
+         <param name="writePercentage" value="20"/>
+      </test>
+
+      <!--<test name="SessionSimulator" testClass="org.cachebench.tests.SessionSimulatorTest" weight="2.0">-->
+      <!--<param name="numberOfRequest" value="100000"/>-->
+      <!--<param name="numberOfAttributes" value="100"/>-->
+      <!--<param name="writePercentage" value="20"/>-->
+      <!--<param name="sizeOfAnAttribute" value="1000"/>-->
+      <!--</test>-->
+
+      <!--
+        <test name="Primitive Wrappers" testClass="org.cachebench.tests.simpletests.PrimitiveTest" weight="1.0" />
+        <test name="Custom Class Types" testClass="org.cachebench.tests.simpletests.CustomClassTest" weight="1.0" />
+        <test name="Custom Subclasses of Abstracts" testClass="org.cachebench.tests.simpletests.SubclassTest" weight="1.5" />
+        <test name="Custom Types With Transients" testClass="org.cachebench.tests.simpletests.TransientTest" weight="1.0" />
+        <test name="Custom Types With Statics" testClass="org.cachebench.tests.simpletests.StaticsTest" weight="1.5" />
+        <test name="Custom Types With Associations" testClass="org.cachebench.tests.simpletests.AssociationsTest" weight="2.0" />
+        -->
+
+      <!-- WARNING - Configuration file name is now DEPRECATED and will be ignored.  Please pass in your cache config
+file name that you wish to use with the -DcacheBenchFwk.cacheConfigFile JVM parameter.  The runNode.sh
+and cluster.sh scripts will also do this for you.  -->
+   </testcase>
+
+
+   <!--
+      Available generators are: CSVReportGenerator and ClusterReportGenerator.
+      See javadocs for org.cachebench.reportgenerators.ReportGenerator for writing your
+      own report generators such as XML generators, graphic generators, etc
+   -->
+   <!-- The CSV report generated can be plugged in to a spreadsheet to generate graphs. If 'outputFile is set to
+   '-generic-' then the name would be generated as follows: 'data_<cache-product>_<configuration>_<cluster-size>.csv' -->
+   <report outputFile="-generic-" generator="org.cachebench.reportgenerators.CsvStatisticReportGenerator"/>
+
+</cachebench>
