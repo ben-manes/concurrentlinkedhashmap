@@ -11,6 +11,15 @@
   </path>
   <path id="cache.benchmark.deploy.path">
     <path refid="cache.benchmark.compile.path"/>
+    <fileset dir="${external.dir}/cache-benchmark/r6954">
+      <include name="commons-beanutils.jar"/>
+      <include name="commons-digester.jar"/>
+      <include name="commons-logging.jar"/>
+      <include name="commons-math-1.0.jar"/>
+      <include name="jcommon.jar"/>
+      <include name="jfreechart.jar"/>
+      <include name="log4j.jar"/>
+    </fileset>
   </path>
 
   <!-- Colt -->

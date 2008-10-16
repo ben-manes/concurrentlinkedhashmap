@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE log4j:configuration SYSTEM "log4j.dtd">
+<!-- The Log4j Configuration -->
+<!-- $Id: log4j.xml,v 1.10 2007/05/18 14:32:09 msurtani Exp $ -->
+<log4j:configuration xmlns:log4j="http://jakarta.apache.org/log4j/">
+   <!-- The list of appenders -->
+   <!-- The rolling file appender -->
+   <appender name="FILE" class="org.cachebench.utils.PerNodeRollingFileAppender">
+      <!--<appender name="FILE" class="org.cachebench.utils.PerNodeRollingFileAppender">-->
+      <param name="File" value="cachebench.log"/>
+      <param name="Append" value="true"/>
+      <param name="Threshold" value="WARN"/>
+      <param name="MaxFileSize" value="100MB"/>
+      <param name="MaxBackupIndex" value="3"/>
+      <layout class="org.apache.log4j.PatternLayout">
+         <!-- The default pattern: Date Priority [Category] Message\n -->
+         <param name="ConversionPattern" value="%d %-5p [%c] %m%n"/>
+         <!--param name="ConversionPattern" valye="%p %t %c - %m%n"/-->
+      </layout>
+   </appender>
+
+   <!-- The console appender -->
+   <appender name="CONSOLE" class="org.apache.log4j.ConsoleAppender">
+      <param name="Threshold" value="WARN"/>
+      <layout class="org.apache.log4j.PatternLayout">
+         <param name="ConversionPattern" value="%d{ABSOLUTE} %-5p [%c{1}] %m%n"/>
+      </layout>
+   </appender>
+
+   <!-- The list of Categories-->
+   <category name="ClusterConfigurationCheck">
+      <priority value="INFO"/>
+   </category>
+
+   <category name="CacheException">
+      <priority value="INFO"/>
+      <appender-ref ref="CONSOLE"/>
+   </category>
+
+   <category name="org.apache">
+      <priority value="ERROR"/>
+   </category>
+
+   <category name="org.cachebench">
+      <priority value="INFO"/>
+   </category>
+
+   <category name="org.cachebench.reportgenerators">
+      <priority value="WARN"/>
+   </category>
+
+   <category name="net.sf.ehcache">
+      <priority value="ERROR"/>
+   </category>
+
+   <category name="com.tc">
+      <priority value="ERROR"/>
+   </category>
+
+   <category name="org.tc">
+      <priority value="ERROR"/>
+   </category>
+
+   <category name="org.jboss.cache">
+      <priority value="ERROR"/>
+   </category>
+
+   <category name="org.jgroups">
+      <priority value="ERROR"/>
+   </category>
+
+   <!-- Here goes the root -->
+   <root>
+      <priority value="INFO"/>
+      <appender-ref ref="FILE"/>
+   </root>
+
+</log4j:configuration>
