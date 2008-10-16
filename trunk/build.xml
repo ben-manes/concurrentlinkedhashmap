@@ -251,4 +251,50 @@
       <sysproperty key="performance.threads.forceContention" value="${performance.threads.forceContention}"/>
     </testng>
   </target>
+
+  <target
+   name="run-benchmarks"
+   depends="compile"
+   description="Runs micro-benchmarks over the build artifacts."
+  >
+    <mkdir dir="${benchmark.report.dir}"/>
+
+    <java
+     classname="org.cachebench.CacheBenchmarkRunner"
+     classpathref="test.path"
+     fork="true"
+     maxmemory="${benchmark.test.heap}"
+     dir="${benchmark.report.dir}"
+    >
+      <classpath>
+        <pathelement location="${benchmark.config.dir}"/>
+      </classpath>
+
+      <sysproperty key="cacheBenchFwk.cacheConfigFile" value="${benchmark.test.config}"/>
+      <sysproperty key="cacheBenchFwk.cacheProductName" value="${benchmark.test.product}"/>
+      <sysproperty key="cacheBenchFwk.cacheWrapperClassName" value="${benchmark.test.wrapper}"/>
+      <sysproperty key="cacheBenchFwk.fwkCfgFile" value="${benchmark.config.file}"/>
+      <sysproperty key="localOnly" value="true"/>
+    </java>
+  </target>
+
+  <target
+   name="run-reports"
+   description="Runs the report generator for micro-benchmark visualization."
+  >
+    <java
+     classname="org.cachebench.reportgenerators.ChartGenerator"
+     classpathref="test.path"
+     fork="true"
+     dir="${benchmark.report.dir}"
+    >
+      <classpath>
+        <pathelement location="${benchmark.config.dir}"/>
+      </classpath>
+
+      <arg line="-chartType ${benchmark.report.chart}"/>
+      <arg line="-o ${benchmark.report.file}"/>
+      <arg line="-reportDir ."/>
+    </java>
+  </target>
 </project>
