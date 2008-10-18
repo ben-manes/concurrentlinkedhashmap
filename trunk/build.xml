@@ -270,6 +270,8 @@
         <pathelement location="${benchmark.config.dir}"/>
       </classpath>
 
+      <jvmarg value="-Xms${benchmark.test.heap}"/>
+
       <sysproperty key="cacheBenchFwk.cacheConfigFile" value="${benchmark.test.config}"/>
       <sysproperty key="cacheBenchFwk.cacheProductName" value="${benchmark.test.product}"/>
       <sysproperty key="cacheBenchFwk.cacheWrapperClassName" value="${benchmark.test.wrapper}"/>
