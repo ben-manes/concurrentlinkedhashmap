@@ -99,6 +99,22 @@
    classpathref="findbugs.compile.path"
   />
 
+  <!-- JBoss Cache -->
+  <path id="jboss.cache-2.1.0.compile.path">
+    <fileset dir="${external.dir}/jboss-cache/2.1.0">
+      <include name="jbosscache-core.jar"/>
+    </fileset>
+  </path>
+  <path id="jboss.cache-2.1.0.deploy.path">
+    <path refid="jboss.cache-2.1.0.compile.path"/>
+    <fileset dir="${external.dir}/jboss-cache/2.1.0">
+      <include name="jboss-common-core.jar"/>
+      <include name="jboss-javaee.jar"/>
+      <include name="jcip-annotations.jar"/>
+      <include name="jgroups.jar"/>
+    </fileset>
+  </path>
+
   <!-- PMD -->
   <path id="pmd.compile.path">
     <fileset dir="${external.dir}/pmd/4.2.3">
