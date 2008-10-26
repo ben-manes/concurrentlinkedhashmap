@@ -131,6 +131,24 @@
     </fileset>
   </path>
 
+  <!-- JBoss Cache 3.0.0 -->
+  <path id="jboss.cache-3.0.0.compile.path">
+    <fileset dir="${external.dir}/jboss-cache/3.0.0">
+      <include name="jbosscache-core.jar"/>
+    </fileset>
+  </path>
+  <path id="jboss.cache-3.0.0.deploy.path">
+    <path refid="jboss.cache-3.0.0.compile.path"/>
+    <fileset dir="${external.dir}/jboss-cache/3.0.0">
+      <include name="commons-codec.jar"/>
+      <include name="jboss-common-core.jar"/>
+      <include name="jboss-logging-spi.jar"/>
+      <include name="jcip-annotations.jar"/>
+      <include name="jgroups.jar"/>
+      <include name="jta.jar"/>
+    </fileset>
+  </path>
+
   <!-- PMD -->
   <path id="pmd.compile.path">
     <fileset dir="${external.dir}/pmd/4.2.3">
