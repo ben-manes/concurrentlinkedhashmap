@@ -258,6 +258,7 @@
    description="Runs micro-benchmarks over the build artifacts."
   >
     <mkdir dir="${benchmark.report.dir}"/>
+    <path id="empty.path"/>
 
     <java
      classname="org.cachebench.CacheBenchmarkRunner"
@@ -267,6 +268,7 @@
      dir="${benchmark.report.dir}"
     >
       <classpath>
+        <path refid="${benchmark.test.path}"/>
         <pathelement location="${benchmark.config.dir}"/>
       </classpath>
 
