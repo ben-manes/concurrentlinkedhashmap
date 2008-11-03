@@ -151,10 +151,10 @@
 
   <!-- PMD -->
   <path id="pmd.compile.path">
-    <fileset dir="${external.dir}/pmd/4.2.3">
+    <fileset dir="${external.dir}/pmd/4.2.4">
       <include name="asm-3.1.jar"/>
       <include name="jaxen-1.1.1.jar"/>
-      <include name="pmd-4.2.3.jar"/>
+      <include name="pmd-4.2.4.jar"/>
     </fileset>
   </path>
   <path id="pmd.deploy.path">
