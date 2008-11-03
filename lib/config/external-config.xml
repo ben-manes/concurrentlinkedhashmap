@@ -82,7 +82,7 @@
 
   <!-- FindBugs -->
   <path id="findbugs.compile.path">
-    <fileset dir="${external.dir}/findbugs/1.3.4">
+    <fileset dir="${external.dir}/findbugs/1.3.5">
       <include name="findbugs-ant.jar"/>
     </fileset>
   </path>
@@ -91,7 +91,7 @@
   </path>
   <property
    name="findbugs.home"
-   value="${external.dir}/findbugs/1.3.4"
+   value="${external.dir}/findbugs/1.3.5"
   />
   <taskdef
    name="findbugs"
