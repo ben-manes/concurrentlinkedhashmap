@@ -228,7 +228,7 @@ final class SecondChanceLinkedMap<K, V> implements ConcurrentMap<K, V> {
         EntryKey<?, ?> entryKey = new EntryKey(key);
         EntryValue<K, V> entryValue = map.get(entryKey);
         if ((entryValue != null) && entryValue.innerValue.equals(value)) {
-            map.remove(entryValue);
+            map.remove(entryKey);
             size.decrementAndGet();
             queue.remove(entryKey);
             return true;
