@@ -23,6 +23,8 @@
     <path refid="testng.deploy.path"/>
   </path>
 
+  <path id="empty.path"/>
+
   <path id="test.path">
     <path refid="deploy.path"/>
     <pathelement location="${api.build.dir}"/>
@@ -51,47 +53,36 @@
    depends="init"
    description="Compiles Java sources into class files."
   >
-    <depend
-     srcDir="${api.src.dir}"
-     destDir="${api.build.dir}"
-     cache="${api.build.dir}"
-    />
+    <macrodef name="compile.macro">
+      <attribute name="srcdir"/>
+      <attribute name="destdir"/>
+      <attribute name="pathref"/>
+      <sequential>
+        <depend
+         srcDir="@{srcdir}"
+         destDir="@{destdir}"
+         cache="@{destdir}"
+        />
 
-    <javac
-     srcdir="${api.src.dir}"
-     destdir="${api.build.dir}"
-     debug="${javac.debug}"
-     deprecation="${javac.deprecation}"
-     fork="${javac.fork}"
-     optimize="${javac.optimize}"
-     source="${javac.source}"
-     target="${javac.target}"
-     verbose="${javac.verbose}"
-    >
-      <compilerarg value="-Xlint:all,-path" compiler="modern"/>
-    </javac>
+        <javac
+         srcdir="@{srcdir}"
+         destdir="@{destdir}"
+         classpathref="@{pathref}"
+         debug="${javac.debug}"
+         deprecation="${javac.deprecation}"
+         fork="${javac.fork}"
+         optimize="${javac.optimize}"
+         source="${javac.source}"
+         target="${javac.target}"
+         verbose="${javac.verbose}"
+        >
+          <compilerarg value="-Xlint:all,-path" compiler="modern"/>
+        </javac>
+      </sequential>
+    </macrodef>
 
-    <depend
-     srcDir="${test.src.dir}"
-     destDir="${test.build.dir}"
-     cache="${test.build.dir}"
-     classpath="${api.build.dir}"
-    />
-
-    <javac
-     srcdir="${test.src.dir}"
-     destdir="${test.build.dir}"
-     classpathref="test.path"
-     debug="${javac.debug}"
-     deprecation="${javac.deprecation}"
-     fork="${javac.fork}"
-     optimize="${javac.optimize}"
-     source="${javac.source}"
-     target="${javac.target}"
-     verbose="${javac.verbose}"
-    >
-      <compilerarg value="-Xlint:all,-path" compiler="modern"/>
-    </javac>
+    <compile.macro srcdir="${api.src.dir}" destdir="${api.build.dir}" pathref="empty.path"/>
+    <compile.macro srcdir="${test.src.dir}" destdir="${test.build.dir}" pathref="test.path"/>
   </target>
 
   <target
@@ -258,7 +249,6 @@
    description="Runs micro-benchmarks over the build artifacts."
   >
     <mkdir dir="${benchmark.report.dir}"/>
-    <path id="empty.path"/>
 
     <java
      classname="org.cachebench.CacheBenchmarkRunner"
