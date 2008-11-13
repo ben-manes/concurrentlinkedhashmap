@@ -179,46 +179,92 @@
     </pmd>
   </target>
 
+  <macrodef name="testng.macro">
+    <attribute name="pathref"/>
+    <attribute name="outputdir"/>
+    <element name="args" optional="true"/>
+    <sequential>
+      <testng
+       classpathref="@{pathref}"
+       dumpCommand="${testng.dumpCommand}"
+       groups="${testng.groups}"
+       haltonfailure="${testng.haltonfailure}"
+       haltonskipped="${testng.haltonskipped}"
+       outputdir="@{outputdir}"
+      >
+        <classfileset dir="${test.build.dir}"/>
+        <jvmarg value="-Xss4m"/>
+
+        <!-- All tests -->
+        <sysproperty key="test.debugMode" value="${test.debugMode}"/>
+        <sysproperty key="test.exhaustive" value="${test.exhaustive}"/>
+        <sysproperty key="test.maximumCapacity" value="${test.maximumCapacity}"/>
+
+        <!-- Efficiency tests -->
+        <sysproperty key="efficiency.workingSetSize" value="${efficiency.workingSetSize}"/>
+        <sysproperty key="efficiency.distribution" value="${efficiency.distribution}"/>
+        <sysproperty key="efficiency.distribution.uniform.lower" value="${efficiency.distribution.uniform.lower}"/>
+        <sysproperty key="efficiency.distribution.uniform.upper" value="${efficiency.distribution.uniform.upper}"/>
+        <sysproperty key="efficiency.distribution.exponential.mean" value="${efficiency.distribution.exponential.mean}"/>
+        <sysproperty key="efficiency.distribution.gaussian.mean" value="${efficiency.distribution.gaussian.mean}"/>
+        <sysproperty key="efficiency.distribution.gaussian.sigma" value="${efficiency.distribution.gaussian.sigma}"/>
+        <sysproperty key="efficiency.distribution.poisson.mean" value="${efficiency.distribution.poisson.mean}"/>
+        <sysproperty key="efficiency.distribution.zipfian.skew" value="${efficiency.distribution.zipfian.skew}"/>
+
+        <!-- Multi-threading tests -->
+        <sysproperty key="performance.runs" value="${performance.runs}"/>
+        <sysproperty key="performance.cache" value="${performance.cache}"/>
+        <sysproperty key="performance.iterations" value="${performance.iterations}"/>
+        <sysproperty key="performance.threads.num" value="${performance.threads.num}"/>
+        <sysproperty key="performance.percentWrite" value="${performance.percentWrite}"/>
+        <sysproperty key="performance.threads.forceContention" value="${performance.threads.forceContention}"/>
+
+        <args/>
+      </testng>
+    </sequential>
+  </macrodef>
+
   <target
    name="run-tests"
    depends="compile"
    description="Runs unit tests over the build artifacts."
   >
-    <testng
-     classpathref="test.path"
-     dumpCommand="${testng.dumpCommand}"
-     groups="${testng.groups}"
-     haltonfailure="${testng.haltonfailure}"
-     haltonskipped="${testng.haltonskipped}"
-     outputdir="${testng.outputdir}"
+    <testng.macro pathref="test.path" outputdir="${testng.outputdir}"/>
+  </target>
+
+  <target
+   name="run-coverage"
+   depends="compile"
+   description="Runs code coverage tests over the build artifacts."
+  >
+    <delete dir="${cobertura.dir}"/>
+    <mkdir dir="${cobertura.dir}"/>
+
+    <cobertura-instrument
+     datafile="${cobertura.datafile}"
+     todir="${cobertura.todir}"
     >
-      <classfileset dir="${test.build.dir}"/>
-      <jvmarg value="-Xss4m"/>
+      <fileset dir="${api.build.dir}" includes="**/*.class"/>
+    </cobertura-instrument>
 
-      <!-- All tests -->
-      <sysproperty key="test.debugMode" value="${test.debugMode}"/>
-      <sysproperty key="test.exhaustive" value="${test.exhaustive}"/>
-      <sysproperty key="test.maximumCapacity" value="${test.maximumCapacity}"/>
+    <path id="coverage.path">
+      <pathelement location="${cobertura.todir}"/>
+      <path refid="cobertura.compile.path"/>
+      <path refid="test.path"/>
+    </path>
 
-      <!-- Efficiency tests -->
-      <sysproperty key="efficiency.workingSetSize" value="${efficiency.workingSetSize}"/>
-      <sysproperty key="efficiency.distribution" value="${efficiency.distribution}"/>
-      <sysproperty key="efficiency.distribution.uniform.lower" value="${efficiency.distribution.uniform.lower}"/>
-      <sysproperty key="efficiency.distribution.uniform.upper" value="${efficiency.distribution.uniform.upper}"/>
-      <sysproperty key="efficiency.distribution.exponential.mean" value="${efficiency.distribution.exponential.mean}"/>
-      <sysproperty key="efficiency.distribution.gaussian.mean" value="${efficiency.distribution.gaussian.mean}"/>
-      <sysproperty key="efficiency.distribution.gaussian.sigma" value="${efficiency.distribution.gaussian.sigma}"/>
-      <sysproperty key="efficiency.distribution.poisson.mean" value="${efficiency.distribution.poisson.mean}"/>
-      <sysproperty key="efficiency.distribution.zipfian.skew" value="${efficiency.distribution.zipfian.skew}"/>
+    <testng.macro pathref="coverage.path" outputdir="${cobertura.dir}/test-output">
+      <args>
+        <sysproperty key="net.sourceforge.cobertura.datafile" file="${cobertura.datafile}"/>
+      </args>
+    </testng.macro>
 
-      <!-- Multi-threading tests -->
-      <sysproperty key="performance.runs" value="${performance.runs}"/>
-      <sysproperty key="performance.cache" value="${performance.cache}"/>
-      <sysproperty key="performance.iterations" value="${performance.iterations}"/>
-      <sysproperty key="performance.threads.num" value="${performance.threads.num}"/>
-      <sysproperty key="performance.percentWrite" value="${performance.percentWrite}"/>
-      <sysproperty key="performance.threads.forceContention" value="${performance.threads.forceContention}"/>
-    </testng>
+    <cobertura-report
+     format="${cobertura.format}"
+     datafile="${cobertura.datafile}"
+     destdir="${cobertura.destdir}"
+     srcdir="${api.src.dir}"
+    />
   </target>
 
   <target
