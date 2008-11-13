@@ -98,61 +98,39 @@
    depends="compile"
    description="Packages build artifacts into a jar."
   >
-    <jar
-     destfile="${dist.dir}/${manifest.impl.vendor}-${DSTAMP}.jar"
-     duplicate="fail"
-    >
-      <fileset dir="${api.build.dir}" excludes="dependencies.txt"/>
-      <manifest>
-        <attribute name="Built-By" value="${user.name}"/>
-        <section name="common">
-          <attribute
-           name="Implementation-Title"
-           value="${manifest.impl.title}"
-          />
-          <attribute
-           name="Implementation-URL"
-           value="${manifest.impl.url}"
-          />
-          <attribute
-           name="Implementation-Vendor"
-           value="${manifest.impl.vendor}"
-          />
-          <attribute
-           name="Implementation-Version"
-           value="${manifest.impl.version}"
-          />
-        </section>
-      </manifest>
-    </jar>
+    <macrodef name="package.macro">
+      <attribute name="destfile"/>
+      <attribute name="dir"/>
+      <sequential>
+        <jar destfile="@{destfile}" duplicate="fail">
+          <fileset dir="@{dir}" excludes="dependencies.txt"/>
+          <manifest>
+            <attribute name="Built-By" value="${user.name}"/>
+            <section name="common">
+              <attribute
+               name="Implementation-Title"
+               value="${manifest.impl.title}"
+              />
+              <attribute
+               name="Implementation-URL"
+               value="${manifest.impl.url}"
+              />
+              <attribute
+               name="Implementation-Vendor"
+               value="${manifest.impl.vendor}"
+              />
+              <attribute
+               name="Implementation-Version"
+               value="${manifest.impl.version}"
+              />
+            </section>
+          </manifest>
+        </jar>
+      </sequential>
+    </macrodef>
 
-    <jar
-     destfile="${dist.dir}/${manifest.impl.vendor}-test-${DSTAMP}.jar"
-     duplicate="fail"
-    >
-      <fileset dir="${test.build.dir}" excludes="dependencies.txt"/>
-      <manifest>
-        <attribute name="Built-By" value="${user.name}"/>
-        <section name="common">
-          <attribute
-           name="Implementation-Title"
-           value="${manifest.impl.title} Test"
-          />
-          <attribute
-           name="Implementation-URL"
-           value="${manifest.impl.url}"
-          />
-          <attribute
-           name="Implementation-Vendor"
-           value="${manifest.impl.vendor}"
-          />
-          <attribute
-           name="Implementation-Version"
-           value="${manifest.impl.version}"
-          />
-        </section>
-      </manifest>
-    </jar>
+    <package.macro destfile="${dist.dir}/${manifest.impl.vendor}-${DSTAMP}.jar" dir="${api.build.dir}"/>
+    <package.macro destfile="${dist.dir}/${manifest.impl.vendor}-test-${DSTAMP}.jar" dir="${test.build.dir}"/>
   </target>
 
   <!-- Tasks devoted to code reviews. -->
