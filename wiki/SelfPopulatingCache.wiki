@@ -70,7 +70,7 @@ public class SelfPopulatingMap<K, V> implements Map<K, V> {
 }}}
 
 = A Multi-item Memoization Implementation =
-The following implementation shows a production-quality implementation, but to avoid introducing bugs it does not generalize out custom utilities. In addition to the single retrieval approach described above, it extends the concept to support bulk retrieval.
+The following shows a production-quality implementation, but to avoid introducing bugs it does not generalize out custom utilities. In addition to the single retrieval approach described above, it extends the concept to support bulk retrieval.
 
 {{{
 import static com.rc.collections.Maps2.forEach;
