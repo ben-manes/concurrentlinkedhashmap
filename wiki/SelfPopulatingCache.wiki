@@ -1,4 +1,5 @@
 #summary A tutorial for implementing a simple caching decorator.
+#labels Featured
 
 = Introduction =
 
