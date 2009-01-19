@@ -488,7 +488,7 @@ public class SelfPopulatingMap<K, V> extends AbstractMap<K, V> implements Concur
             try {
                 return task.get().get(key);
             } catch (Exception e) {
-                SelfPopulatingMap.this.remove(key, this);
+                map.remove(key);
                 throw e;
             } finally {
                 // allows GC
