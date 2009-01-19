@@ -644,7 +644,7 @@ public final class SelfPopulatingMapTest {
 
         // bulk
         try {
-            assertNull(map.get(asList(1, 2, 3, 4)));
+            assertTrue(map.getAll(asList(1, 2, 3, 4)).isEmpty());
             fail("Expected an exception to be thrown");
         } catch (RuntimeException e) {
             assertTrue(map.peekAll(asList(1, 2, 3, 4)).isEmpty());
