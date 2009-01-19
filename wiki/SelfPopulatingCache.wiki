@@ -14,7 +14,7 @@ public class Example {
 
   // Lazily computes the work and returns the value
   public Computation getComputation() throws Exception {
-    future.run();
+    future.run(); // no-ops on all subsequent calls
     return future.get();
   }
 
