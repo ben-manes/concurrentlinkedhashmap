@@ -74,16 +74,17 @@ public class SelfPopulatingMap<K, V> implements Map<K, V> {
 The following shows a production-quality implementation, but to avoid introducing bugs it does not generalize out custom utilities. In addition to the single retrieval approach described above, it extends the concept to support bulk retrieval.
 
 {{{
+package com.rc.collections;
+
 import static com.rc.collections.Maps2.forEach;
 import static com.rc.collections.Maps2.subMap;
+import static com.rc.collections.functions.Functions2.asFunction2ByValue;
 import static com.rc.collections.functions.Functions2.asMapEntryFunction;
 import static com.rc.util.Assertions.notNull;
 import static com.rc.util.concurrent.Futures.asFuture;
 import static com.rc.util.concurrent.Futures.fromFuture;
 import static com.rc.util.concurrent.Futures.fromFutures;
 
-import java.io.Serializable;
-import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -98,13 +99,13 @@ import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
 
 import com.google.common.base.Function;
-import com.rc.collections.functions.Functions2;
+import com.rc.collections.functions.Function2;
+import com.rc.collections.transforming.TransformingConcurrentMap;
 import com.rc.collections.transforming.TransformingSet;
-import com.rc.util.concurrent.Futures;
 
 /**
  * A {@link ConcurrentMap} that automatically creates an entry when not found and blocks other callers for that entry
- * during its creation process. Provides added optimizations if a bulk creation process is provided.
+ * during its creation process. Provides added optimizations if a bulk creation process is specified.
  * <p>
  * This implementation is not fully type-safe due to the inability to inspect the necessary type information at runtime.
  * For methods using raw object parameters, such as {{@link #get(Object)}, a {@link ClassCastException} will be thrown
@@ -114,9 +115,10 @@ import com.rc.util.concurrent.Futures;
  * @author <a href="mailto:ben.manes@reardencommerce.com">Ben Manes</a>
  * @see <tt>Java Concurrency in Practice</tt>'s Memoizer example.
  */
-public class SelfPopulatingMap<K, V> extends AbstractMap<K, V> implements ConcurrentMap<K, V>, Serializable {
-    private static final long serialVersionUID = -8699265986166521725L;
-    private final ConcurrentMap<K, Future<V>> map;
+public class SelfPopulatingMap<K, V> extends TransformingConcurrentMap<K, Future<V>, V> {
+    private static final Function2<?, ?, ?> decoder = asFunction2ByValue(fromFuture());
+    private static final Function2<?, ?, ?> encoder = asFunction2ByValue(asFuture());
+    private final ConcurrentMap<K, Future<V>> delegate;
     private final Loader<K, V> loader;
 
     /**
@@ -135,7 +137,7 @@ public class SelfPopulatingMap<K, V> extends AbstractMap<K, V> implements Concur
      * @param factory The factory for creating entries.
      */
     public SelfPopulatingMap(ConcurrentMap<K, Future<V>> map, EntryFactory<K, V> factory) {
-        this.map = notNull(map);
+        this.delegate = notNull(map);
         this.loader = (factory instanceof BulkEntryFactory)
                             ? new ParallelLoader((BulkEntryFactory<K, V>) factory)
                             : new SerialLoader(factory);
@@ -145,41 +147,11 @@ public class SelfPopulatingMap<K, V> extends AbstractMap<K, V> implements Concur
      * {@inheritDoc}
      */
     @Override
-    public boolean isEmpty() {
-        return map.isEmpty();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public int size() {
-        return map.size();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void clear() {
-        map.clear();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public boolean containsKey(Object key) {
-        return map.containsKey(key);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
     public boolean containsValue(Object value) {
+        notNull(value);
+
         // Handles the lack of equals() being implemented by futures
-        for (Future<V> future : map.values()) {
+        for (Future<V> future : delegate().values()) {
             try {
                 if (future.isDone() && value.equals(future.get())) {
                     return true;
@@ -198,14 +170,14 @@ public class SelfPopulatingMap<K, V> extends AbstractMap<K, V> implements Concur
      * @return    The value or <tt>null</tt> if not found.
      */
     public V peek(Object key) {
-        Future<V> future = map.get(key);
+        Future<V> future = delegate().get(key);
         return (future != null) && future.isDone()
                     ? fromFuture(future)
                     : null;
     }
 
     /**
-     * Peeks into the backing map retrieves the values for the given keys.
+     * Peeks into the backing map and retrieves the values for the given keys.
      *
      * @param keys The keys whose associated values may be returned.
      * @return     The entries for the specified keys.
@@ -224,6 +196,7 @@ public class SelfPopulatingMap<K, V> extends AbstractMap<K, V> implements Concur
     @Override
     @SuppressWarnings("unchecked")
     public V get(Object key) {
+        notNull(key);
         return loader.get((K) key);
     }
 
@@ -234,6 +207,7 @@ public class SelfPopulatingMap<K, V> extends AbstractMap<K, V> implements Concur
      * @return     The entries for the specified keys.
      */
     public Map<K, V> getAll(Collection<? extends K> keys) {
+        notNull(keys);
         return loader.getAll(keys);
     }
 
@@ -241,33 +215,14 @@ public class SelfPopulatingMap<K, V> extends AbstractMap<K, V> implements Concur
      * {@inheritDoc}
      */
     @Override
-    public V put(K key, V value) {
-        return fromFuture(map.put(key, asFuture(value)));
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    public V putIfAbsent(K key, V value) {
-        return fromFuture(map.putIfAbsent(key, asFuture(value)));
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public V remove(Object key) {
-        return fromFuture(map.remove(key));
-    }
-
-    /**
-     * {@inheritDoc}
-     */
     public boolean remove(Object key, Object value) {
+        notNull(key, "Null key");
+        notNull(value, "Null value");
+
         // Handles the lack of equals() being implemented by futures
-        Future<V> current = map.get(key);
+        Future<V> current = delegate().get(key);
         return (current != null) && fromFuture(current).equals(value)
-                    ? map.remove(key, current) // instance equals
+                    ? delegate().remove(key, current) // instance equals
                     : false;
     }
 
@@ -277,26 +232,25 @@ public class SelfPopulatingMap<K, V> extends AbstractMap<K, V> implements Concur
      * @param keys The keys for the entries to remove.
      */
     public void removeAll(Collection<? extends K> keys) {
+        notNull(keys);
         for (K key : keys) {
-            remove(key);
+            delegate().remove(key);
         }
     }
 
     /**
      * {@inheritDoc}
      */
-    public V replace(K key, V value) {
-        return fromFuture(map.replace(key, asFuture(value)));
-    }
-
-    /**
-     * {@inheritDoc}
-     */
+    @Override
     public boolean replace(K key, V oldValue, V newValue) {
+        notNull(key, "Null key");
+        notNull(oldValue, "Null old value");
+        notNull(newValue, "Null new value");
+
         // Handles the lack of equals() being implemented by futures
-        Future<V> current = map.get(key);
-        return (current != null) && fromFuture(current).equals(oldValue)
-                    ? map.replace(key, current, asFuture(newValue))
+        Future<V> current = delegate().get(key);
+        return (current != null) && oldValue.equals(fromFuture(current))
+                    ? delegate().replace(key, current, asFuture(newValue))
                     : false;
     }
 
@@ -307,33 +261,22 @@ public class SelfPopulatingMap<K, V> extends AbstractMap<K, V> implements Concur
      * @param key The key.
      */
     public void refresh(K key) {
-        if (!containsKey(key)) {
-            return;
-        }
         try {
-            V value = loader.createEntry(key);
-            map.replace(key, asFuture(value));
+            V oldValue = peek(key);
+            if (oldValue == null) {
+                return;
+            }
+
+            V newValue = loader.createEntry(key);
+            if (newValue == null) {
+                delegate().remove(key);
+            } else {
+                replace(key, oldValue, newValue);
+            }
         } catch (Exception e) {
-            map.remove(key);
+            delegate().remove(key);
             throw new RuntimeException(e);
         }
-    }
-
-    /**
-     * Retrieves the backing data store.
-     *
-     * @return The map delegated to.
-     */
-    protected ConcurrentMap<K, Future<V>> delegate() {
-        return map;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public Set<K> keySet() {
-        return map.keySet();
     }
 
     /**
@@ -342,6 +285,32 @@ public class SelfPopulatingMap<K, V> extends AbstractMap<K, V> implements Concur
     @Override
     public Set<Entry<K, V>> entrySet() {
         return new EntrySet();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @SuppressWarnings("unchecked")
+    protected final Function2<K, V, Future<V>> encoder() {
+        return (Function2<K, V, Future<V>>) encoder;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @SuppressWarnings("unchecked")
+    protected final Function2<K, Future<V>, V> decoder() {
+        return (Function2<K, Future<V>, V>) decoder;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected final ConcurrentMap<K, Future<V>> delegate() {
+        return delegate;
     }
 
     /**
@@ -407,15 +376,19 @@ public class SelfPopulatingMap<K, V> extends AbstractMap<K, V> implements Concur
                             return factory.createEntry(key);
                         }
                     });
-            Future<V> future = map.putIfAbsent(key, task);
+            Future<V> future = delegate().putIfAbsent(key, task);
             if (future == null) {
                 future = task;
                 task.run();
             }
             try {
-                return fromFuture(future);
+                V value = fromFuture(future);
+                if (value == null) {
+                    delegate().remove(key, future);
+                }
+                return value;
             } catch (RuntimeException e) {
-                map.remove(key, future);
+                delegate().remove(key, future);
                 throw e;
             }
         }
@@ -453,7 +426,7 @@ public class SelfPopulatingMap<K, V> extends AbstractMap<K, V> implements Concur
             Map<K, Future<V>> results = new HashMap<K, Future<V>>(keys.size());
             for (K key : keys) {
                 FutureTask<V> proxy = new FutureTask<V>(new Proxy(key, task));
-                Future<V> future = map.putIfAbsent(key, proxy);
+                Future<V> future = delegate().putIfAbsent(key, proxy);
                 if (future == null) {
                     future = proxy;
                     proxies.add(proxy);
@@ -486,9 +459,13 @@ public class SelfPopulatingMap<K, V> extends AbstractMap<K, V> implements Concur
         }
         public V call() throws Exception {
             try {
-                return task.get().get(key);
+                V value = task.get().get(key);
+                if (value == null) {
+                    delegate().remove(key);
+                }
+                return value;
             } catch (Exception e) {
-                map.remove(key);
+                delegate().remove(key);
                 throw e;
             } finally {
                 // allows GC
@@ -502,13 +479,6 @@ public class SelfPopulatingMap<K, V> extends AbstractMap<K, V> implements Concur
      * An adapter to represent the data in the external type.
      */
     private final class EntrySet extends TransformingSet<Entry<K, Future<V>>, Entry<K, V>> {
-        private static final long serialVersionUID = -1775164470487392056L;
-
-        public EntrySet() {
-            super(map.entrySet(),
-                  asMapEntryFunction(Functions2.<K, V, Future<V>>asFunction2ByValue(Futures.<V>asFuture())),
-                  asMapEntryFunction(Functions2.<K, Future<V>, V>asFunction2ByValue(Futures.<V>fromFuture())));
-        }
         @Override
         public boolean contains(Object obj) {
             if (!(obj instanceof Entry)) {
@@ -522,156 +492,17 @@ public class SelfPopulatingMap<K, V> extends AbstractMap<K, V> implements Concur
         public boolean add(Entry<K, V> entry) {
             return (putIfAbsent(entry.getKey(), entry.getValue()) == null);
         }
-    }
-}
-}}}
-{{{
-import static com.rc.collections.Collections3.combine;
-import static com.rc.collections.Maps2.forEach;
-import static java.lang.Integer.valueOf;
-import static java.util.Arrays.asList;
-import static org.testng.Assert.assertEquals;
-import static org.testng.Assert.assertFalse;
-import static org.testng.Assert.assertNull;
-import static org.testng.Assert.assertTrue;
-import static org.testng.Assert.fail;
-
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
-
-import org.testng.annotations.BeforeMethod;
-import org.testng.annotations.Test;
-
-import com.google.common.base.Function;
-import com.rc.collections.SelfPopulatingMap.BulkEntryFactory;
-
-/**
- * A unit test for the {@link SelfPopulatingMap}.
- *
- * @author <a href="mailto:ben.manes@reardencommerce.com">Ben Manes</a>
- */
-public final class SelfPopulatingMapTest {
-    private final IdentifyFactory<Integer> factory = new IdentifyFactory<Integer>();
-    private final SelfPopulatingMap<Integer, Integer> map = new SelfPopulatingMap<Integer, Integer>(factory);
-
-    @BeforeMethod
-    public void reset() {
-        map.clear();
-        factory.count = 0;
-        factory.fail = false;
-    }
-
-    @Test
-    public void clearSizeIsEmpty() {
-        map.put(1, 1);
-        assertFalse(map.isEmpty());
-        assertEquals(map.size(), 1);
-
-        map.clear();
-        assertNull(map.peek(1));
-        assertTrue(map.isEmpty());
-        assertEquals(map.size(), 0);
-    }
-
-    @Test
-    public void singular() {
-        assertNull(map.peek(1));
-        assertFalse(map.containsKey(1));
-        assertFalse(map.containsValue(1));
-        assertEquals(map.get(1), valueOf(1));
-        assertEquals(map.put(1, 2), valueOf(1));
-        assertEquals(map.get(1), valueOf(2));
-        assertEquals(map.putIfAbsent(1, 3), valueOf(2));
-        assertEquals(map.replace(1, 3), valueOf(2));
-        assertEquals(map.remove(1), valueOf(3));
-        assertNull(map.replace(1, 4));
-        assertNull(map.putIfAbsent(1, 4));
-        assertEquals(map.get(1), valueOf(4));
-        assertEquals(map.peek(1), valueOf(4));
-        assertTrue(map.containsKey(1));
-        assertTrue(map.containsValue(4));
-        assertFalse(map.replace(1, 3, 5));
-        assertTrue(map.replace(1, 4, 5));
-        assertFalse(map.remove(1, 6));
-        assertTrue(map.remove(1, 5));
-    }
-
-    @Test
-    public void refresh() {
-        map.refresh(1);
-        assertFalse(map.containsKey(1));
-        assertNull(map.put(1, 5));
-        map.refresh(1);
-        assertEquals(map.peek(1), valueOf(1));
-    }
-
-    @Test
-    public void bulk() {
-        List<Integer> keys = asList(1, 2, 3, 4, 5);
-        Map<Integer, Integer> entries = map.getAll(keys);
-        assertTrue(entries.keySet().containsAll(keys));
-        assertTrue(entries.values().containsAll(keys));
-        assertEquals(entries.size(), keys.size());
-        assertEquals(factory.count, keys.size());
-
-        int count = factory.count;
-        assertEquals(map.getAll(keys), entries);
-        assertEquals(factory.count, count);
-        assertEquals(map.peekAll(combine(keys, asList(6, 7, 8))), entries);
-
-        map.removeAll(keys);
-        assertTrue(map.isEmpty());
-
-        map.putAll(entries);
-        assertEquals(map, entries);
-
-        assertTrue(map.keySet().containsAll(keys));
-        assertTrue(map.values().containsAll(keys));
-    }
-
-    @Test
-    public void failure() {
-        factory.fail = true;
-
-        // singular
-        try {
-            assertNull(map.get(1));
-            fail("Expected an exception to be thrown");
-        } catch (RuntimeException e) {
-            assertNull(map.peek(1));
+        @Override
+        protected Set<Entry<K, Future<V>>> delegate() {
+            return SelfPopulatingMap.this.delegate().entrySet();
         }
-
-        // bulk
-        try {
-            assertTrue(map.getAll(asList(1, 2, 3, 4)).isEmpty());
-            fail("Expected an exception to be thrown");
-        } catch (RuntimeException e) {
-            assertTrue(map.peekAll(asList(1, 2, 3, 4)).isEmpty());
+        @Override
+        protected Function<Entry<K, V>, Entry<K, Future<V>>> encoder() {
+            return asMapEntryFunction(SelfPopulatingMap.this.encoder());
         }
-    }
-
-    private static final class IdentifyFactory<K> implements BulkEntryFactory<K, K> {
-        public boolean fail;
-        public int count;
-
-        public K createEntry(K key) {
-            checkForFailure();
-            count++;
-            return key;
-        }
-        public Map<K, K> createEntries(Collection<K> keys) {
-            checkForFailure();
-            return forEach(keys, new Function<K, K>() {
-                public K apply(K key) {
-                    return createEntry(key);
-                }
-            });
-        }
-        private void checkForFailure() {
-            if (fail) {
-                throw new RuntimeException();
-            }
+        @Override
+        protected Function<Entry<K, Future<V>>, Entry<K, V>> decoder() {
+            return asMapEntryFunction(SelfPopulatingMap.this.decoder());
         }
     }
 }
