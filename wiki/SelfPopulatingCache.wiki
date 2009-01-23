@@ -507,3 +507,154 @@ public class SelfPopulatingMap<K, V> extends TransformingConcurrentMap<K, Future
     }
 }
 }}}
+{{{
+import static com.rc.collections.Collections3.combine;
+import static com.rc.collections.Maps2.forEach;
+import static java.lang.Integer.valueOf;
+import static java.util.Arrays.asList;
+import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertFalse;
+import static org.testng.Assert.assertNull;
+import static org.testng.Assert.assertTrue;
+import static org.testng.Assert.fail;
+
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+
+import org.testng.annotations.BeforeMethod;
+import org.testng.annotations.Test;
+
+import com.google.common.base.Function;
+import com.rc.collections.SelfPopulatingMap.BulkEntryFactory;
+
+/**
+ * A unit test for the {@link SelfPopulatingMap}.
+ *
+ * @author <a href="mailto:ben.manes@reardencommerce.com">Ben Manes</a>
+ */
+public final class SelfPopulatingMapTest {
+    private final IdentifyFactory<Integer> factory = new IdentifyFactory<Integer>();
+    private final SelfPopulatingMap<Integer, Integer> map = new SelfPopulatingMap<Integer, Integer>(factory);
+
+    @BeforeMethod
+    public void reset() {
+        map.clear();
+        factory.count = 0;
+        factory.fail = false;
+    }
+
+    @Test
+    public void clearSizeIsEmpty() {
+        map.put(1, 1);
+        assertFalse(map.isEmpty());
+        assertEquals(map.size(), 1);
+
+        map.clear();
+        assertNull(map.peek(1));
+        assertTrue(map.isEmpty());
+        assertEquals(map.size(), 0);
+    }
+
+    @Test
+    public void singular() {
+        assertNull(map.peek(1));
+        assertFalse(map.containsKey(1));
+        assertFalse(map.containsValue(1));
+        assertEquals(map.get(1), valueOf(1));
+        assertEquals(map.put(1, 2), valueOf(1));
+        assertEquals(map.get(1), valueOf(2));
+        assertEquals(map.putIfAbsent(1, 3), valueOf(2));
+        assertEquals(map.replace(1, 3), valueOf(2));
+        assertEquals(map.remove(1), valueOf(3));
+        assertNull(map.replace(1, 4));
+        assertNull(map.putIfAbsent(1, 4));
+        assertEquals(map.get(1), valueOf(4));
+        assertEquals(map.peek(1), valueOf(4));
+        assertTrue(map.containsKey(1));
+        assertTrue(map.containsValue(4));
+        assertFalse(map.replace(1, 3, 5));
+        assertTrue(map.replace(1, 4, 5));
+        assertFalse(map.remove(1, 6));
+        assertTrue(map.remove(1, 5));
+    }
+
+    @Test
+    public void refresh() {
+        map.refresh(1);
+        assertFalse(map.containsKey(1));
+        assertNull(map.put(1, 5));
+        map.refresh(1);
+        assertEquals(map.peek(1), valueOf(1));
+    }
+
+    @Test
+    public void bulk() {
+        List<Integer> keys = asList(1, 2, 3, 4, 5);
+        Map<Integer, Integer> entries = map.getAll(keys);
+        assertTrue(entries.keySet().containsAll(keys));
+        assertTrue(entries.values().containsAll(keys));
+        assertEquals(entries.size(), keys.size());
+        assertEquals(factory.count, keys.size());
+
+        int count = factory.count;
+        assertEquals(map.getAll(keys), entries);
+        assertEquals(factory.count, count);
+        assertEquals(map.peekAll(combine(keys, asList(6, 7, 8))), entries);
+
+        map.removeAll(keys);
+        assertTrue(map.isEmpty());
+
+        map.putAll(entries);
+        assertEquals(map, entries);
+
+        assertTrue(map.keySet().containsAll(keys));
+        assertTrue(map.values().containsAll(keys));
+    }
+
+    @Test
+    public void failure() {
+        factory.fail = true;
+
+        // singular
+        try {
+            assertNull(map.get(1));
+            fail("Expected an exception to be thrown");
+        } catch (RuntimeException e) {
+            assertNull(map.peek(1));
+        }
+
+        // bulk
+        try {
+            assertTrue(map.getAll(asList(1, 2, 3, 4)).isEmpty());
+            fail("Expected an exception to be thrown");
+        } catch (RuntimeException e) {
+            assertTrue(map.peekAll(asList(1, 2, 3, 4)).isEmpty());
+        }
+    }
+
+    private static final class IdentifyFactory<K> implements BulkEntryFactory<K, K> {
+        public boolean fail;
+        public int count;
+
+        public K createEntry(K key) {
+            checkForFailure();
+            count++;
+            return key;
+        }
+        public Map<K, K> createEntries(Collection<K> keys) {
+            checkForFailure();
+            return forEach(keys, new Function<K, K>() {
+                public K apply(K key) {
+                    return createEntry(key);
+                }
+            });
+        }
+        private void checkForFailure() {
+            if (fail) {
+                throw new RuntimeException();
+            }
+        }
+    }
+}
+}}}
