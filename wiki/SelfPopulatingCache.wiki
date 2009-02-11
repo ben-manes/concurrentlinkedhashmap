@@ -534,7 +534,7 @@ import com.rc.collections.SelfPopulatingMap.BulkEntryFactory;
  * @author <a href="mailto:ben.manes@reardencommerce.com">Ben Manes</a>
  */
 public final class SelfPopulatingMapTest {
-    private final IdentifyFactory<Integer> factory = new IdentifyFactory<Integer>();
+    private final IdentityFactory<Integer> factory = new IdentityFactory<Integer>();
     private final SelfPopulatingMap<Integer, Integer> map = new SelfPopulatingMap<Integer, Integer>(factory);
 
     @BeforeMethod
@@ -633,7 +633,7 @@ public final class SelfPopulatingMapTest {
         }
     }
 
-    private static final class IdentifyFactory<K> implements BulkEntryFactory<K, K> {
+    private static final class IdentityFactory<K> implements BulkEntryFactory<K, K> {
         public boolean fail;
         public int count;
 
