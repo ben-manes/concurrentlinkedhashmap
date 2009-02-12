@@ -108,7 +108,7 @@ import com.rc.collections.transforming.TransformingSet;
  * during its creation process. Provides added optimizations if a bulk creation process is specified.
  * <p>
  * This implementation is not fully type-safe due to the inability to inspect the necessary type information at runtime.
- * For methods using raw object parameters, such as {{@link #get(Object)}, a {@link ClassCastException} will be thrown
+ * For methods using raw object parameters, such as {@link #get(Object)}, a {@link ClassCastException} will be thrown
  * rather than returning a negative result on an invalid parameter type. This can be resolved by decorating with the
  * {@link com.rc.collections.Maps2#checkedConcurrentMap(Map, Class, Class)}.
  *
