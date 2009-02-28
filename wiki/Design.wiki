@@ -16,5 +16,8 @@ The following describes the algorithm for a concurrent LinkedHashMap. Please not
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/subsequent-insertion.png]
 
 = Eviction =
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/buffer-eviction.png]
+
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/element-eviction.png]
 
 = Removal =
