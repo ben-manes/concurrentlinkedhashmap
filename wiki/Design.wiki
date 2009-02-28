@@ -27,3 +27,8 @@ The buffers strategy allows sandboxing each element so that operations on one do
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/element-eviction.png]
 
 == Removal ==
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/remove-middle-1.png]
+
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/remove-middle-2.png]
+
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/remove-middle-3.png]
