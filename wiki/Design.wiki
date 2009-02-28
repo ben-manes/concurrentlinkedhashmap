@@ -7,7 +7,7 @@ The following describes the algorithm for a concurrent [http://java.sun.com/java
 == Buffers ==
 The usage of buffers between elements is a key design choice. When removing an element from the middle of the list, two seperate atomic operations must be preformed (update prev->next, next->prev). As atomic operations are not composable, if concurrent removals of sequential elements occurs then the links can become corrupt. The immediate solutions are to fix links by a backtracking algorithm (error-prone), lock all three nodes, or mark the node as 'dead' and allow it to be removed by the eviction policy. The latter, while simple and safe, consumes a slot in the cache and can be modeled as an eviction queue.
 
-The buffers strategy allows sandboxing each element so that operations on one does not affect its neighbors. Each element owns one side of a shared buffer and is guaranteed that no concurrent operations will be performed. The element can be safely removed and the extra buffer removed by _swinging_ its neighbor's previous pointer across it.
+The buffers strategy allows isolating each element so that operations on one does not affect its neighbors. Each element owns one side of a shared buffer and is guaranteed that no concurrent operations will be performed. The element can be safely removed and the extra buffer removed by _swinging_ its neighbor's previous pointer across it.
 
 = Use Cases =
 == Insertion ==
