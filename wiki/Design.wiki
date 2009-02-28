@@ -9,24 +9,62 @@ The usage of buffers between elements is a key design choice. When removing an e
 
 The buffers strategy allows isolating each element so that operations on one does not affect its neighbors. Each element owns one side of a shared buffer and is guaranteed that no concurrent operations will be performed. The element can be safely removed and the extra buffer removed by _swinging_ its neighbor's previous pointer across it.
 
-= Use Cases =
-== Insertion ==
+== Elements ==
+An element is the {key, value} pair, plus any additional information that is useful for the eviction algorithm (e.g. frequency).
+
+----
+
+= Insertion =
+Insertion is the most common case for an LRU cache. Whenever an element is accessed, it is removed from the list and inserted to the tail.
+
 === First insertion ===
+When the map is empty, the head and tail sentinel nodes are linked together. The sentinel nodes are buffers that can never be removed.
+
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/empty.png]
+
+An insertion always appends to the tail of the list. To ensure that no two elements touch, a buffer-element bundle is inserted.
+ # Insert entry into hash table
+ # Append buffer-element to list
 
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/first-insertion.png]
 
-=== Subsequent insertion ===
+=== Subsequent insertions ===
+After three insertions, the list is now:
+
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/initial.png]
+
+A fourth entry is now added. This follows the same logic as for the first.
+ # Insert entry into hash table
+ # Append buffer-element to list
 
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/subsequent-insertion.png]
 
-== Eviction ==
+----
+
+= Eviction =
+When the capacity is reached, an entry must be evicted. This is done by removing the first element from the list and then from the map. Since elements hold the key, this can be done in the map's O(1) time.
+
+=== Approach #1 ===
+If we use inserted bundles as of element-buffer pairs, the head always points to an element. Once that element is known, the standard removal process can be attempted. If unsuccessful due to a concurrent removal, it can retry eviction until it succeeds.
+
+=== Approach #2 ===
+If we use inserted bundles as of element-buffer pairs, the head may point to either a buffer or an element. It uses a polling mechanism, similarly to a queue, to extract the first node. If it is a buffer, it retries.
+
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/buffer-eviction.png]
+
+If the head extracted an element node, the map's entry is removed using the key inside the element. The size is then decremented.
 
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/element-eviction.png]
 
-== Removal ==
+The algorithm is as follows:
+ # Extract first node on list
+ # Evaluate node:
+   * Buffer: Retry eviction
+   * Element: Remove from map and decrement size
+
+----
+
+= Removal =
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/remove-middle-1.png]
 
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/remove-middle-2.png]
