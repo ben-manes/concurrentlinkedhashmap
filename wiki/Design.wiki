@@ -1,0 +1,20 @@
+#summary The algorithmic design of a lock-free linked hash map.
+#labels Phase-Design
+
+= Introduction =
+The following describes the algorithm for a concurrent LinkedHashMap. Please note that at this time it has not been fully implemented, but is the end goal.
+
+= Insertion =
+== First insertion ==
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/empty.png]
+
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/first-insertion.png]
+
+== Subsequent insertion ==
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/initial.png]
+
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/subsequent-insertion.png]
+
+= Eviction =
+
+= Removal =
