@@ -12,6 +12,9 @@ The buffers strategy allows isolating each element so that operations on one doe
 == Elements ==
 An element is the {key, value} pair, plus any additional information that is useful for the eviction algorithm (e.g. frequency).
 
+== Hash Table ==
+The hash table allows for O(1) access to a cached entry. The table associates the key to an element, which is linked in the list. This can be thought of as cursor into the list data structure, allowing manipulations in O(1) efficiency.
+
 ----
 
 = Insertion =
@@ -65,6 +68,8 @@ The algorithm is as follows:
 ----
 
 = Removal =
+In an LRU cache, removal is a common operation so that an element is shifted to the tail of the list. This maintains a least-recently-used order.
+
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/remove-middle-1.png]
 
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/remove-middle-2.png]
