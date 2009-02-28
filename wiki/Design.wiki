@@ -65,7 +65,7 @@ The algorithm is as follows:
    * Element: Remove from map and decrement size
 
 === Optimization ===
-If we inserted bundles as of element-buffer pairs, the head always points to an element. Once that element is known, the standard removal process can be attempted. If unsuccessful due to a concurrent removal, it can retry eviction until it succeeds.
+If we inserted bundles as element-buffer pairs, the head always points to an element. Once that element is known, the standard removal process can be attempted. If unsuccessful due to a concurrent removal, it can retry eviction until it succeeds.
 
 ----
 
