@@ -47,10 +47,6 @@ A fourth entry is now added. This follows the same logic as for the first.
 = Eviction =
 When the capacity is reached, an entry must be evicted. This is done by removing the first element from the list and then from the map. Since elements hold the key, this can be done in the map's O(1) time.
 
-=== Approach #1 ===
-If we use inserted bundles as of element-buffer pairs, the head always points to an element. Once that element is known, the standard removal process can be attempted. If unsuccessful due to a concurrent removal, it can retry eviction until it succeeds.
-
-=== Approach #2 ===
 If we use inserted bundles as of element-buffer pairs, the head may point to either a buffer or an element. It uses a polling mechanism, similarly to a queue, to extract the first node. If it is a buffer, it retries.
 
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/buffer-eviction.png]
@@ -65,13 +61,29 @@ The algorithm is as follows:
    * Buffer: Retry eviction
    * Element: Remove from map and decrement size
 
+=== Optimization ===
+If we use inserted bundles as of element-buffer pairs, the head always points to an element. Once that element is known, the standard removal process can be attempted. If unsuccessful due to a concurrent removal, it can retry eviction until it succeeds.
+
 ----
 
 = Removal =
 In an LRU cache, removal is a common operation so that an element is shifted to the tail of the list. This maintains a least-recently-used order.
 
+As the map associates the key to a cursor into the list, removal is O(1) in both data structures. The first step is to remove the element:
+ # Remove from the map.
+ # Evaluate result
+   # If null, entry not found and return.
+   # If element, unlink it from the list.
+
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/remove-middle-1.png]
+
+Once the element is unlinked, an extra buffer remains in the list. This can easily be removed by swinging the pointer _next->prev_ to have the value at _prev->next_. This _swinging_ allows for concurrent removals to not interfere with each other.
 
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/remove-middle-2.png]
 
+After removal, the list has been brought to the expected state.
+
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/remove-middle-3.png]
+
+=== Optimization ===
+Once the entry is removed from the map, no concurrent operation can lookup a cursor to that element. Therefore, breaking the associations of the element with its buffers is unnessary. Instead, the bundle could be removed together rather than seperately. This simplifies and speeds up the operation.
