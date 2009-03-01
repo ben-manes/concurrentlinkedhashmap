@@ -73,7 +73,7 @@ An element may be removed from the begining, middle, or end of the list. The alg
  # Set element's _prev->next_ to buffer's _prev_
 
 *Note:*
-The ability to remove bundles in one pass needs a little more thought. Originally the idea was to remove the element, which leaves two bundles. Due to isolation, we know that we can swing a pointer across such that the extra buffer is removed. This seemed composable, hence removing of the bundle as in one pass. This needs some extra thought to validate that optimization.
+The ability to remove bundles in one pass needs a little more thought. Originally the idea was to remove the element, which leaves two bundles. Due to isolation, we know that we can swing a pointer across such that the extra buffer is removed. These two steps seemed composable, hence removing of the bundle in one step. This needs some extra thought to validate that optimization.
 
 === Only ===
 Removing {K1, E1} from singleton list.
