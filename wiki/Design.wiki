@@ -67,7 +67,7 @@ Adding {K4, E4} to the between E1 and E3.
 = Removal =
 An element may be removed from the begining, middle, or end of the list. The algorithm is agnostic to where the bundle was located.
 
-=== Approach #1 ===
+== Approach #1 ==
 Buffers provide isolation which allows the element to be unlinked safely. This results in two buffers in sequence.
 
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/two-step-removal-1.png]
@@ -76,7 +76,7 @@ By properly swinging the references, the extra buffer can be removed.
 
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/two-step-removal-2.png]
 
-=== Approach #2 ===
+== Approach #2 ==
 The ability to remove bundles in one pass needs a little more thought. Approach #1 is safe and, at times, looks composable and therefore an optimization is to perform it in one step. This is probably a fallacy, but its always good to explore every option.
 
  # Remove from map
