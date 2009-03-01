@@ -106,4 +106,4 @@ Removing {K2, E2} from middle of list.
 
 ----
 = Eviction =
-Each eviction policy determines the ordering of elements on the list such that the victim is at the head. The head will either point to the victim element, if it is empty, the tail. Once an element is found, it can be removed using the standard operation. If unsuccessful due to concurrent usage, the process will try until a success condition is met.
+Each eviction policy determines the ordering of elements on the list such that the victim is at the head. The head will either point to the victim element or, if it is empty, the tail. Once an element is found it can be removed using the standard operation. If unsuccessful due to concurrent usage, an eviction will be retried until a success condition is met.
