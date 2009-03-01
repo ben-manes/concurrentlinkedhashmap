@@ -34,7 +34,7 @@ When all of the transients have died away, the structure would look like the fol
 
 ----
 = Insertion =
-An element may be added to the begining, end, middle. The algorithm is agnostic to where the bundle is being placed.
+An element may be added to the begining, middle, or end. The algorithm is agnostic to where the bundle is being placed.
 
  # Add to map
  # Create bundle
@@ -65,7 +65,7 @@ Adding {K4, E4} to the between E1 and E3.
 ----
 
 = Removal =
-An element may be removed from the begining, end, or middle of the list. The algorithm is agnostic to where the bundle was located.
+An element may be removed from the begining, middle, or end of the list. The algorithm is agnostic to where the bundle was located.
 
  # Remove from map
  # Decrement the size
