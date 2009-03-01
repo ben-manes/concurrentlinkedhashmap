@@ -42,22 +42,22 @@ An element may be added to the begining, middle, or end. The algorithm is agnost
  # Set buffer's _next->prev_ pointer to buffer
  # Increment the size and check if eviction is necessary
 
-=== First ===
+=== First Element ===
 Adding {K1, E1} to an empty list.
 
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/insert-singleton.png]
 
-=== Append ===
+=== Append Element ===
 Adding {K2, E2} to the end of the list.
 
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/insert-last.png]
 
-=== Prepend ===
+=== Prepend Element ===
 Adding {K3, E3} to the begining of the list.
 
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/insert-first.png]
 
-=== Within ===
+=== Within List ===
 Adding {K4, E4} to the between E1 and E3.
 
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/insert-middle.png]
@@ -84,22 +84,22 @@ The ability to remove bundles in one pass needs a little more thought. Approach 
  # Swing buffer's _next->prev_ to element's _prev_
  # Set element's _prev->next_ to buffer's _prev_
 
-=== Only ===
+=== Only Element ===
 Removing {K1, E1} from singleton list.
 
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/remove-singleton.png]
 
-=== First ===
+=== First Element ===
 Removing {K1, E1} from begining of list.
 
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/remove-first.png]
 
-=== Last ===
+=== Last Element ===
 Removing {K2, E2} from end of list.
 
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/remove-last.png]
 
-=== Last ===
+=== Within List ===
 Removing {K2, E2} from middle of list.
 
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/remove-middle.png]
