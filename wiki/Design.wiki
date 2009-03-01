@@ -58,7 +58,7 @@ Adding {K3, E3} to the begining of the list.
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/insert-first.png]
 
 === Within List ===
-Adding {K4, E4} to the between E1 and E3.
+Adding {K4, E4} to be between E1 and E3.
 
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/insert-middle.png]
 
