@@ -22,32 +22,46 @@ The capacity is specified by the client and the size is the number of elements l
 
 ----
 
-= Insertion =
-Insertion is the most common case for an LRU cache. Whenever an element is accessed, it is removed from the list and inserted to the tail.
-
-=== First insertion ===
+= Empty =
 When the map is empty, the head and tail sentinel nodes are linked together. The sentinel nodes are buffers that can never be removed.
 
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/empty.png]
 
-An insertion always appends to the tail of the list. To ensure that no two elements touch, a buffer-element bundle is inserted.
- # Insert entry into hash table
- # Append buffer-element to list
+----
 
-[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/first-insertion.png]
+= Steady State =
+When all of the transients have died away, the structure would look like the following if there were three entries.
 
-=== Subsequent insertions ===
-After three insertions, the list is now:
-
-[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/initial.png]
-
-A fourth entry is now added. This follows the same logic as for the first.
- # Insert entry into hash table
- # Append buffer-element to list
-
-[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/subsequent-insertion.png]
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/steady-state.png]
 
 ----
+= Insertion =
+An element may be added to the begining, end, middle, or be the first addition to list. The algorithm is agnostic to where the bundle is being placed.
+
+ # Add to map
+ # Create bundle
+ # Swing element's _prev->next_ pointer
+ # Swing buffer's _next->prev_ pointer, and backtrack if changed
+
+=== First ===
+Adding {K1, E1} to an empty list.
+
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/insert-singleton.png]
+
+=== Append ===
+Adding {K2, E2} to the end of the list.
+
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/insert-last.png]
+
+=== Prepend ===
+Adding {K3, E3} to the begining of the list.
+
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/insert-first.png]
+
+=== Within ===
+Adding {K4, E4} to the between E1 and E3.
+
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/insert-middle.png]
 
 = Eviction =
 When the capacity is reached, an entry must be evicted. This is done by removing the first element from the list and then from the map. Since elements hold the key, this can be done in the map's O(1) time.
