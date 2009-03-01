@@ -1,6 +1,8 @@
 #summary The algorithmic design of a lock-free linked hash map.
 #labels Phase-Design,Featured
 
+Being updated...
+------------------
 = Introduction =
 The following describes the algorithm for a concurrent [http://java.sun.com/javase/6/docs/api/java/util/LinkedHashMap.html LinkedHashMap]. Please note that at this time it has not been fully implemented, but is the end goal.
 
