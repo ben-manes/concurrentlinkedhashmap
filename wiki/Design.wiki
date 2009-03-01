@@ -38,8 +38,8 @@ An element may be added to the begining, middle, or end. The algorithm is agnost
 
  # Add to map
  # Create bundle
- # Swing element's _prev->next_ pointer
- # Swing buffer's _next->prev_ pointer, and backtrack if changed
+ # Swing element's _prev->next_ pointer to element
+ # Set buffer's _next->prev_ pointer to buffer
  # Increment the size and check if eviction is necessary
 
 === First ===
