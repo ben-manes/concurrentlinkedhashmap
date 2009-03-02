@@ -16,7 +16,7 @@ An element is the {key, value} pair, plus any additional information that is use
 The hash table allows for O(1) access to a cached entry. The table associates the key to an element, which is linked in the list. This can be thought of as cursor into the list data structure, allowing manipulations in O(1) efficiency.
 
 == Cache ==
-The capacity is specified by the client and the size is the number of elements linked on the list. The size field is updated on each insertion or removal from the list. After an element is inserted into the list the state is evaluated to determine whether the cache has overflowed (size > capacity) and, if so, an eviction is triggered.
+The capacity is specified by the client and the size is the number of elements linked on the list. The size field is updated on each insertion or removal from the list. After an element is inserted into the list the state is evaluated to determine whether the cache has overflowed (size > capacity) and, if so, an eviction is triggered. Each eviction policy determines the ordering of elements on the list such that the victim is at the head. The head will either point to the victim element or, if it is empty, the tail. Once an element is found it can be removed using the standard operation. If unsuccessful due to concurrent usage, an eviction will be retried until a success condition is met.
 
 ----
 
@@ -103,7 +103,3 @@ Removing {K2, E2} from end of list.
 Removing {K2, E2} from middle of list.
 
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/remove-middle.png]
-
-----
-= Eviction =
-Each eviction policy determines the ordering of elements on the list such that the victim is at the head. The head will either point to the victim element or, if it is empty, the tail. Once an element is found it can be removed using the standard operation. If unsuccessful due to concurrent usage, an eviction will be retried until a success condition is met.
