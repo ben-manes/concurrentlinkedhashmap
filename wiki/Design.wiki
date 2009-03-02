@@ -34,7 +34,7 @@ When all of the transients have died away, the structure would look like the fol
 
 ----
 = Insertion =
-An element may be added to the begining, middle, or end. The algorithm is agnostic to where the bundle is being placed.
+An element may be added to the beginning, middle, or end. The algorithm is agnostic to where the bundle is being placed.
 
  # Add to map
  # Create bundle
@@ -53,7 +53,7 @@ Adding {K2, E2} to the end of the list.
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/insert-last.png]
 
 === Prepend Element ===
-Adding {K3, E3} to the begining of the list.
+Adding {K3, E3} to the beginning of the list.
 
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/insert-first.png]
 
@@ -90,7 +90,7 @@ Removing {K1, E1} from singleton list.
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/remove-singleton.png]
 
 === First Element ===
-Removing {K1, E1} from begining of list.
+Removing {K1, E1} from beginning of list.
 
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/remove-first.png]
 
