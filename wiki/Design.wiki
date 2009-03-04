@@ -84,6 +84,29 @@ Unlock. Perform steps #10 - #12.
 
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/1.5-linked/insert_E1_4.png]
 
+=== Insert E2 ===
+The following shows the insertion of {K2, E2} into the above map.
+
+==== Create Bundle ====
+Create the bundle and set it up for linking. Perform steps #1 - #3.
+
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/1.5-linked/insert_E2_1.png]
+
+==== Insert and Lock ====
+Insert entry into map and obtain locks. Perform steps #4 - #6.
+
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/1.5-linked/insert_E2_2.png]
+
+==== Link E2 ====
+Insert E2 into list. Perform steps #7 - #9.
+
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/1.5-linked/insert_E2_3.png]
+
+==== Unlock ====
+Unlock. Perform steps #10 - #12.
+
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/1.5-linked/insert_E2_4.png]
+
 ----
 
 = INITIAL DESIGN: Doubly-linked List =
