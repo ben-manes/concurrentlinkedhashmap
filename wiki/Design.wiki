@@ -9,6 +9,8 @@ The usage of buffers between elements is a key design choice. When removing an e
 
 The buffers strategy allows for isolating each element so that operations on one does not affect another. Each element owns one side of a shared buffer and is guaranteed that no concurrent operations will be performed. The element can be safely removed and the extra buffer removed by _swinging_ its neighbor's previous pointer across it.
 
+*NOTE:* Renamed to _auxilary_ nodes to correspond with John Valois' 1996 paper "Lock-Free Linked Lists Using Compare-and-Swap". This paper was found after rediscoving the same technique and, for consistance, his terminology has been adopted.
+
 == Elements ==
 An element is the {key, value} pair, plus any additional information that is useful for the eviction algorithm (e.g. frequency).
 
@@ -19,21 +21,46 @@ The hash table allows for O(1) access to a cached entry. The table associates th
 The capacity is specified by the client and the size is the number of elements linked on the list. The size field is updated on each insertion or removal from the list. After an element is inserted into the list the state is evaluated to determine whether the cache has overflowed (size > capacity) and, if so, an eviction is triggered. Each eviction policy determines the ordering of elements on the list such that the victim is at the head. The head will either point to the victim element or, if it is empty, the tail. Once an element is found it can be removed using the standard operation. If unsuccessful due to concurrent usage, an eviction will be retried until a success condition is met.
 
 ----
+= NEW DESIGN: 3/2-linked List =
 
-= Empty =
+The list is tentitively being called a 3/2-linked list. It supports O(1) operations with a forward iterator. Unlike a doubly-linked list, it does not support reverse iteration.
+
+== Why not a singly-linked list? ==
+In a singly-linked list using auxilary nodes, the hash table's value would be the auxilary node. A removal is performed by traversing the auxilary node to its corresponding element and unlinking it by setting the auxilary->next to element->next. However, this leaves the element's auxilary node on the list. It cannot be removed as an unknown element points to it, so rather the next element's auxilary node must be discarded.
+
+The extra auxilary node can be removed by setting the removed element's auxilary node to the next element. By using the key, the hash table's entry is updated to no longer reference the discarded auxilary node. As this requires a segment lock, it is undesirable for caches that must remove elements frequently (e.g. LRU).
+
+== Why not a doubly-linked list? ==
+In a doubly-linked list using auxilary nodes, the hash table's value is the element. A removal must lock the element and a neighbor (either always left or always right, based on design). The element and its auxilary nodes can then be unlinked from the list and discarded.
+
+The flaw with this design is the unnecessary complexity. In serial usage, the ordering may be desirable for iteration such as by an insertion policy. In concurrent usage, the ordering should not be useful or relied upon. The faster unordered iteration from the hash table's entries is a better practice. This means that reverse iteration will not be exposed and the 3/2-linked list provides a faster alternative.
+
+----
+== Empty ==
+
+----
+
+----
+
+= INITIAL DESIGN: Doubly-linked List =
+The following shows the very first, initial design after thinking of the buffer approach. It does not go into every detail to cover race concerns, as it is a little too high-level as I flushed out the details. It assumes element locks are used, but doesn't indicate it in the diagrams.
+
+----
+
+== Empty ==
 When the map is empty, the head and tail sentinel nodes are linked together. The sentinel nodes are buffers that can never be removed.
 
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/empty.png]
 
 ----
 
-= Steady State =
+== Steady State ==
 When all of the transients have died away, the structure would look like the following if there were three entries.
 
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/steady-state.png]
 
 ----
-= Insertion =
+== Insertion ==
 An element may be added to the beginning, middle, or end. The algorithm is agnostic to where the bundle is being placed.
 
  # Add to map
@@ -42,32 +69,32 @@ An element may be added to the beginning, middle, or end. The algorithm is agnos
  # Set buffer's _next->prev_ pointer to buffer
  # Increment the size and check if eviction is necessary
 
-=== First Element ===
+==== First Element ====
 Adding {K1, E1} to an empty list.
 
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/insert-singleton.png]
 
-=== Append Element ===
+==== Append Element ====
 Adding {K2, E2} to the end of the list.
 
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/insert-last.png]
 
-=== Prepend Element ===
+==== Prepend Element ====
 Adding {K3, E3} to the beginning of the list.
 
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/insert-first.png]
 
-=== Within List ===
+==== Within List ====
 Adding {K4, E4} to be between E1 and E3.
 
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/insert-middle.png]
 
 ----
 
-= Removal =
+== Removal ==
 An element may be removed from the beginning, middle, or end of the list. The algorithm is agnostic to where the bundle was located.
 
-== Approach #1 ==
+=== Approach #1 ===
 Buffers provide isolation which allows the element to be unlinked safely. This results in two buffers in sequence.
 
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/two-step-removal-1.png]
@@ -76,7 +103,7 @@ By properly swinging the references, the extra buffer can be removed.
 
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/two-step-removal-2.png]
 
-== Approach #2 ==
+=== Approach #2 ===
 The ability to remove bundles in one pass needs a little more thought. Approach #1 is safe and, at times, looks composable and therefore an optimization is to perform it in one step. This is probably a fallacy, but its always good to explore every option.
 
  # Remove from map
@@ -84,22 +111,22 @@ The ability to remove bundles in one pass needs a little more thought. Approach 
  # Swing buffer's _next->prev_ to element's _prev_
  # Set element's _prev->next_ to buffer's _prev_
 
-=== Only Element ===
+==== Only Element ====
 Removing {K1, E1} from singleton list.
 
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/remove-singleton.png]
 
-=== First Element ===
+==== First Element ====
 Removing {K1, E1} from beginning of list.
 
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/remove-first.png]
 
-=== Last Element ===
+==== Last Element ====
 Removing {K2, E2} from end of list.
 
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/remove-last.png]
 
-=== Within List ===
+==== Within List ====
 Removing {K2, E2} from middle of list.
 
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/remove-middle.png]
