@@ -38,7 +38,11 @@ The flaw with this design is the unnecessary complexity. In serial usage, the or
 ----
 == Empty ==
 
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/1.5-linked/empty.png]
 ----
+== Steady-State ==
+
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/1.5-linked/steady-state.png]
 
 ----
 
@@ -50,14 +54,14 @@ The following shows the very first, initial design after thinking of the buffer 
 == Empty ==
 When the map is empty, the head and tail sentinel nodes are linked together. The sentinel nodes are buffers that can never be removed.
 
-[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/empty.png]
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/doubly-linked/empty.png]
 
 ----
 
 == Steady State ==
 When all of the transients have died away, the structure would look like the following if there were three entries.
 
-[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/steady-state.png]
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/doubly-linked/steady-state.png]
 
 ----
 == Insertion ==
@@ -72,22 +76,22 @@ An element may be added to the beginning, middle, or end. The algorithm is agnos
 ==== First Element ====
 Adding {K1, E1} to an empty list.
 
-[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/insert-singleton.png]
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/doubly-linked/insert-singleton.png]
 
 ==== Append Element ====
 Adding {K2, E2} to the end of the list.
 
-[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/insert-last.png]
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/doubly-linked/insert-last.png]
 
 ==== Prepend Element ====
 Adding {K3, E3} to the beginning of the list.
 
-[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/insert-first.png]
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/doubly-linked/insert-first.png]
 
 ==== Within List ====
 Adding {K4, E4} to be between E1 and E3.
 
-[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/insert-middle.png]
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/doubly-linked/insert-middle.png]
 
 ----
 
@@ -97,11 +101,11 @@ An element may be removed from the beginning, middle, or end of the list. The al
 === Approach #1 ===
 Buffers provide isolation which allows the element to be unlinked safely. This results in two buffers in sequence.
 
-[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/two-step-removal-1.png]
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/doubly-linked/two-step-removal-1.png]
 
 By properly swinging the references, the extra buffer can be removed.
 
-[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/two-step-removal-2.png]
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/doubly-linked/two-step-removal-2.png]
 
 === Approach #2 ===
 The ability to remove bundles in one pass needs a little more thought. Approach #1 is safe and, at times, looks composable and therefore an optimization is to perform it in one step. This is probably a fallacy, but its always good to explore every option.
@@ -114,19 +118,19 @@ The ability to remove bundles in one pass needs a little more thought. Approach 
 ==== Only Element ====
 Removing {K1, E1} from singleton list.
 
-[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/remove-singleton.png]
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/doubly-linked/remove-singleton.png]
 
 ==== First Element ====
 Removing {K1, E1} from beginning of list.
 
-[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/remove-first.png]
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/doubly-linked/remove-first.png]
 
 ==== Last Element ====
 Removing {K2, E2} from end of list.
 
-[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/remove-last.png]
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/doubly-linked/remove-last.png]
 
 ==== Within List ====
 Removing {K2, E2} from middle of list.
 
-[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/remove-middle.png]
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/doubly-linked/remove-middle.png]
