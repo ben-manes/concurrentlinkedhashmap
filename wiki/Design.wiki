@@ -61,6 +61,29 @@ The following shows the algorithm for inserting an entry. This corresponds to th
  # Unload S->back
  # Unlock E_new
 
+=== Insert E1 ===
+The following shows the insertion of {K1, E1} into an empty map.
+
+==== Create Bundle ====
+Create the bundle and set it up for linking. Perform steps #1 - #3.
+
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/1.5-linked/insert_E1_1.png]
+
+==== Insert and Lock ====
+Insert entry into map and obtain locks. Perform steps #4 - #6.
+
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/1.5-linked/insert_E1_2.png]
+
+==== Link E1 ====
+Insert E1 into list. Perform steps #7 - #9.
+
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/1.5-linked/insert_E1_3.png]
+
+==== Unlock ====
+Unlock. Perform steps #10 - #12.
+
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/1.5-linked/insert_E1_4.png]
+
 ----
 
 = INITIAL DESIGN: Doubly-linked List =
