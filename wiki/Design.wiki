@@ -43,6 +43,23 @@ The flaw with this design is the unnecessary complexity. In serial usage, the or
 == Steady-State ==
 
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/1.5-linked/steady-state.png]
+----
+== Insert ==
+The following shows the algorithm for inserting an entry. This corresponds to the _putIfAbsent_ operation on a [http://java.sun.com/javase/6/docs/api/java/util/concurrent/ConcurrentMap.html ConcurrentMap].
+
+ # E_new->fwd = aux
+ # aux->fwd = S
+ # Lock E_new
+ # Insert E_new into map
+   * If unsuccessful, return current item
+ # Lock S->back
+ # Lock E_new->fwd
+ # S->back->aux_fwd = E_new
+ # E_new->back = S->back
+ # S->back = E_new->fwd
+ # Unlock E_new->back
+ # Unload S->back
+ # Unlock E_new
 
 ----
 
