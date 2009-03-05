@@ -39,10 +39,12 @@ The flaw with this design is that it adds unnecessary complexity. In serial usag
 
 ----
 == Empty ==
+When the hash table is empty the sentinel element and its auxiliary node are linked together.
 
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/1.5-linked/empty.png]
 ----
 == Steady-State ==
+When all of the transients have died away, the structure would look like the following if there were three entries.
 
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/1.5-linked/steady-state.png]
 ----
