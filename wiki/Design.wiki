@@ -132,6 +132,23 @@ The following shows the algorithm for removing an entry.
  # aux->fwd = E_next
  # Unlock aux
 
+If E_next is being concurrently linked or removed it will be blocked attempting to retrieve the shared auxilary's lock. While that operation is waiting, its element's back pointer can be updated. When the auxilary is unlocked, the concurrent operation will obtain its lock and perform its task with a valid state of the list. As the removed element and auxilary nodes are no longer referenced, they do not need to be unlocked.
+
+=== Remove And Lock ===
+Remove {K2, E2} from the hash table and obtain locks. Perform steps #1 - #4.
+
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/1.5-linked/remove_E2_1.png]
+
+=== Unlink ===
+Remove E2 from the list. Perform steps #5 - #6.
+
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/1.5-linked/remove_E2_2.png]
+
+=== Unlock ===
+Unlock. Perform steps #7.
+
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/1.5-linked/remove_E2_3.png]
+
 ----
 
 = INITIAL DESIGN: Doubly-linked List =
