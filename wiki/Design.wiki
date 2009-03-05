@@ -56,13 +56,13 @@ In an LRU policy, when an entry is successfully retrieved from the hash table it
  # If found, return the value held by the element. Otherwise null
 
 ----
-== Insert ==
+== Insertion ==
 The following shows the algorithm for inserting an entry. This corresponds to the _putIfAbsent_ operation on a [http://java.sun.com/javase/6/docs/api/java/util/concurrent/ConcurrentMap.html ConcurrentMap].
 
  # E_new->fwd = aux
  # aux->fwd = S
  # Lock E_new
- # Insert E_new into map
+ # Insert E_new into hash table
    * If unsuccessful, return current item
  # Lock S->back
  # Lock E_new->fwd
@@ -82,7 +82,7 @@ Create the bundle and set it up for linking. Perform steps #1 - #3.
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/1.5-linked/insert_E1_1.png]
 
 ==== Insert and Lock ====
-Insert entry into map and obtain locks. Perform steps #4 - #6.
+Insert entry into hash table and obtain locks. Perform steps #4 - #6.
 
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/1.5-linked/insert_E1_2.png]
 
@@ -105,7 +105,7 @@ Create the bundle and set it up for linking. Perform steps #1 - #3.
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/1.5-linked/insert_E2_1.png]
 
 ==== Insert and Lock ====
-Insert entry into map and obtain locks. Perform steps #4 - #6.
+Insert entry into hash table and obtain locks. Perform steps #4 - #6.
 
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/1.5-linked/insert_E2_2.png]
 
@@ -118,6 +118,20 @@ Insert E2 into list. Perform steps #7 - #9.
 Unlock. Perform steps #10 - #12.
 
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/1.5-linked/insert_E2_4.png]
+
+----
+== Removal ==
+The following shows the algorithm for removing an entry.
+
+ # Remove entry from hash table
+   * If not found, return
+ # Lock E_old
+ # Lock E_old->back (aux)
+ # aux->fwd = E->fwd
+ # Lock aux->fwd (next_aux)
+ # aux->fwd = next_aux->fwd
+ # Unlock aux
+ # Unlock E_old
 
 ----
 
