@@ -17,6 +17,9 @@ The usage of auxiliary nodes between each element helps to isolate them and remo
 
 This technique was originally discovered by John Valois in his 1995 paper [http://citeseerx.ist.psu.edu/viewdoc/summary?doi=10.1.1.41.9506 Lock-Free Linked Lists Using Compare-and-Swap]. The paper discusses a lock-free singly-linked list and attempts to adapt the idea to tree structures. In our usage the idea was rediscovered but for consistency his terminology was adopted (ours was "buffers").
 
+== Locks ==
+A traditional implementation, such as [http://java.sun.com/javase/6/docs/api/java/util/LinkedHashMap.html LinkedHashMap], does not support concurrent access. All operations must be guarded by a single mutex. In this implementation per-node spin locks are used. These locks are implemented as _compare and swap_ operations to set a volatile boolean flag. This provides concurrent access and faster lock acquisitions than the standard approach.
+
 == Eviction ==
 This data structure supports insertion- and access order-based eviction policies. Each policy determines the ordering of the list so that the victim element is at the beginning.
 
