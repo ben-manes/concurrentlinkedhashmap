@@ -49,7 +49,7 @@ The flaw with this design is the unnecessary complexity. In serial usage, the or
 == Retrieval ==
 In an LRU policy, when an entry is successfully retrieved from the hash table it is moved to the tail of the list. 
 
- # Retrieve from map
+ # Retrieve from hash table
  # If found, try to acquire the element's lock
    * If successful, remove and reinsert to tail
    * If unsuccessful, continue
