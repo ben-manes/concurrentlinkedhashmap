@@ -11,7 +11,7 @@ The hash table allows for O(1) access to a cached entry. The table associates th
 An element is the {key, value} pair, plus any additional information that is useful for the eviction algorithm (e.g. frequency).
 
 == Auxiliaries ==
-In a normal LRU cache, a doubly-linked list cross-custs the hash table. When a removal is performed the two adjacent elements must be updated to unlink the victim element. If a global lock is not used then this structure has a problem as it requires two atomic operations to be performed. As _compare and swap_ operations are not composable, the race conditions of concurrent operations must be handled.
+In a normal LRU cache, a doubly-linked list cross-cuts the hash table. When a removal is performed the two adjacent elements must be updated to unlink the victim element. If a global lock is not used then this structure has a problem as it requires two atomic operations to be performed. As _compare and swap_ operations are not composable, the race conditions of concurrent operations must be handled.
 
 The usage of auxiliary nodes between each element helps to isolate them and removes the requirement of composable atomic operations. This simplifies the per-node locking to avoid deadlock scenarios and allows operations to work with just two elements rather than three.
 
