@@ -126,12 +126,11 @@ The following shows the algorithm for removing an entry.
  # Remove entry from hash table
    * If not found, return
  # Lock E_old
- # Lock E_old->back (aux)
- # aux->fwd = E->fwd
- # Lock aux->fwd (next_aux)
- # aux->fwd = next_aux->fwd
+ # Lock E_old->bwd (aux)
+ # Lock aux->fwd (aux_next)
+ # E_next->bwd = aux
+ # aux->fwd = E_next
  # Unlock aux
- # Unlock E_old
 
 ----
 
