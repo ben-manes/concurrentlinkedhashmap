@@ -28,7 +28,7 @@ When an element is added to the list its size field is incremented. If the size 
 The list is tentatively being called a "one and a half linked list". It supports O(1) operations with a forward iterator. Unlike a doubly-linked list it does not support reverse iteration.
 
 == Why not a singly-linked list? ==
-In a singly-linked list using auxiliary nodes the hash table's would curse to the auxiliary node. A removal is performed by traversing the auxiliary node to its corresponding element and unlinking it by setting the auxiliary->next to element->next. However, this leaves the element's auxiliary node on the list. It cannot be removed as an unknown element points to it, so rather the next element's auxiliary node must be discarded.
+In a singly-linked list using auxiliary nodes the hash table's would curse to the auxiliary node. A removal is performed by traversing the forward to an element and unlinking it by setting the auxiliary->next to element->next. However, this leaves the element's auxiliary node on the list. It cannot be removed as an unknown element points to it, so rather the next element's auxiliary node must be discarded.
 
 The extra auxiliary node can be removed by setting the removed element's auxiliary node to the next element. By using the key, the hash table's entry is updated to no longer reference the discarded node. As this requires a segment lock, it is undesirable for caches that must reorder elements frequently (e.g. LRU).
 
