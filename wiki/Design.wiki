@@ -50,7 +50,9 @@ In an LRU policy, when an entry is successfully retrieved from the hash table it
  # Retrieve from map
  # If found, try to acquire the element's lock
    * If successful, remove and reinsert to tail
-   * If unsuccessful, continue as a concurrent insert or retrievel for the same element is linking it
+   * If unsuccessful, continue.
+     * A concurrent insert or retrievel for the same element is linking it
+     * A concurrent removal is unlinking it
  # If found, return the value held by the element. Otherwise null.
 
 ----
