@@ -156,6 +156,6 @@ Remove E2 from the list. Perform steps #5 - #6.
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/1.5-linked/remove_E2_2.png]
 
 === Unlock ===
-Unlock. Perform steps #7.
+Unlock. Perform step #7.
 
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/1.5-linked/remove_E2_3.png]
