@@ -44,7 +44,7 @@ When the hash table is empty the sentinel element and its auxiliary node are lin
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/1.5-linked/empty.png]
 ----
 == Steady-State ==
-When all of the transients have died away, the structure would look like the following if there were three entries.
+When all of the transients have died away the structure would look like the following if there were three entries.
 
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/1.5-linked/steady-state.png]
 ----
