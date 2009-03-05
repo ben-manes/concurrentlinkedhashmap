@@ -5,7 +5,7 @@
 The following describes the algorithm for a concurrent [http://java.sun.com/javase/6/docs/api/java/util/LinkedHashMap.html LinkedHashMap]. Please note that at this time it has not been fully implemented, but is the end goal.
 
 == Hash Table ==
-The hash table allows for O(1) access to a cached entry. The table associates the key to an element, which is linked in the list. This can be thought of as cursor into the list data structure, allowing manipulations in O(1) efficiency.
+The hash table allows for O(1) access to a cached entry. The table associates the key to an element, which is linked in the list. This can be thought of as cursor into the list data structure to allow manipulations in O(1) efficiency.
 
 == Elements ==
 An element is the {key, value} pair, plus any additional information that is useful for the eviction algorithm (e.g. frequency).
