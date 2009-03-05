@@ -15,7 +15,7 @@ In a normal LRU cache, a doubly-linked list cross-custs the hash table. When a r
 
 The usage of auxiliary nodes between each element helps to isolate them and removes the requirement of composable atomic operations. This simplifies the per-node locking to avoid deadlock scenarios and allows operations to work with just two elements rather than three.
 
-This technique was originally discovered by John Valois in his 1996 paper [http://citeseerx.ist.psu.edu/viewdoc/summary?doi=10.1.1.41.9506 Lock-Free Linked Lists Using Compare-and-Swap]. The paper discusses a lock-free singly-linked list and attempts to adapt the idea to tree structures. In our usage the idea was rediscovered but for consistency his terminology was adopted (ours was "buffers").
+This technique was originally discovered by John Valois in his 1995 paper [http://citeseerx.ist.psu.edu/viewdoc/summary?doi=10.1.1.41.9506 Lock-Free Linked Lists Using Compare-and-Swap]. The paper discusses a lock-free singly-linked list and attempts to adapt the idea to tree structures. In our usage the idea was rediscovered but for consistency his terminology was adopted (ours was "buffers").
 
 == Eviction ==
 This data structure supports insertion- and access order-based eviction policies. Each policy determines the ordering of the list so that the victim element is at the beginning.
