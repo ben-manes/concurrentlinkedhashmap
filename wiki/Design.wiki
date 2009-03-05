@@ -33,7 +33,7 @@ In a singly-linked list using auxiliary nodes the hash table would curse to the 
 The extra auxiliary node can be removed by setting the removed element's auxiliary node to the next element. By using the key, the hash table's entry is updated to no longer reference the discarded node. As this requires a segment lock, it is undesirable for caches that must reorder elements frequently (e.g. LRU).
 
 == Why not a doubly-linked list? ==
-In a doubly-linked list using auxiliary nodes the hash table's curses to the element. A removal must lock the element and a neighbor (either always left or always right). The element and its auxiliary nodes can then be unlinked from the list and discarded. 
+In a doubly-linked list using auxiliary nodes the hash table curses to the element. A removal must lock the element and a neighbor (either always left or always right). The element and its auxiliary nodes can then be unlinked from the list and discarded. 
 
 The flaw with this design is that it adds unnecessary complexity. In serial usage the ordering may be desirable for iteration such as by displaying all elements by their insertion order. In concurrent usage the ordering should not be useful or relied upon. The faster unordered iteration from the hash table's entries can be used instead. This observation means that neither forward or reverse iteration of the list is a useful feature.
 
