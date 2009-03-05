@@ -10,32 +10,32 @@ The hash table allows for O(1) access to a cached entry. The table associates th
 == Elements ==
 An element is the {key, value} pair, plus any additional information that is useful for the eviction algorithm (e.g. frequency).
 
-== Auxilaries ==
+== Auxiliaries ==
 In a normal LRU cache, a doubly-linked list cross-custs the hash table. When a removal is performed the two adjacent elements must be updated to unlink the victim element. If a global lock is not used then this structure has a problem as it requires two atomic operations to be performed. As _compare and swap_ operations are not composable, the race conditions of concurrent operations must be handled.
 
-The usage of auxilary nodes between each element helps to isolate them and removes the requirement of composible atomic operations. This simplifies the per-node locking to avoid deadlock scenarios and allows operations to work with just two elements rather than three.
+The usage of auxiliary nodes between each element helps to isolate them and removes the requirement of composable atomic operations. This simplifies the per-node locking to avoid deadlock scenarios and allows operations to work with just two elements rather than three.
 
-This technique was originally discovered by John Valois in his 1996 paper [http://citeseerx.ist.psu.edu/viewdoc/summary?doi=10.1.1.41.9506 Lock-Free Linked Lists Using Compare-and-Swap]. The paper discusses a lock-free singly-linked list and attempts to adapt the idea to tree structures. In our usage the idea was rediscovered but for consistancy his terminology was adopted (ours was "buffers").
+This technique was originally discovered by John Valois in his 1996 paper [http://citeseerx.ist.psu.edu/viewdoc/summary?doi=10.1.1.41.9506 Lock-Free Linked Lists Using Compare-and-Swap]. The paper discusses a lock-free singly-linked list and attempts to adapt the idea to tree structures. In our usage the idea was rediscovered but for consistency his terminology was adopted (ours was "buffers").
 
 == Eviction ==
-This data structure supports insertion- and access order-bassed eviction policies. Each policy determines the ordering of the list so that the victim element is at the beginning.
+This data structure supports insertion- and access order-based eviction policies. Each policy determines the ordering of the list so that the victim element is at the beginning.
 
-When an element is added to the list its size field is incremented. If the size exceeds the cache's capacity then an eviction is be triggered. The first element is traversed to and a removal attempted. This will repeat until either the removal succeeds, a concurrent removal shrunks the size to be below the threshold, or no element was found (empty list).
+When an element is added to the list its size field is incremented. If the size exceeds the cache's capacity then an eviction is be triggered. The first element is traversed to and a removal attempted. This will repeat until either the removal succeeds, a concurrent removal shrunk the size to be below the threshold, or no element was found (empty list).
 
 ----
 = 1-1/2 linked list =
 
-The list is tentitively being called a "one and a half linked list". It supports O(1) operations with a forward iterator. Unlike a doubly-linked list it does not support reverse iteration.
+The list is tentatively being called a "one and a half linked list". It supports O(1) operations with a forward iterator. Unlike a doubly-linked list it does not support reverse iteration.
 
 == Why not a singly-linked list? ==
-In a singly-linked list using auxilary nodes, the hash table's would curse to the auxilary node. A removal is performed by traversing the auxilary node to its corresponding element and unlinking it by setting the auxilary->next to element->next. However, this leaves the element's auxilary node on the list. It cannot be removed as an unknown element points to it, so rather the next element's auxilary node must be discarded.
+In a singly-linked list using auxiliary nodes the hash table's would curse to the auxiliary node. A removal is performed by traversing the auxiliary node to its corresponding element and unlinking it by setting the auxiliary->next to element->next. However, this leaves the element's auxiliary node on the list. It cannot be removed as an unknown element points to it, so rather the next element's auxiliary node must be discarded.
 
-The extra auxilary node can be removed by setting the removed element's auxilary node to the next element. By using the key, the hash table's entry is updated to no longer reference the discarded auxilary node. As this requires a segment lock, it is undesirable for caches that must remove elements frequently (e.g. LRU).
+The extra auxiliary node can be removed by setting the removed element's auxiliary node to the next element. By using the key, the hash table's entry is updated to no longer reference the discarded node. As this requires a segment lock, it is undesirable for caches that must reorder elements frequently (e.g. LRU).
 
 == Why not a doubly-linked list? ==
-In a doubly-linked list using auxilary nodes, the hash table's curses to the element. A removal must lock the element and a neighbor (either always left or always right). The element and its auxilary nodes can then be unlinked from the list and discarded. 
+In a doubly-linked list using auxiliary nodes the hash table's curses to the element. A removal must lock the element and a neighbor (either always left or always right). The element and its auxiliary nodes can then be unlinked from the list and discarded. 
 
-The flaw with this design is that it adds unnecessary complexity. In serial usage, the ordering may be desirable for iteration such as by displaying all elements by their insertion order. In concurrent usage, the ordering should not be useful or relied upon. The faster unordered iteration from the hash table's entries can be relied upon instead. This observation means that neither forward or reverse iteration of the list is a desirable feature.
+The flaw with this design is that it adds unnecessary complexity. In serial usage the ordering may be desirable for iteration such as by displaying all elements by their insertion order. In concurrent usage the ordering should not be useful or relied upon. The faster unordered iteration from the hash table's entries can be used instead. This observation means that neither forward or reverse iteration of the list is a useful feature.
 
 ----
 == Empty ==
@@ -53,7 +53,7 @@ In an LRU policy, when an entry is successfully retrieved from the hash table it
  # If found, try to acquire the element's lock
    * If successful, remove and reinsert to tail
    * If unsuccessful, continue
-     * A concurrent insert or retrievel for the same element is linking it
+     * A concurrent insert or retrieval for the same element is linking it
      * A concurrent removal is unlinking it
  # If found, return the value held by the element. Otherwise null
 ----
@@ -143,7 +143,7 @@ The following shows the algorithm for removing an entry.
  # aux->fwd = E_next
  # Unlock aux
 
-If E_next is being concurrently linked or removed it will be blocked attempting to retrieve the shared auxilary's lock. While that operation is waiting, its element's back pointer can be updated. When the auxilary is unlocked, the concurrent operation will obtain its lock and perform its task with a valid state of the list. As the removed element and auxilary nodes are no longer referenced, they do not need to be unlocked.
+If E_next is being concurrently linked or removed it will be blocked attempting to retrieve the shared auxiliary's lock. While that operation is waiting its element's back pointer can be updated. When the auxiliary is unlocked the concurrent operation will obtain the lock and perform its task with the list in a valid state. As the removed element and auxiliary nodes are no longer referenced they do not need to be unlocked.
 
 === Remove And Lock ===
 Remove {K2, E2} from the hash table and obtain locks. Perform steps #1 - #4.
