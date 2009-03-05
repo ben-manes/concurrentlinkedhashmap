@@ -20,7 +20,7 @@ This technique was originally discovered by John Valois in his 1996 paper [http:
 == Eviction ==
 This data structure supports insertion- and access order-bassed eviction policies. Each policy determines the ordering of the list so that the victim element is at the beginning.
 
-When an element is added to the list, its size field is incremented. If the size exceeds the cache's capacity, then an eviction will be triggered. The first element will be traversed to and a removal will be attempted. This will repeat until either the removal succeeds, a concurrent removal has shrunk the size to be below the threshold, or no element was found (empty list).
+When an element is added to the list its size field is incremented. If the size exceeds the cache's capacity then an eviction is be triggered. The first element is traversed to and a removal attempted. This will repeat until either the removal succeeds, a concurrent removal shrunks the size to be below the threshold, or no element was found (empty list).
 
 ----
 = 1-1/2 linked list =
