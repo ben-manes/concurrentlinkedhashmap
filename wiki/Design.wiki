@@ -25,17 +25,17 @@ When an element is added to the list, its size field is incremented. If the size
 ----
 = 1-1/2 linked list =
 
-The list is tentitively being called a "three halves linked list". It supports O(1) operations with a forward iterator. Unlike a doubly-linked list, it does not support reverse iteration.
+The list is tentitively being called a "three halves linked list". It supports O(1) operations with a forward iterator. Unlike a doubly-linked list it does not support reverse iteration.
 
 == Why not a singly-linked list? ==
-In a singly-linked list using auxilary nodes, the hash table's value would be the auxilary node. A removal is performed by traversing the auxilary node to its corresponding element and unlinking it by setting the auxilary->next to element->next. However, this leaves the element's auxilary node on the list. It cannot be removed as an unknown element points to it, so rather the next element's auxilary node must be discarded.
+In a singly-linked list using auxilary nodes, the hash table's would curse to the auxilary node. A removal is performed by traversing the auxilary node to its corresponding element and unlinking it by setting the auxilary->next to element->next. However, this leaves the element's auxilary node on the list. It cannot be removed as an unknown element points to it, so rather the next element's auxilary node must be discarded.
 
 The extra auxilary node can be removed by setting the removed element's auxilary node to the next element. By using the key, the hash table's entry is updated to no longer reference the discarded auxilary node. As this requires a segment lock, it is undesirable for caches that must remove elements frequently (e.g. LRU).
 
 == Why not a doubly-linked list? ==
-In a doubly-linked list using auxilary nodes, the hash table's value is the element. A removal must lock the element and a neighbor (either always left or always right, based on design). The element and its auxilary nodes can then be unlinked from the list and discarded.
+In a doubly-linked list using auxilary nodes, the hash table's curses to the element. A removal must lock the element and a neighbor (either always left or always right). The element and its auxilary nodes can then be unlinked from the list and discarded.
 
-The flaw with this design is the unnecessary complexity. In serial usage, the ordering may be desirable for iteration such as by an insertion policy. In concurrent usage, the ordering should not be useful or relied upon. The faster unordered iteration from the hash table's entries is a better practice. This means that reverse iteration will not be exposed and the 3/2-linked list provides a faster alternative.
+The flaw with this design is that it adds unnecessary complexity. In serial usage, the ordering may be desirable for iteration such as by displaying all elements by their insertion order. In concurrent usage, the ordering should not be useful or relied upon. The faster unordered iteration from the hash table's entries can be relied upon instead. This observation means that neither forward or reverse iteration of the list is a desirable feature.
 
 ----
 == Empty ==
