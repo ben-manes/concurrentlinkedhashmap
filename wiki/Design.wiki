@@ -49,7 +49,7 @@ When all of the transients have died away the structure would look like the foll
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/1.5-linked/steady-state.png]
 ----
 == Retrieval ==
-In an LRU policy, when an entry is successfully retrieved from the hash table it is moved to the tail of the list. 
+In an LRU policy when an entry is successfully retrieved from the hash table it is moved to the tail of the list. 
 
  # Retrieve from hash table
  # If found, try to acquire the element's lock
