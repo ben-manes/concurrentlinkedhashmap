@@ -65,7 +65,7 @@ In an LRU policy when an entry is successfully retrieved from the hash table it 
 == Update ==
 An update to an entry does not require changing the data structure. This corresponds to the _put_ and _replace_ operations on a [http://java.sun.com/javase/6/docs/api/java/util/concurrent/ConcurrentMap.html ConcurrentMap].
 
- # Perform map operation to retrieve element
+ # Perform map operation to retrieve the element
    * If _put_, this is a _putIfAbsent_ with the element found
    * If _replace_, this is a _get_ with the element found
  # E->value = new_value
