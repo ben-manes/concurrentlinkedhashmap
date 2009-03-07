@@ -76,6 +76,7 @@ public final class ConcurrentTestHarness {
         for (int i = 0; i < nThreads; i++) {
             final int index = i;
             new Thread(baseThreadName + "-" + i) {
+                @Override
                 public void run() {
                     try {
                         startGate.await();

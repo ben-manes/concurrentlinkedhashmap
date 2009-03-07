@@ -1,123 +1,53 @@
 package com.rc.util.concurrent;
 
-import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.EnumMap;
-import java.util.EnumSet;
+import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.Random;
-import java.util.Set;
 import java.util.Map.Entry;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
-import com.rc.util.concurrent.caches.Cache;
+import com.rc.util.concurrent.ConcurrentLinkedHashMap.EvictionPolicy;
 
 /**
  * The concurrent tests for the {@link ConcurrentLinkedHashMap}.
  *
  * @author <a href="mailto:ben.manes@reardencommerce.com">Ben Manes</a>
  */
-@SuppressWarnings("unchecked")
 public final class MultiThreadedTest extends BaseTest {
-    private int runs;
+    private List<Integer> keys;
     private int nThreads;
-    private int percentWrite;
-    private boolean contention;
-    private Set<Integer> keys;
-    private Set<Cache> types;
 
     @BeforeClass(alwaysRun=true)
     public void beforeMultiThreaded() {
-        runs = Integer.valueOf(System.getProperty("performance.runs"));
-        nThreads = Integer.valueOf(System.getProperty("performance.threads.num"));
-        percentWrite = Integer.valueOf(System.getProperty("performance.percentWrite"));
-        contention = Boolean.valueOf(System.getProperty("performance.threads.forceContention"));
-
-        String cacheType = System.getProperty("performance.cache").toUpperCase();
-        types = "ALL".equals(cacheType) ? EnumSet.allOf(Cache.class)
-                                        : EnumSet.of(Cache.valueOf(cacheType));
-
         int iterations = Integer.valueOf(System.getProperty("performance.iterations"));
-        keys = createWarmedMap(defaultPolicy, iterations).keySet();
+        nThreads = Integer.valueOf(System.getProperty("performance.nThreads"));
+        keys = new ArrayList<Integer>();
+        Random random = new Random();
+        for (int i=0; i<iterations; i++) {
+            keys.add(random.nextInt(iterations/100));
+        }
     }
 
     /**
      * Tests that the cache is in the correct test after a read-write load.
      */
     @Test(groups="development")
-    public void readWrite() throws InterruptedException {
-        Set<Cache> types = EnumSet.of(Cache.CONCURRENT_FIFO, Cache.CONCURRENT_SECOND_CHANCE, Cache.CONCURRENT_LRU);
+    public void concurrent() throws InterruptedException {
+        debug("concurrent: START");
         List<List<Integer>> sets = shuffle(nThreads, keys);
-        for (Cache type : types) {
-            ConcurrentLinkedHashMap<Integer, Integer> cache = type.create(capacity, capacity, nThreads);
-            execute(cache, new Thrasher<Integer>(cache, sets));
+        for (EvictionPolicy policy : EvictionPolicy.values()) {
+            ConcurrentLinkedHashMap<Integer, Integer> cache = new ConcurrentLinkedHashMap<Integer, Integer>(policy, capacity, nThreads);
+            ConcurrentTestHarness.timeTasks(nThreads, new Thrasher(cache, sets));
             validator.state(cache);
         }
-    }
-
-    /**
-     * Compares the concurrency performance of the cache implementations
-     */
-    @Test(groups="performance")
-    public void concurrency() throws InterruptedException {
-        List<List<Integer>> sets = shuffle(nThreads, keys);
-        Map<Cache, String> averages = new EnumMap<Cache, String>(Cache.class);
-        for (Cache type : types) {
-            long sum = 0;
-            info("Cache Type: %s:", type);
-            List<Long> times = new ArrayList<Long>(runs);
-            for (int i=1; i<=runs; i++) {
-                Map<Integer, Integer> cache = type.create(capacity, capacity, nThreads);
-                long time = TimeUnit.NANOSECONDS.toMillis(execute(cache, new Thrasher<Integer>(cache, sets)));
-                info("#%d: %s ms", i, time);
-                times.add(time);
-                sum += time;
-            }
-            info("Average: %s ms", DecimalFormat.getInstance().format(sum/runs));
-
-            // upper, lower 10% removed
-            sum = 0;
-            int bound = runs / 10;
-            Collections.sort(times);
-            for (int i=bound; i<(runs-bound); i++) {
-                sum += times.get(i);
-            }
-            String average = DecimalFormat.getInstance().format(sum/(runs-2*bound));
-            averages.put(type, average);
-            info("Corrected Average: %s ms\n", average);
-        }
-
-        info("Comparisons:");
-        for (Entry<Cache, String> entry : averages.entrySet()) {
-            StringBuilder buffer = new StringBuilder(60);
-            String cacheName = entry.getKey().toString();
-            buffer.append("\t - ")
-                  .append(cacheName)
-                  .append(':');
-            int spaces = 25 - cacheName.length();
-            for (int j=0; j<spaces; j++) {
-                buffer.append(' ');
-            }
-            buffer.append(entry.getValue())
-                  .append(" ms");
-            info(buffer.toString());
-        }
-    }
-
-    /**
-     * @return The execution time of the test run.
-     */
-    public long execute(Map<?, ?> cache, Runnable runner) throws InterruptedException {
-        long time = ConcurrentTestHarness.timeTasks(nThreads, runner);
-        cache.clear();
-        return time;
+        debug("concurrent: END");
     }
 
     /**
@@ -137,15 +67,16 @@ public final class MultiThreadedTest extends BaseTest {
     }
 
     /**
-     * Executes read or write operations against the cache, thereby testing the efficiency of the
-     * concurrency constructs guarding the cache. The worse the lock, the longer the execution time.
+     * Executes operations against the cache to simulate random load.
      */
-    private final class Thrasher<T> implements Runnable {
-        private final Map<T, T> cache;
-        private final List<List<T>> sets;
+    private final class Thrasher implements Runnable {
+        private static final int OPERATIONS = 17;
+
+        private final ConcurrentMap<Integer, Integer> cache;
+        private final List<List<Integer>> sets;
         private final AtomicInteger index;
 
-        public Thrasher(Map<T, T> cache, List<List<T>> sets) {
+        public Thrasher(ConcurrentMap<Integer, Integer> cache, List<List<Integer>> sets) {
             this.index = new AtomicInteger();
             this.cache = cache;
             this.sets = sets;
@@ -153,16 +84,86 @@ public final class MultiThreadedTest extends BaseTest {
 
         public void run() {
             int id = index.getAndIncrement();
-            Random random = new Random();
-            for (T key : sets.get(id)) {
-                if (percentWrite > random.nextInt(100)) {
-                    cache.put(key, key);
-                } else {
+            debug("#%d: STARTING", id);
+            for (Integer key : sets.get(id)) {
+                try {
+                    execute(key);
+                } catch (RuntimeException e) {
+                    info("Failed on operation: %d", key%OPERATIONS);
+                    throw e;
+                }
+            }
+            debug("#%d: ENDING", id);
+        }
+
+        private void execute(int key) {
+            switch (key % OPERATIONS) {
+                case 0:
+                    cache.containsKey(key);
+                    break;
+                case 1:
+                    cache.containsValue(key);
+                    break;
+                case 2:
+                    cache.isEmpty();
+                    break;
+                case 3:
+                    cache.size();
+                    break;
+                case 4:
                     cache.get(key);
-                }
-                if (contention) {
-                    Thread.yield();
-                }
+                    break;
+                case 5:
+                    cache.put(key, key);
+                    break;
+                case 6:
+                    cache.putIfAbsent(key, key);
+                    break;
+                case 7:
+                    cache.remove(key);
+                    break;
+                case 8:
+                    cache.remove(key, key);
+                    break;
+                case 9:
+                    cache.replace(key, key);
+                    break;
+                case 10:
+                    cache.replace(key, key, key);
+                    break;
+                case 11:
+                    cache.clear();
+                    break;
+                case 12:
+                    for (Integer i : cache.keySet()) {
+                        if (i == null) {
+                            throw new IllegalArgumentException();
+                        }
+                    }
+                    break;
+                case 13:
+                    Iterator<Integer> i = cache.values().iterator();
+                    while (i.hasNext()) {
+                        if (i.next() == null) {
+                            throw new IllegalArgumentException("Null value");
+                        }
+                    }
+                    break;
+                case 14:
+                    for (Entry<Integer, Integer> entry : cache.entrySet()) {
+                        if ((entry == null) || (entry.getKey() == null) || (entry.getValue() == null)) {
+                            throw new IllegalArgumentException(String.valueOf(entry));
+                        }
+                    }
+                    break;
+                case 15:
+                    cache.hashCode();
+                    break;
+                case 16:
+                    cache.equals(new Object());
+                    break;
+                default:
+                    throw new IllegalArgumentException();
             }
         }
     }

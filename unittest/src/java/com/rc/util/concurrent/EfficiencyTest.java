@@ -1,6 +1,6 @@
 package com.rc.util.concurrent;
 
-import java.text.DecimalFormat;
+import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -14,15 +14,10 @@ import com.rc.util.concurrent.caches.Cache;
 import com.rc.util.concurrent.distribution.Distribution;
 
 /**
- * Group: development
  * The efficiency tests for the {@link ConcurrentLinkedHashMap}.
- * <p>
- * Group: efficiency
- * Compares the efficiency of different caching algorithms.
  *
  * @author <a href="mailto:ben.manes@reardencommerce.com">Ben Manes</a>
  */
-@SuppressWarnings("unchecked")
 public final class EfficiencyTest extends BaseTest {
     private Distribution distribution;
     private int size;
@@ -44,12 +39,11 @@ public final class EfficiencyTest extends BaseTest {
             Map<Long, Long> cache = type.create(capacity, size, 1);
             double hits = determineEfficiency(cache, workingSet);
             double misses = size - hits;
-            info("%s: hits=%s (%s percent), misses=%s (%s percent)",
-                 type,
-                 DecimalFormat.getInstance().format(hits),
-                 DecimalFormat.getPercentInstance().format(hits/size),
-                 DecimalFormat.getInstance().format(misses),
-                 DecimalFormat.getPercentInstance().format(misses/size));
+            info("%s: hits=%s (%s percent), misses=%s (%s percent)", type,
+                 NumberFormat.getInstance().format(hits),
+                 NumberFormat.getPercentInstance().format(hits/size),
+                 NumberFormat.getInstance().format(misses),
+                 NumberFormat.getPercentInstance().format(misses/size));
         }
     }
 

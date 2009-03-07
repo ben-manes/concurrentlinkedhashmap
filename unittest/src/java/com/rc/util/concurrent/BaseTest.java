@@ -15,7 +15,6 @@ import com.rc.util.concurrent.ConcurrentLinkedHashMap.EvictionPolicy;
  *
  * @author <a href="mailto:ben.manes@reardencommerce.com">Ben Manes</a>
  */
-@SuppressWarnings("unchecked")
 public abstract class BaseTest extends Assert {
     protected final EvictionMonitor<Integer, Integer> guard = EvictionMonitor.newGuard();
     protected final EvictionPolicy defaultPolicy = EvictionPolicy.SECOND_CHANCE;
@@ -38,7 +37,7 @@ public abstract class BaseTest extends Assert {
     /**
      * Logs a statement.
      */
-    protected static void info(String message, Object... args) {
+    protected void info(String message, Object... args) {
         System.out.printf(message, args);
         System.out.println();
     }
@@ -58,22 +57,30 @@ public abstract class BaseTest extends Assert {
     protected <K, V> ConcurrentLinkedHashMap<K, V> createGuarded() {
         return create(defaultPolicy, EvictionMonitor.<K, V>newGuard());
     }
-    protected <K, V> ConcurrentLinkedHashMap<K, V> create(EvictionPolicy policy, EvictionMonitor<K, V>... monitor) {
-        return new ConcurrentLinkedHashMap<K, V>(policy, capacity, monitor);
+    protected <K, V> ConcurrentLinkedHashMap<K, V> create(EvictionPolicy policy) {
+        return new ConcurrentLinkedHashMap<K, V>(policy, capacity);
+    }
+    protected <K, V> ConcurrentLinkedHashMap<K, V> create(EvictionPolicy policy, EvictionListener<K, V> listener) {
+        return new ConcurrentLinkedHashMap<K, V>(policy, capacity, listener);
     }
 
     /**
-     * Creates a map warmed to the specified maximum capacity, using the default eviction policy.
+     * Creates a map warmed to the specified maximum capacity.
      */
-    protected ConcurrentLinkedHashMap<Integer, Integer> createWarmedMap(EvictionListener<Integer, Integer>... listeners) {
-        return createWarmedMap(defaultPolicy, capacity, listeners);
+    protected ConcurrentLinkedHashMap<Integer, Integer> createWarmedMap() {
+        return createWarmedMap(defaultPolicy, capacity);
+    }
+    protected ConcurrentLinkedHashMap<Integer, Integer> createWarmedMap(EvictionListener<Integer, Integer> listener) {
+        return createWarmedMap(defaultPolicy, capacity, listener);
+    }
+    protected ConcurrentLinkedHashMap<Integer, Integer> createWarmedMap(EvictionPolicy policy, int size, EvictionListener<Integer, Integer> listener) {
+        return warm(new ConcurrentLinkedHashMap<Integer, Integer>(policy, size, listener), size);
+    }
+    protected ConcurrentLinkedHashMap<Integer, Integer> createWarmedMap(EvictionPolicy policy, int size) {
+        return warm(new ConcurrentLinkedHashMap<Integer, Integer>(policy, size), size);
     }
 
-    /**
-     * Creates a map warmed to the specified maximum size.
-     */
-    protected ConcurrentLinkedHashMap<Integer, Integer> createWarmedMap(EvictionPolicy policy, int size, EvictionListener<Integer, Integer>... listeners) {
-        ConcurrentLinkedHashMap<Integer, Integer> cache = new ConcurrentLinkedHashMap<Integer, Integer>(policy, size, listeners);
+    protected ConcurrentLinkedHashMap<Integer, Integer> warm(ConcurrentLinkedHashMap<Integer, Integer> cache, int size) {
         for (Integer i=0; i<size; i++) {
             assertNull(cache.put(i, i));
             assertEquals(cache.data.get(i).getValue(), i);
