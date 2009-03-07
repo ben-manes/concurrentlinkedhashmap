@@ -678,21 +678,20 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
 
         public EntryIteratorAdapter(Iterator<Entry<K, Node<K, V>>> iterator) {
             this.iterator = iterator;
-            skipToNext();
+            next = findNext();
         }
-        private void skipToNext() {
+        private Entry<K, V> findNext() {
             while (iterator.hasNext()) {
                 Entry<K, Node<K, V>> entry = iterator.next();
                 Node<K, V> node = entry.getValue();
                 if (node != null) {
                     V value = node.getValue();
                     if (value != null) {
-                        next = new SimpleEntry<K, V>(node.getKey(), value);
-                        return;
+                        return new SimpleEntry<K, V>(node.getKey(), value);
                     }
                 }
             }
-            next = null;
+            return null;
         }
         public boolean hasNext() {
             return (next != null);
@@ -702,7 +701,7 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
                 throw new IllegalStateException();
             }
             current = next;
-            skipToNext();
+            next = findNext();
             return current;
         }
         public void remove() {
