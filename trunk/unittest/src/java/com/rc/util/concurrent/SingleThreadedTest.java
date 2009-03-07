@@ -25,6 +25,7 @@ public final class SingleThreadedTest extends BaseTest {
      */
     @Test(groups="development")
     public void empty() {
+        debug("empty: START");
         ConcurrentLinkedHashMap<Integer, Integer> cache = createGuarded();
         validator.state(cache);
         validator.empty(cache);
@@ -35,6 +36,7 @@ public final class SingleThreadedTest extends BaseTest {
      */
     @Test(groups="development")
     public void putAll() {
+        debug("putAll: START");
         ConcurrentLinkedHashMap<Integer, Integer> expected = createWarmedMap();
         ConcurrentLinkedHashMap<Integer, Integer> cache = createGuarded();
         cache.putAll(expected);
@@ -49,6 +51,7 @@ public final class SingleThreadedTest extends BaseTest {
      */
     @Test(groups="development")
     public void put() {
+        debug("put: START");
         ConcurrentLinkedHashMap<Integer, Integer> cache = create();
         cache.put(0, 0);
         int old = cache.put(0, 1);
@@ -65,6 +68,7 @@ public final class SingleThreadedTest extends BaseTest {
      */
     @Test(groups="development")
     public void putIfAbsent() {
+        debug("putIfAbsent: START");
         ConcurrentLinkedHashMap<Integer, Integer> cache = createGuarded();
         for (Integer i=0; i<capacity; i++) {
             assertNull(cache.putIfAbsent(i, i));
@@ -82,6 +86,7 @@ public final class SingleThreadedTest extends BaseTest {
      */
     @Test(groups="development")
     public void retrieval() {
+        debug("retrieval: START");
         ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap(guard);
         for (Integer i=-capacity; i<0; i++) {
             assertNull(cache.get(i));
@@ -107,6 +112,7 @@ public final class SingleThreadedTest extends BaseTest {
      */
     @Test(groups="development")
     public void remove() {
+        debug("remove: START");
         EvictionMonitor guard = EvictionMonitor.newGuard();
 
         // Map#remove()
@@ -137,6 +143,7 @@ public final class SingleThreadedTest extends BaseTest {
      */
     @Test(groups="development")
     public void replace() {
+        debug("replace: START");
         Integer dummy = -1;
         ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap();
         for (Integer i=0; i<capacity; i++) {
@@ -157,6 +164,7 @@ public final class SingleThreadedTest extends BaseTest {
      */
     @Test(groups="development")
     public void clear() {
+        debug("clear: START");
         EvictionMonitor guard = EvictionMonitor.newGuard();
         ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap(guard);
         cache.clear();
@@ -168,6 +176,7 @@ public final class SingleThreadedTest extends BaseTest {
      */
     @Test(groups="development")
     public void capacity() {
+        debug("capacity: START");
         ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap();
 
         int newMaxCapacity = 2*capacity;
@@ -175,18 +184,21 @@ public final class SingleThreadedTest extends BaseTest {
         assertEquals(cache.capacity(), newMaxCapacity);
         assertEquals(cache, createWarmedMap());
         validator.state(cache);
+        debug("capacity: #1 done");
 
         newMaxCapacity = capacity/2;
         cache.setCapacity(newMaxCapacity);
         assertEquals(cache.capacity(), newMaxCapacity);
         assertEquals(cache.size(), newMaxCapacity);
         validator.state(cache);
+        debug("capacity: #2 done");
 
         newMaxCapacity = 1;
         cache.setCapacity(newMaxCapacity);
         assertEquals(cache.capacity(), newMaxCapacity);
         assertEquals(cache.size(), newMaxCapacity);
         validator.state(cache);
+        debug("capacity: #3 done");
 
         try {
             cache.setCapacity(-1);
@@ -201,6 +213,7 @@ public final class SingleThreadedTest extends BaseTest {
      */
     @Test(groups="development")
     public void object() {
+        debug("object: START");
         ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap(guard);
         Map<Integer, Integer> expected = new ConcurrentHashMap<Integer, Integer>(capacity);
         for (Integer i=0; i<capacity; i++) {
@@ -216,6 +229,7 @@ public final class SingleThreadedTest extends BaseTest {
      */
     @Test(groups="development")
     public void serialize() {
+        debug("serialize: START");
         ConcurrentLinkedHashMap<Integer, Integer> expected = createWarmedMap(guard);
         Object cache = SerializationUtils.clone(expected);
         assertEquals(cache, expected);
@@ -227,6 +241,7 @@ public final class SingleThreadedTest extends BaseTest {
      */
     @Test(groups="development")
     public void evictAsFifo() {
+        debug("evictAsFifo: START");
         EvictionMonitor<Integer, Integer> monitor = EvictionMonitor.newMonitor();
         ConcurrentLinkedHashMap<Integer, Integer> cache = create(EvictionPolicy.FIFO, monitor);
 
@@ -239,6 +254,7 @@ public final class SingleThreadedTest extends BaseTest {
      */
     @Test(groups="development")
     public void evictSecondChanceAsFifo() {
+        debug("evictSecondChanceAsFifo: START");
         EvictionMonitor<Integer, Integer> monitor = EvictionMonitor.newMonitor();
         ConcurrentLinkedHashMap<Integer, Integer> cache = create(EvictionPolicy.SECOND_CHANCE, monitor);
 
@@ -251,6 +267,7 @@ public final class SingleThreadedTest extends BaseTest {
      */
     @Test(groups="development")
     public void evictAsSecondChance() {
+        debug("evictAsSecondChance: START");
         Map<Integer, Integer> expected = new HashMap<Integer, Integer>(capacity);
         EvictionMonitor<Integer, Integer> monitor = EvictionMonitor.newMonitor();
         ConcurrentLinkedHashMap<Integer, Integer> cache = create(EvictionPolicy.SECOND_CHANCE, monitor);
@@ -278,6 +295,7 @@ public final class SingleThreadedTest extends BaseTest {
      */
     @Test(groups="development")
     public void evictSecondChanceFullScan() {
+        debug("evictSecondChanceFullScan: START");
         EvictionMonitor<Integer, Integer> monitor = EvictionMonitor.newMonitor();
         ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap(EvictionPolicy.SECOND_CHANCE, capacity, monitor);
         for (int i=0; i<capacity; i++) {
@@ -299,6 +317,7 @@ public final class SingleThreadedTest extends BaseTest {
      */
     @Test(groups="development")
     public void evictAsLru() {
+        debug("evictAsLru: START");
         ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap(EvictionPolicy.LRU, 10);
 
         debug("Initial: %s", validator.externalizeLinkedList(cache));
