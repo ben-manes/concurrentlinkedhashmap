@@ -30,7 +30,6 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 
-
 /**
  * A {@link ConcurrentMap} with a linked list running through its entries.
  * <p>
@@ -66,17 +65,19 @@ import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 class ConcurrentLinkedHashMap2<K, V> extends AbstractMap<K, V> implements ConcurrentMap<K, V>, Serializable {
     private static final long serialVersionUID = 8350170357874293408L;
     private final ConcurrentMap<K, Element<K, V>> data;
+    private final EvictionListener<K, V> listener;
     private final Element<K, V> sentinel;
     private final AtomicInteger capacity;
     private final EvictionPolicy policy;
     private final AtomicInteger length;
 
-    public ConcurrentLinkedHashMap2() {
-        data = new ConcurrentHashMap<K, Element<K, V>>();
-        capacity = new AtomicInteger();
+    private ConcurrentLinkedHashMap2(Builder<K, V> builder) {
+        data = new ConcurrentHashMap<K, Element<K, V>>(builder.capacity, 0.75f, builder.concurrencyLevel);
+        capacity = new AtomicInteger(builder.capacity);
         length = new AtomicInteger();
+        listener = builder.listener;
+        policy = builder.policy;
         sentinel = null;
-        policy = null;
     }
 
     /**
@@ -150,7 +151,24 @@ class ConcurrentLinkedHashMap2<K, V> extends AbstractMap<K, V> implements Concur
      * Evicts a single entry if the map exceeds the maximum capacity.
      */
     private void evict() {
-        throw new UnsupportedOperationException();
+        while (isOverflow()) {
+            Element<K, V> element = findVictim();
+            if (element == null) {
+                return;
+            } else if (policy.onEvict(this, element)) {
+                if (data.remove(element.getKey()) == null) {
+                    // check for concurrent removal, and if so unlock
+                    element.unlock();
+                } else {
+                    remove(element);
+                    length.decrementAndGet();
+                    listener.onEviction(element.getKey(), element.getValue());
+                }
+                return;
+            } else {
+                moveToTail(element);
+            }
+        }
     }
 
     /**
@@ -158,8 +176,33 @@ class ConcurrentLinkedHashMap2<K, V> extends AbstractMap<K, V> implements Concur
      *
      * @return The first node on the list or <tt>null</tt> if empty.
      */
-    private void poll() {
-        throw new UnsupportedOperationException();
+    private Element<K, V> findVictim() {
+        // 1) walk the list, always checking if still overflow
+        // 2) tryLock
+        //   a) if unsuccessful continue to walk
+        //   b) if successful, return - do not remove!
+        // 3) if end of list, restart from head (1)
+        // 4) if no longer overflow, return null
+
+        for (;;) {
+            Element<K, V> current = getNextElement(sentinel);
+            if (current == sentinel) {
+                return null;
+            }
+            do {
+                if (current.tryLock()) {
+                    return current;
+                }
+                if (!isOverflow()) {
+                    return null;
+                }
+                current = getNextElement(current);
+            } while (current != sentinel);
+        }
+    }
+
+    private Element<K, V> getNextElement(Element<K, V> element) {
+        return element.getNext().getNext();
     }
 
     /**
@@ -168,7 +211,19 @@ class ConcurrentLinkedHashMap2<K, V> extends AbstractMap<K, V> implements Concur
      * @param node An unlinked node to append to the tail of the list.
      */
     private void offer(Element<K, V> element) {
-        throw new UnsupportedOperationException();
+        Auxiliary<K, V> prev = sentinel.lockPrev();
+        prev.setNext(element);
+        element.setPrev(prev);
+        sentinel.setPrev(element.getNext());
+        element.getPrev().unlock();
+        element.getNext().unlock();
+        element.unlock();
+    }
+
+    private void moveToTail(Element<K, V> element) {
+        remove(element);
+        offer(element);
+        element.unlock();
     }
 
     /**
@@ -335,6 +390,50 @@ class ConcurrentLinkedHashMap2<K, V> extends AbstractMap<K, V> implements Concur
     }
 
     /**
+     * A listener registered for notification when an entry is evicted.
+     */
+    public interface EvictionListener<K, V> {
+
+        /**
+         * A call-back notification that the entry was evicted.
+         *
+         * @param key   The evicted key.
+         * @param value The evicted value.
+         */
+        void onEviction(K key, V value);
+    }
+
+    public static final class Builder<K, V> {
+        private static final EvictionListener<?, ?> nullListener = new EvictionListener<Object, Object>() {
+            public void onEviction(Object key, Object value) {}
+        };
+        private final EvictionPolicy policy;
+        private final int capacity;
+
+        private EvictionListener<K, V> listener;
+        private int concurrencyLevel;
+
+        @SuppressWarnings("unchecked")
+        public Builder(EvictionPolicy polcy, int capacity) {
+            this.listener = (EvictionListener<K, V>) nullListener;
+            this.capacity = capacity;
+            this.policy = polcy;
+        }
+
+        public Builder<K, V> setListener(EvictionListener<K, V> listener) {
+            this.listener = listener;
+            return this;
+        }
+        public Builder<K, V> setConcurrencyLevel(int concurrencyLevel) {
+            this.concurrencyLevel = concurrencyLevel;
+            return this;
+        }
+        public ConcurrentLinkedHashMap2<K, V> build() {
+            return new ConcurrentLinkedHashMap2<K, V>(this);
+        }
+    }
+
+    /**
      * The replacement policy to apply to determine which entry to discard to when the capacity has been reached.
      */
     public enum EvictionPolicy {
@@ -345,10 +444,6 @@ class ConcurrentLinkedHashMap2<K, V> extends AbstractMap<K, V> implements Concur
             @Override
             <K, V> void onGet(ConcurrentLinkedHashMap2<K, V> map, Element<K, V> element) {
                 // do nothing
-            }
-            @Override
-            <K, V> boolean onEvict(ConcurrentLinkedHashMap2<K, V> map, Element<K, V> element) {
-                return true;
             }
         },
 
@@ -381,10 +476,6 @@ class ConcurrentLinkedHashMap2<K, V> extends AbstractMap<K, V> implements Concur
                     map.offer(element);
                 }
             }
-            @Override
-            <K, V> boolean onEvict(ConcurrentLinkedHashMap2<K, V> map, Element<K, V> element) {
-                return true;
-            }
         };
 
         /**
@@ -393,16 +484,15 @@ class ConcurrentLinkedHashMap2<K, V> extends AbstractMap<K, V> implements Concur
         abstract <K, V> void onGet(ConcurrentLinkedHashMap2<K, V> map, Element<K, V> element);
 
         /**
-         * Determines whether to evict the node at the head of the list. If false, the node is offered
-         * to the tail.
+         * Determines whether to evict the node at the head of the list. If false, the node is offered to the tail.
          */
-        abstract <K, V> boolean onEvict(ConcurrentLinkedHashMap2<K, V> map, Element<K, V> element);
+        <K, V> boolean onEvict(ConcurrentLinkedHashMap2<K, V> map, Element<K, V> element) {
+            return true;
+        }
     }
 
     /**
      *
-     *
-     * @author <a href="mailto:ben.manes@reardencommerce.com">Ben Manes</a>
      */
     @SuppressWarnings("unchecked")
     private static final class Auxiliary<K, V> {
