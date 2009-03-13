@@ -24,12 +24,12 @@
 
   <!-- Cobertura -->
   <path id="cobertura.compile.path">
-    <fileset dir="${external.dir}/cobertura/1.9">
+    <fileset dir="${external.dir}/cobertura/1.9.1">
       <include name="cobertura.jar"/>
     </fileset>
-    <fileset dir="${external.dir}/cobertura/1.9/lib">
-      <include name="asm-2.2.1.jar"/>
-      <include name="asm-tree-2.2.1.jar"/>
+    <fileset dir="${external.dir}/cobertura/1.9.1/lib">
+      <include name="asm-3.0.jar"/>
+      <include name="asm-tree-3.0.jar"/>
       <include name="jakarta-oro-2.0.8.jar"/>
       <include name="log4j-1.2.9.jar"/>
     </fileset>
