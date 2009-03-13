@@ -5,13 +5,13 @@
 
   <!-- Cache Benchmark Framework -->
   <path id="cache.benchmark.compile.path">
-    <fileset dir="${external.dir}/cache-benchmark/r7014">
+    <fileset dir="${external.dir}/cache-benchmark/r7903">
       <include name="benchmark-fwk.jar"/>
     </fileset>
   </path>
   <path id="cache.benchmark.deploy.path">
     <path refid="cache.benchmark.compile.path"/>
-    <fileset dir="${external.dir}/cache-benchmark/r7014">
+    <fileset dir="${external.dir}/cache-benchmark/r7903">
       <include name="commons-beanutils.jar"/>
       <include name="commons-digester.jar"/>
       <include name="commons-logging.jar"/>

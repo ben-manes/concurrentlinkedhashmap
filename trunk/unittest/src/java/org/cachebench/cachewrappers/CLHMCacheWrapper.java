@@ -39,7 +39,7 @@ public class CLHMCacheWrapper implements CacheWrapper
 
       level = Integer.parseInt(props.getProperty("clhm.concurrencyLevel"));
       policy = EvictionPolicy.valueOf(
-         EvictionPolicy.class, props.getProperty("clhm.evictionPolicy"));
+         props.getProperty("clhm.evictionPolicy"));
       capacity = Integer.parseInt(props.getProperty("clhm.maximumCapacity"));
    }
 
@@ -105,5 +105,21 @@ public class CLHMCacheWrapper implements CacheWrapper
    public Object getReplicatedData(List<String> path, String key) throws Exception
    {
       return get(path, key);
+   }
+
+   /**
+    * {@inheritDoc}
+    */
+   public Object startTransaction()
+   {
+      throw new UnsupportedOperationException("Does not support JTA!");
+   }
+
+   /**
+    * {@inheritDoc}
+    */
+   public void endTransaction(boolean successful)
+   {
+      throw new UnsupportedOperationException("Does not support JTA!");
    }
 }
