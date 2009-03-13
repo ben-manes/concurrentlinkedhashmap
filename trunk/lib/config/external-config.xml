@@ -148,15 +148,15 @@
     </fileset>
   </path>
 
-  <!-- JBoss Cache 3.0.0 -->
-  <path id="jboss.cache-3.0.0.compile.path">
-    <fileset dir="${external.dir}/jboss-cache/3.0.0">
+  <!-- JBoss Cache 3.0.3 -->
+  <path id="jboss.cache-3.0.3.compile.path">
+    <fileset dir="${external.dir}/jboss-cache/3.0.3">
       <include name="jbosscache-core.jar"/>
     </fileset>
   </path>
-  <path id="jboss.cache-3.0.0.deploy.path">
-    <path refid="jboss.cache-3.0.0.compile.path"/>
-    <fileset dir="${external.dir}/jboss-cache/3.0.0">
+  <path id="jboss.cache-3.0.3.deploy.path">
+    <path refid="jboss.cache-3.0.3.compile.path"/>
+    <fileset dir="${external.dir}/jboss-cache/3.0.3">
       <include name="commons-codec.jar"/>
       <include name="jboss-common-core.jar"/>
       <include name="jboss-logging-spi.jar"/>
