@@ -73,17 +73,15 @@ An update to an entry does not require changing the data structure. This corresp
 
 ----
 == Insertion ==
-The following shows the algorithm for inserting an entry. This corresponds to the _putIfAbsent_ and _put_ operations on a [http://java.sun.com/javase/6/docs/api/java/util/concurrent/ConcurrentMap.html ConcurrentMap]. The _put_ operation performs either an update or insertion based on the state of the map, so it is emulated though usage of the _putIfAbsent_ operation. As the tail node is the primary source of contention, it is unlocked at the first opportunity.
+The following shows the algorithm for inserting an entry. This corresponds to the _putIfAbsent_ and _put_ operations on a [http://java.sun.com/javase/6/docs/api/java/util/concurrent/ConcurrentMap.html ConcurrentMap]. The _put_ operation performs either an update or insertion based on the state of the map, so it is emulated though usage of the _putIfAbsent_ operation. As the tail node is the primary source of contention, optimizations have been made to free it at the first opportunity.
 
  # E_new->fwd = aux
  # aux->fwd = S
  # Lock E_new
- # Lock E_new->fwd
  # Insert E_new into hash table
    * If unsuccessful, return current item
  # Lock S->back
  # S->back = E_new->fwd
- # Unlock S->back
  # S->back->aux_fwd = E_new
  # E_new->back = S->back
  # Unlock E_new->back
@@ -93,27 +91,27 @@ The following shows the algorithm for inserting an entry. This corresponds to th
 The following shows the insertion of {K1, E1} into an empty map.
 
 ==== Create Bundle ====
-Create the bundle, acquire locks, and set it up for linking. Perform steps #1 - #4.
+Create the bundle, acquire the element's lock, and set it up for linking. Perform steps #1 - #3.
 
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/1.5-linked/insert_E1_1.png]
 
 ==== Insert and Lock Tail ====
-Insert the entry into hash table and obtain the tail's lock. Perform steps #5 - #6.
+Insert the entry into hash table and obtain the tail's lock. Perform steps #4 - #5.
 
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/1.5-linked/insert_E1_2.png]
 
 ==== Link Tail ====
-Update the tail link. Perform step #7.
+Update the tail link. Perform step #6.
 
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/1.5-linked/insert_E1_3.png]
 
-==== Unlock Tail & Link E1 ====
-Unlock the tail and insert E1 into list. Perform steps #8 - #10.
+==== Link E1 ====
+Insert E1 into list. Perform steps #7 - #8.
 
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/1.5-linked/insert_E1_4.png]
 
 ==== Unlock ====
-Unlock. Perform steps #11 - #12.
+Unlock. Perform steps #9 - #10.
 
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/1.5-linked/insert_E1_5.png]
 
@@ -121,27 +119,27 @@ Unlock. Perform steps #11 - #12.
 The following shows the insertion of {K2, E2} into the above map.
 
 ==== Create Bundle ====
-Create the bundle, acquire locks, and set it up for linking. Perform steps #1 - #4.
+Create the bundle, acquire the element's lock, and set it up for linking. Perform steps #1 - #3.
 
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/1.5-linked/insert_E2_1.png]
 
 ==== Insert and Lock Tail ====
-Insert the entry into hash table and obtain the tail's lock. Perform steps #5 - #6.
+Insert the entry into hash table and obtain the tail's lock. Perform steps #4 - #5.
 
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/1.5-linked/insert_E2_2.png]
 
 ==== Link Tail ====
-Update the tail link. Perform step #7.
+Update the tail link. Perform step #6.
 
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/1.5-linked/insert_E2_3.png]
 
-==== Unlock Tail & Link E2 ====
-Unlock the tail and insert E2 into list. Perform steps #8 - #10.
+==== Link E2 ====
+Insert E2 into list. Perform steps #7 - #8.
 
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/1.5-linked/insert_E2_4.png]
 
 ==== Unlock ====
-Unlock. Perform steps #11 - #12.
+Unlock. Perform steps #9 - #10.
 
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/1.5-linked/insert_E2_5.png]
 
