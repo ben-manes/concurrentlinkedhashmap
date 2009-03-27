@@ -83,7 +83,7 @@ The following shows the algorithm for inserting an entry. This corresponds to th
    * If unsuccessful, return current item
  # Lock S->back
  # S->back = E_new->fwd
- # Unload S->back
+ # Unlock S->back
  # S->back->aux_fwd = E_new
  # E_new->back = S->back
  # Unlock E_new->back
