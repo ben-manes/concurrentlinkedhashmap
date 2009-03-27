@@ -121,22 +121,27 @@ Unlock. Perform steps #11 - #12.
 The following shows the insertion of {K2, E2} into the above map.
 
 ==== Create Bundle ====
-Create the bundle and set it up for linking. Perform steps #1 - #3.
+Create the bundle, acquire locks, and set it up for linking. Perform steps #1 - #4.
 
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/1.5-linked/insert_E2_1.png]
 
-==== Insert and Lock ====
-Insert entry into hash table and obtain locks. Perform steps #4 - #6.
+==== Insert and Lock Tail ====
+Insert the entry into hash table and obtain the tail's locks. Perform steps #5 - #6.
 
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/1.5-linked/insert_E2_2.png]
 
-==== Link E2 ====
-Insert E2 into list. Perform steps #7 - #9.
+==== Link Tail ====
+Update the tail link. Perform step #7.
 
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/1.5-linked/insert_E2_3.png]
 
+==== Unlock Tail & Link E2 ====
+Unlock the tail and insert E2 into list. Perform steps #8 - #10.
+
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/1.5-linked/insert_E2_4.png]
+
 ==== Unlock ====
-Unlock. Perform steps #10 - #12.
+Unlock. Perform steps #11 - #12.
 
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/1.5-linked/insert_E2_4.png]
 
