@@ -98,7 +98,7 @@ Create the bundle, acquire locks, and set it up for linking. Perform steps #1 - 
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/1.5-linked/insert_E1_1.png]
 
 ==== Insert and Lock Tail ====
-Insert the entry into hash table and obtain the tail's locks. Perform steps #5 - #6.
+Insert the entry into hash table and obtain the tail's lock. Perform steps #5 - #6.
 
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/1.5-linked/insert_E1_2.png]
 
@@ -126,7 +126,7 @@ Create the bundle, acquire locks, and set it up for linking. Perform steps #1 - 
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/1.5-linked/insert_E2_1.png]
 
 ==== Insert and Lock Tail ====
-Insert the entry into hash table and obtain the tail's locks. Perform steps #5 - #6.
+Insert the entry into hash table and obtain the tail's lock. Perform steps #5 - #6.
 
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/1.5-linked/insert_E2_2.png]
 
