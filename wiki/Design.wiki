@@ -52,11 +52,13 @@ When all of the transients have died away the structure looks like the following
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/1.5-linked/steady-state.png]
 ----
 == Retrieval ==
-In an LRU policy when an entry is successfully retrieved from the hash table it is moved to the tail of the list. 
+In an LRU policy when an entry is successfully retrieved from the hash table it is moved to the tail of the list. As it is likely that the element is already at the tail, the removal and insertion operations can be skipped. If the element's lock was acquired then the position is determined and, if necessary, it is moved to the tail.
 
  # Retrieve from hash table
  # If found, try to acquire the element's lock
-   * If successful, remove and reinsert to tail
+   * If successful,
+     * If the element is at the tail, unlock and continue
+     * Otherwise, remove and reinsert to the tail of the list
    * If unsuccessful, continue
      * A concurrent insert or retrieval for the same element is linking it
      * A concurrent removal is unlinking it
