@@ -62,20 +62,19 @@ In an LRU policy when an entry is successfully retrieved from the hash table it 
      * If the element is at the tail, unlock and continue
      * Otherwise, remove and reinsert to the tail of the list
    * If unsuccessful, continue
-     * A concurrent insert or retrieval for the same element is linking it
      * A concurrent removal is unlinking it
+     * A concurrent insert or retrieval for the same element is linking it
  # If found, return the value held by the element. Otherwise null
 ----
 == Update ==
 An update corresponds to the _put_ and _replace_ operations on a [http://java.sun.com/javase/6/docs/api/java/util/concurrent/ConcurrentMap.html ConcurrentMap].
-
-A strict LRU algorithm implies that an update moves the element to the tail of the list. To simplify the algorithm for the initial implementation an update to an entry does not change the data structure. The stricter form will be adopted as an enhancement.
 
  # Perform map operation to retrieve the element
    * If _put_, this is a _putIfAbsent_ with the element found
    * If _replace_, this is a _get_ with the element found
  # E->value = new_value
    * This may be conditional on a _replace(key, oldValue, newValue)_
+ # Perform _retrieval_ step #2.
 
 ----
 == Insertion ==
