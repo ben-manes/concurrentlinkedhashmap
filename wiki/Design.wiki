@@ -20,6 +20,8 @@ This technique was originally discovered by John Valois in his 1995 paper [http:
 == Locks ==
 A traditional implementation, such as [http://java.sun.com/javase/6/docs/api/java/util/LinkedHashMap.html LinkedHashMap], does not support concurrent access. All operations must be guarded by a single mutex. In this implementation per-node _test-and-test-and-set_ spin locks are used. This provides concurrent access and faster lock acquisitions than the standard approach.
 
+Based on the usage scenario a lock may be acquired as a try-lock or a spin-lock. The element and its auxiliary node can always be operated on directly, which allows for using either a try-lock of spin-lock. An adjacent auxiliary node always requires a traversal first, so a spin-lock is emulated by performing a traversal and try-lock in a loop until the lock is acquired.
+
 == Eviction ==
 This data structure supports insertion and access-order based eviction policies. Each policy determines the ordering of the list so that the victim element is at the beginning.
 
@@ -36,9 +38,9 @@ In a singly-linked list using auxiliary nodes the hash table curses to the auxil
 The extra auxiliary node can be removed by setting the removed element's auxiliary node to the next element. By using the key, the hash table's entry is updated to no longer reference the discarded node. As this requires a segment lock, it is undesirable for caches that must reorder elements frequently (e.g. LRU).
 
 == Why not a doubly-linked list? ==
-In a doubly-linked list using auxiliary nodes the hash table curses to the element. A removal must lock the element and a neighbor (either always left or always right). The element and its auxiliary nodes can then be unlinked from the list and discarded. 
+A doubly-linked list using auxiliary nodes is almost identical to the one-and-a-half linked list algorithm, except that an auxiliary knows the previous element. During an insertion the element's back pointer should be in a valid state for a reverse iteration. This can be done by optimistically setting it before acquiring the tail lock, or pessimistically afterwards.
 
-The flaw with this design is that it adds unnecessary complexity. In serial usage the ordering may be desirable for iteration such as by displaying all elements by their insertion order. In concurrent usage the ordering should not be useful or relied upon. The faster unordered iteration from the hash table's entries can be used instead. This observation means that neither forward nor reverse iteration of the list is a useful feature.
+The flaw with this design is that it adds unnecessary complexity. In serial usage the ordering may be desirable for iteration such as by displaying all elements by their insertion order. In concurrent usage, clients should not consider ordering useful or rely upon it. The faster unordered iteration from the hash table's entries can be used instead. This observation means that exposing forward or reverse iteration of the list is not a useful feature and allows for simplication of the algorithm.
 
 ----
 == Empty ==
@@ -65,7 +67,9 @@ In an LRU policy when an entry is successfully retrieved from the hash table it 
  # If found, return the value held by the element. Otherwise null
 ----
 == Update ==
-An update to an entry does not require changing the data structure. This corresponds to the _put_ and _replace_ operations on a [http://java.sun.com/javase/6/docs/api/java/util/concurrent/ConcurrentMap.html ConcurrentMap].
+An update corresponds to the _put_ and _replace_ operations on a [http://java.sun.com/javase/6/docs/api/java/util/concurrent/ConcurrentMap.html ConcurrentMap].
+
+A strict LRU algorithm implies that an update moves the element to the tail of the list. To simplify the algorithm for the initial implementation an update to an entry does not change the data structure. The stricter form will be adopted as an enhancement.
 
  # Perform map operation to retrieve the element
    * If _put_, this is a _putIfAbsent_ with the element found
