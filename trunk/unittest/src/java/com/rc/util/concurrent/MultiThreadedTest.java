@@ -3,11 +3,18 @@ package com.rc.util.concurrent;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
+import java.util.Queue;
 import java.util.Random;
 import java.util.Map.Entry;
-import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.testng.annotations.BeforeClass;
@@ -21,6 +28,8 @@ import com.rc.util.concurrent.ConcurrentLinkedHashMap.EvictionPolicy;
  * @author <a href="mailto:ben.manes@reardencommerce.com">Ben Manes</a>
  */
 public final class MultiThreadedTest extends BaseTest {
+    private final long TIMEOUT = 180;
+    private Queue<String> failures;
     private List<Integer> keys;
     private int nThreads;
 
@@ -28,6 +37,7 @@ public final class MultiThreadedTest extends BaseTest {
     public void beforeMultiThreaded() {
         int iterations = Integer.valueOf(System.getProperty("performance.iterations"));
         nThreads = Integer.valueOf(System.getProperty("performance.nThreads"));
+        failures = new ConcurrentLinkedQueue<String>();
         keys = new ArrayList<Integer>();
         Random random = new Random();
         for (int i=0; i<iterations; i++) {
@@ -41,11 +51,45 @@ public final class MultiThreadedTest extends BaseTest {
     @Test(groups="development")
     public void concurrent() throws InterruptedException {
         debug("concurrent: START");
-        List<List<Integer>> sets = shuffle(nThreads, keys);
-        for (EvictionPolicy policy : EvictionPolicy.values()) {
-            ConcurrentLinkedHashMap<Integer, Integer> cache = new ConcurrentLinkedHashMap<Integer, Integer>(policy, capacity, nThreads);
-            ConcurrentTestHarness.timeTasks(nThreads, new Thrasher(cache, sets));
-            validator.state(cache);
+        final List<List<Integer>> sets = shuffle(nThreads, keys);
+        ThreadPoolExecutor es = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<Runnable>());
+        for (final EvictionPolicy policy : EvictionPolicy.values()) {
+            debug("Testing with policy: %s", policy);
+            final ConcurrentLinkedHashMap<Integer, Integer> cache = new ConcurrentLinkedHashMap<Integer, Integer>(policy, capacity, nThreads);
+            Future<?> future = es.submit(new Callable<Void>() {
+                public Void call() throws Exception {
+                    ConcurrentTestHarness.timeTasks(nThreads, new Thrasher(cache, sets));
+                    return null;
+                }
+            });
+            try {
+                future.get(TIMEOUT, TimeUnit.SECONDS);
+                validator.state(cache);
+            } catch (ExecutionException e) {
+                fail("Exception during test: " + e.toString(), e);
+            } catch (TimeoutException e) {
+                for (StackTraceElement[] trace : Thread.getAllStackTraces().values()) {
+                    for (StackTraceElement element : trace) {
+                        System.out.println("\tat " + element);
+                    }
+                    if (trace.length > 0) {
+                        System.out.println("------");
+                    }
+                }
+                es.shutdownNow();
+                while (es.getPoolSize() > 0) { /* spin until terminiated */ }
+
+                // Print the state of the cache
+                debug("Cached Elements: %s", cache.toString());
+                debug("List Forward:\n%s", validator.printFwd(cache));
+                debug("List Backward:\n%s", validator.printBwd(cache));
+
+                // Print the recorded failures
+                for (String failure : failures) {
+                    debug(failure);
+                }
+                fail("Spun forever");
+            }
         }
         debug("concurrent: END");
     }
@@ -70,13 +114,13 @@ public final class MultiThreadedTest extends BaseTest {
      * Executes operations against the cache to simulate random load.
      */
     private final class Thrasher implements Runnable {
-        private static final int OPERATIONS = 17;
+        private static final int OPERATIONS = 16;
 
-        private final ConcurrentMap<Integer, Integer> cache;
+        private final ConcurrentLinkedHashMap<Integer, Integer> cache;
         private final List<List<Integer>> sets;
         private final AtomicInteger index;
 
-        public Thrasher(ConcurrentMap<Integer, Integer> cache, List<List<Integer>> sets) {
+        public Thrasher(ConcurrentLinkedHashMap<Integer, Integer> cache, List<List<Integer>> sets) {
             this.index = new AtomicInteger();
             this.cache = cache;
             this.sets = sets;
@@ -89,8 +133,12 @@ public final class MultiThreadedTest extends BaseTest {
                 try {
                     execute(key);
                 } catch (RuntimeException e) {
-                    info("Failed on operation: %d", key%OPERATIONS);
+                    String error = String.format("Failed: key %s on operation %d for node %s", key, key%OPERATIONS, validator.printNode(key, cache));
+                    failures.add(error);
                     throw e;
+                } catch (Throwable thr) {
+                    String error = String.format("Halted: key %s on operation %d for node %s", key, key%OPERATIONS, validator.printNode(key, cache));
+                    failures.add(error);
                 }
             }
             debug("#%d: ENDING", id);
@@ -142,10 +190,9 @@ public final class MultiThreadedTest extends BaseTest {
                     }
                     break;
                 case 13:
-                    Iterator<Integer> i = cache.values().iterator();
-                    while (i.hasNext()) {
-                        if (i.next() == null) {
-                            throw new IllegalArgumentException("Null value");
+                    for (Integer i : cache.values()) {
+                        if (i == null) {
+                            throw new IllegalArgumentException();
                         }
                     }
                     break;
@@ -160,7 +207,7 @@ public final class MultiThreadedTest extends BaseTest {
                     cache.hashCode();
                     break;
                 case 16:
-                    cache.equals(new Object());
+                    cache.equals(cache);
                     break;
                 default:
                     throw new IllegalArgumentException();

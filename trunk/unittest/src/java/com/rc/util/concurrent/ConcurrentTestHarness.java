@@ -68,14 +68,16 @@ public final class ConcurrentTestHarness {
      * @param baseThreadName The base name for each thread in this task set.
      * @return               The result of each task and the full execution time, in nanoseconds.
      */
+    @SuppressWarnings("deprecation")
     public static <T> TestResult<T> timeTasks(int nThreads, final Callable<T> task, final String baseThreadName) throws InterruptedException {
         final CountDownLatch startGate = new CountDownLatch(1);
         final CountDownLatch endGate = new CountDownLatch(nThreads);
         final AtomicReferenceArray<T> results = new AtomicReferenceArray<T>(nThreads);
 
+        List<Thread> threads = new ArrayList<Thread>(nThreads);
         for (int i = 0; i < nThreads; i++) {
             final int index = i;
-            new Thread(baseThreadName + "-" + i) {
+            Thread thread = new Thread(baseThreadName + "-" + i) {
                 @Override
                 public void run() {
                     try {
@@ -89,12 +91,21 @@ public final class ConcurrentTestHarness {
                         throw new RuntimeException(e);
                     }
                 }
-            }.start();
+            };
+            thread.start();
+            threads.add(thread);
         }
 
         long start = System.nanoTime();
         startGate.countDown();
-        endGate.await();
+        try {
+            endGate.await();
+        } catch (InterruptedException e) {
+            for (Thread thread : threads) {
+                thread.stop();
+            }
+            throw e;
+        }
         long end = System.nanoTime();
 
         return new TestResult<T>(end - start, toList(results));
