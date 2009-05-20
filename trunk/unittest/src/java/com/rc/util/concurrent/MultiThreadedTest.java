@@ -77,7 +77,7 @@ public final class MultiThreadedTest extends BaseTest {
                     }
                 }
                 es.shutdownNow();
-                while (es.getPoolSize() > 0) { /* spin until terminiated */ }
+                while (es.getPoolSize() > 0) { /* spin until terminated */ }
 
                 // Print the state of the cache
                 debug("Cached Elements: %s", cache.toString());
