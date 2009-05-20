@@ -28,15 +28,16 @@ import com.rc.util.concurrent.ConcurrentLinkedHashMap.EvictionPolicy;
  * @author <a href="mailto:ben.manes@reardencommerce.com">Ben Manes</a>
  */
 public final class MultiThreadedTest extends BaseTest {
-    private final long TIMEOUT = 180;
     private Queue<String> failures;
     private List<Integer> keys;
+    private int timeout = 180;
     private int nThreads;
 
     @BeforeClass(alwaysRun=true)
     public void beforeMultiThreaded() {
-        int iterations = Integer.valueOf(System.getProperty("performance.iterations"));
-        nThreads = Integer.valueOf(System.getProperty("performance.nThreads"));
+        int iterations = Integer.valueOf(System.getProperty("concurrent.iterations"));
+        nThreads = Integer.valueOf(System.getProperty("concurrent.nThreads"));
+        timeout = Integer.valueOf(System.getProperty("concurrent.timeout"));
         failures = new ConcurrentLinkedQueue<String>();
         keys = new ArrayList<Integer>();
         Random random = new Random();
@@ -63,7 +64,7 @@ public final class MultiThreadedTest extends BaseTest {
                 }
             });
             try {
-                future.get(TIMEOUT, TimeUnit.SECONDS);
+                future.get(timeout, TimeUnit.SECONDS);
                 validator.state(cache);
             } catch (ExecutionException e) {
                 fail("Exception during test: " + e.toString(), e);

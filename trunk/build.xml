@@ -212,8 +212,9 @@
         <sysproperty key="efficiency.distribution.zipfian.skew" value="${efficiency.distribution.zipfian.skew}"/>
 
         <!-- Multi-threading tests -->
-        <sysproperty key="performance.nThreads" value="${performance.nThreads}"/>
-        <sysproperty key="performance.iterations" value="${performance.iterations}"/>
+        <sysproperty key="concurrent.nThreads" value="${concurrent.nThreads}"/>
+        <sysproperty key="concurrent.iterations" value="${concurrent.iterations}"/>
+        <sysproperty key="concurrent.timeout" value="${concurrent.timeout}"/>
         <args/>
       </testng>
     </sequential>
