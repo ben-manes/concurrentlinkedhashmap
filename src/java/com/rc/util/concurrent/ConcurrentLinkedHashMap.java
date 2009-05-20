@@ -335,7 +335,7 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
      */
     @Override
     public Set<Entry<K, V>> entrySet() {
-        return new EntrySetAdapter();
+        return new EntrySet();
     }
 
     /**
@@ -513,8 +513,10 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
                 }
             }
 
+            auxNext = sentinel;
+
             // Unlock the new tail
-            next = auxNext = sentinel;
+            next = sentinel;
         }
 
         /*
@@ -610,7 +612,7 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
     /**
      * An adapter to represent the data store's entry set in the external type.
      */
-    private final class EntrySetAdapter extends AbstractSet<Entry<K,V>> {
+    private final class EntrySet extends AbstractSet<Entry<K,V>> {
         private final ConcurrentLinkedHashMap<K, V> map = ConcurrentLinkedHashMap.this;
 
         @Override
@@ -623,7 +625,7 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
         }
         @Override
         public Iterator<Entry<K, V>> iterator() {
-            return new EntryIteratorAdapter(map.data.entrySet().iterator());
+            return new EntryIterator(map.data.entrySet().iterator());
         }
         @Override
         public boolean contains(Object obj) {
@@ -651,19 +653,37 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
     /**
      * An adapter to represent the data store's entry iterator in the external type.
      */
-    private final class EntryIteratorAdapter implements Iterator<Entry<K, V>> {
+    private final class EntryIterator implements Iterator<Entry<K, V>> {
         private final Iterator<Entry<K, Node<K, V>>> iterator;
         private Entry<K, V> current;
+        private Entry<K, V> next;
 
-        public EntryIteratorAdapter(Iterator<Entry<K, Node<K, V>>> iterator) {
+        public EntryIterator(Iterator<Entry<K, Node<K, V>>> iterator) {
             this.iterator = iterator;
+            next = findNext();
+        }
+        private Entry<K, V> findNext() {
+            while (iterator.hasNext()) {
+                Entry<K, Node<K, V>> entry = iterator.next();
+                Node<K, V> node = entry.getValue();
+                if (node != null) {
+                    V value = node.getValue();
+                    if (value != null) {
+                        return new SimpleEntry<K, V>(node.getKey(), value);
+                    }
+                }
+            }
+            return null;
         }
         public boolean hasNext() {
-            return iterator.hasNext();
+            return (next != null);
         }
         public Entry<K, V> next() {
-            Entry<K, Node<K, V>> entry = iterator.next();
-            current = new SimpleEntry<K, V>(entry.getKey(), entry.getValue().getValue());
+            if (next == null) {
+                throw new IllegalStateException();
+            }
+            current = next;
+            next = findNext();
             return current;
         }
         public void remove() {
