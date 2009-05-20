@@ -625,7 +625,7 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
         }
         @Override
         public Iterator<Entry<K, V>> iterator() {
-            return new EntryIterator(map.data.entrySet().iterator());
+            return new EntryIterator(map.data.values().iterator());
         }
         @Override
         public boolean contains(Object obj) {
@@ -654,36 +654,18 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
      * An adapter to represent the data store's entry iterator in the external type.
      */
     private final class EntryIterator implements Iterator<Entry<K, V>> {
-        private final Iterator<Entry<K, Node<K, V>>> iterator;
+        private final Iterator<Node<K, V>> iterator;
         private Entry<K, V> current;
-        private Entry<K, V> next;
 
-        public EntryIterator(Iterator<Entry<K, Node<K, V>>> iterator) {
+        public EntryIterator(Iterator<Node<K, V>> iterator) {
             this.iterator = iterator;
-            next = findNext();
-        }
-        private Entry<K, V> findNext() {
-            while (iterator.hasNext()) {
-                Entry<K, Node<K, V>> entry = iterator.next();
-                Node<K, V> node = entry.getValue();
-                if (node != null) {
-                    V value = node.getValue();
-                    if (value != null) {
-                        return new SimpleEntry<K, V>(node.getKey(), value);
-                    }
-                }
-            }
-            return null;
         }
         public boolean hasNext() {
-            return (next != null);
+            return iterator.hasNext();
         }
         public Entry<K, V> next() {
-            if (next == null) {
-                throw new IllegalStateException();
-            }
-            current = next;
-            next = findNext();
+            Node<K, V> node = iterator.next();
+            current = new SimpleEntry<K, V>(node.getKey(), node.getValue());
             return current;
         }
         public void remove() {
