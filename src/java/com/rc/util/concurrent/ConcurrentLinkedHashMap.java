@@ -163,7 +163,7 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
      */
     @Override
     public int size() {
-        return data.size();
+        return length.get();
     }
 
     /**
@@ -198,15 +198,13 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
     private void evict() {
         while (isOverflow()) {
             Node<K, V> node = sentinel.getNext();
-            if (node == null) {
-                continue;
-            } else if (node == sentinel) {
+            if (node == sentinel) {
                 return;
             } else if (policy.onEvict(this, node)) {
                 // Attempt to remove the node and return it if successful
-                if (data.remove(node.getKey(), node)) {
-                    node.remove();
+                if (data.remove(node.getKey(), new Identity(node))) {
                     length.decrementAndGet();
+                    node.remove();
                     listener.onEviction(node.getKey(), node.getValue());
                 }
                 return;
@@ -216,22 +214,6 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
                 }
             }
         }
-    }
-
-    /**
-     * Adds a node to the list and data store if it does not already exist.
-     *
-     * @param node An unlinked node to add.
-     * @return     The previous value in the data store.
-     */
-    private Node<K, V> putIfAbsent(Node<K, V> node) {
-        Node<K, V> old = data.putIfAbsent(node.getKey(), node);
-        if (old == null) {
-            length.incrementAndGet();
-            node.appendToTail();
-            evict();
-        }
-        return old;
     }
 
     /**
@@ -268,11 +250,25 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
             throw new IllegalArgumentException();
         }
         Node<K, V> old = putIfAbsent(new Node<K, V>(key, value, sentinel));
+        return (old == null) ? null : old.getValue();
+    }
+
+    /**
+     * Adds a node to the list and data store if it does not already exist.
+     *
+     * @param node An unlinked node to add.
+     * @return     The previous value in the data store.
+     */
+    private Node<K, V> putIfAbsent(Node<K, V> node) {
+        Node<K, V> old = data.putIfAbsent(node.getKey(), node);
         if (old == null) {
-            return null;
+            length.incrementAndGet();
+            node.appendToTail();
+            evict();
+        } else {
+            policy.onAccess(this, old);
         }
-        policy.onAccess(this, old);
-        return old.getValue();
+        return old;
     }
 
     /**
@@ -284,6 +280,7 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
         if (node == null) {
             return null;
         }
+        length.decrementAndGet();
         node.remove();
         return node.getValue();
     }
@@ -293,7 +290,8 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
      */
     public boolean remove(Object key, Object value) {
         Node<K, V> node = data.get(key);
-        if ((node != null) && node.value.equals(value) && data.remove(key, node)) {
+        if ((node != null) && node.value.equals(value) && data.remove(key, new Identity(node))) {
+            length.decrementAndGet();
             node.remove();
             return true;
         }
@@ -420,7 +418,7 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
      * A node on the double-linked list. This list cross-cuts the data store.
      */
     @SuppressWarnings("unchecked")
-    static final class Node<K, V> implements java.io.Serializable {
+    static class Node<K, V> implements java.io.Serializable {
         private static final long serialVersionUID = 1461281468985304519L;
         private static final AtomicReferenceFieldUpdater<Node, Object> valueUpdater =
             AtomicReferenceFieldUpdater.newUpdater(Node.class, Object.class, "value");
@@ -443,8 +441,8 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
          */
         private Node() {
             key = null;
-            prev = this;
-            next = this;
+            setPrev(this);
+            setNext(this);
             auxNext = this;
             sentinel = this;
         }
@@ -457,8 +455,8 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
             this.auxNext = sentinel;
             this.value = value;
             this.key = key;
-            this.next = null;
-            this.prev = null;
+            setPrev(null);
+            setNext(null);
         }
 
         /**
@@ -476,16 +474,16 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
         public boolean tryRemove() {
             // Try to lock the node by shifting the "next" field to "null"
             // If successful, the previous value was captured in "auxiliary"
-            final Node<K, V> auxiliary = next;
+            final Node<K, V> auxiliary = getNext();
             if ((auxiliary != null) && casNext(auxiliary, null)) {
                 // Set aux to allow forward iteration
                 auxNext = auxiliary;
 
                 // swing the previous node's "next" to our "next"
-                while (!prev.casNext(this, auxiliary)) { /* spin */ }
+                while (!getPrev().casNext(this, auxiliary)) { /* spin */ }
 
                 // swing the next node's "prev" to our "prev"
-                while (!auxiliary.casPrev(this, prev)) { /* spin */ }
+                while (!auxiliary.casPrev(this, getPrev())) { /* spin */ }
 
                 // successfully remove the node
                 return true;
@@ -499,15 +497,15 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
          */
         public void appendToTail() {
             // Initialize in the "locked" state
-            next = null;
+            setNext(null);
 
             // Link the tail to the new node
             do {
-              prev = sentinel.getPrev();
-            } while (!prev.casNext(sentinel, this));
+              setPrev(sentinel.getPrev());
+            } while (!getPrev().casNext(sentinel, this));
 
             // Link the sentinel to the new tail
-            while (!sentinel.casPrev(prev, this)) {
+            while (!sentinel.casPrev(getPrev(), this)) {
                 if (sentinel.getPrev() == this) {
                     break; // helped out
                 }
@@ -516,7 +514,7 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
             auxNext = sentinel;
 
             // Unlock the new tail
-            next = sentinel;
+            setNext(sentinel);
         }
 
         /*
@@ -530,7 +528,7 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
          * Value operators
          */
         public V getValue() {
-            return value;
+            return (V) valueUpdater.get(this);
         }
         public V getAndSetValue(V value) {
             return (V) valueUpdater.getAndSet(this, value);
@@ -543,7 +541,10 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
          * Previous node operators
          */
         public Node<K, V> getPrev() {
-            return prev;
+            return prevUpdater.get(this);
+        }
+        public void setPrev(Node<K, V> newValue) {
+            prevUpdater.set(this, newValue);
         }
         public boolean casPrev(Node<K, V> expect, Node<K, V> update) {
             return prevUpdater.compareAndSet(this, expect, update);
@@ -553,7 +554,10 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
          * Next node operators
          */
         public Node<K, V> getNext() {
-            return next;
+            return nextUpdater.get(this);
+        }
+        public void setNext(Node<K, V> newValue) {
+            nextUpdater.set(this, newValue);
         }
         public boolean casNext(Node<K, V> expect, Node<K, V> update) {
             return nextUpdater.compareAndSet(this, expect, update);
@@ -597,15 +601,22 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
         }
         @Override
         public String toString() {
-            String nxt = (next == null) ? "null" : String.valueOf(next.getKey());
-            nxt = (next == sentinel) ? "SENTINEL" : nxt;
-            String prv = (prev == null) ? "null" : String.valueOf(prev.getKey());
-            prv = (prev == sentinel) ? "SENTINEL" : prv;
-            String val = (this == sentinel) ? "SENTINEL" : String.valueOf(value);
-            String aux = (auxNext == sentinel) ? "SENTINEL" : String.valueOf(auxNext.getKey());
+            return String.format("Node[key=%s, value=%s, marked=%b]", getKey(), getValue(), isMarked());
+        }
+    }
 
-            return String.format("Node[key=%s, value=%s, marked=%b, prev=%s, next=%s, aux=%s]",
-                                 getKey(), val, isMarked(), prv, nxt, aux);
+    /**
+     * Allows {@link #equals(Object)} to compare using object identity.
+     */
+    private static final class Identity {
+        private final Object delegate;
+
+        public Identity(Object delegate) {
+            this.delegate = delegate;
+        }
+        @Override
+        public boolean equals(Object o) {
+            return (o == delegate);
         }
     }
 

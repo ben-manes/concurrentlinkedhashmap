@@ -54,7 +54,9 @@ public final class MultiThreadedTest extends BaseTest {
         debug("concurrent: START");
         final List<List<Integer>> sets = shuffle(nThreads, keys);
         ThreadPoolExecutor es = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<Runnable>());
-        for (final EvictionPolicy policy : EvictionPolicy.values()) {
+        //for (final EvictionPolicy policy : EvictionPolicy.values()) {
+        {
+            EvictionPolicy policy = EvictionPolicy.LRU;
             debug("Testing with policy: %s", policy);
             final ConcurrentLinkedHashMap<Integer, Integer> cache = new ConcurrentLinkedHashMap<Integer, Integer>(policy, capacity, nThreads);
             Future<?> future = es.submit(new Callable<Void>() {
