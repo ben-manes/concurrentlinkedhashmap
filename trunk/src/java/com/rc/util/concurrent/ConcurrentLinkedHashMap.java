@@ -434,7 +434,6 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
         private volatile boolean marked;
         private volatile Node<K, V> prev;
         private volatile Node<K, V> next;
-        private volatile Node<K, V> auxNext;
 
         /**
          * Creates a new sentinel node.
@@ -443,7 +442,6 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
             key = null;
             setPrev(this);
             setNext(this);
-            auxNext = this;
             sentinel = this;
         }
 
@@ -452,7 +450,6 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
          */
         private Node(K key, V value, Node<K, V> sentinel) {
             this.sentinel = sentinel;
-            this.auxNext = sentinel;
             this.value = value;
             this.key = key;
             setPrev(null);
@@ -476,9 +473,6 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
             // If successful, the previous value was captured in "auxiliary"
             final Node<K, V> auxiliary = getNext();
             if ((auxiliary != null) && casNext(auxiliary, null)) {
-                // Set aux to allow forward iteration
-                auxNext = auxiliary;
-
                 // swing the previous node's "next" to our "next"
                 while (!getPrev().casNext(this, auxiliary)) { /* spin */ }
 
@@ -510,8 +504,6 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
                     break; // helped out
                 }
             }
-
-            auxNext = sentinel;
 
             // Unlock the new tail
             setNext(sentinel);
@@ -561,13 +553,6 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
         }
         public boolean casNext(Node<K, V> expect, Node<K, V> update) {
             return nextUpdater.compareAndSet(this, expect, update);
-        }
-
-        /*
-         * Auxiliary Next node operators
-         */
-        public Node<K, V> getAuxNext() {
-            return auxNext;
         }
 
         /*

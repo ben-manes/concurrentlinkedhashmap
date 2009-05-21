@@ -145,22 +145,10 @@ public final class Validator extends Assert {
                 buffer.append("Failure: Loop detected\n");
                 break;
             }
-//            Node<?, ?> next = null;
-//            for (int i=0; i<10000; i++) {
-//                next = current.getNext();
-//                if (next == null) {
-//                    next = current.getAuxNext();
-//                    if (next == null) {
-//                        continue;
-//                    }
-//                }
-//                break;
-//            }
             buffer.append(current).append("\n");
             current = current.getNext();
-//          current = next;
             if (current == null) {
-                buffer.append("Failure: Could not traverse through auxiliary\n");
+                buffer.append("Failure: Node is locked (next=null)");
                 break;
             }
         } while (current != map.sentinel);
@@ -185,6 +173,9 @@ public final class Validator extends Assert {
         return buffer.toString();
     }
 
+    /**
+     * A string representation of the node in the map, found by walking the list.
+     */
     public String printNode(Object key, ConcurrentLinkedHashMap<?, ?> map) {
         Node<?, ?> current = map.sentinel;
         while (current.getKey() != key) {
