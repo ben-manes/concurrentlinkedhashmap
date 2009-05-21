@@ -39,7 +39,8 @@ public final class Validator extends Assert {
      */
     public void state(ConcurrentLinkedHashMap<?, ?> map) {
         assertEquals(map.capacity(), map.capacity.get(), "Tracked capacity != reported capacity");
-        assertTrue(map.length.get() <= map.capacity.get(), "The list size is greater than the capacity");
+        assertTrue(map.length.get() <= map.capacity.get(), "The list size is greater than the capacity: "
+                   + map.length.get() + "/" + map.capacity.get());
         assertEquals(map.data.size(), map.size(), "Internal size != reported size");
         assertTrue(map.capacity() >= map.size(), format("Overflow: c=%d s=%d", map.capacity(), map.size()));
         assertNotNull(map.sentinel.getNext());
@@ -144,19 +145,20 @@ public final class Validator extends Assert {
                 buffer.append("Failure: Loop detected\n");
                 break;
             }
-            Node<?, ?> next = null;
-            for (int i=0; i<10000; i++) {
-                next = current.getNext();
-                if (next == null) {
-                    next = current.getAuxNext();
-                    if (next == null) {
-                        continue;
-                    }
-                }
-                break;
-            }
+//            Node<?, ?> next = null;
+//            for (int i=0; i<10000; i++) {
+//                next = current.getNext();
+//                if (next == null) {
+//                    next = current.getAuxNext();
+//                    if (next == null) {
+//                        continue;
+//                    }
+//                }
+//                break;
+//            }
             buffer.append(current).append("\n");
-            current = next;
+            current = current.getNext();
+//          current = next;
             if (current == null) {
                 buffer.append("Failure: Could not traverse through auxiliary\n");
                 break;
