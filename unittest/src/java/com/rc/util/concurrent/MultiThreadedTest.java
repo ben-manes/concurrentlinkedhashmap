@@ -20,6 +20,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
+import com.rc.util.concurrent.ConcurrentLinkedHashMap;
 import com.rc.util.concurrent.ConcurrentLinkedHashMap.EvictionPolicy;
 
 /**
@@ -54,9 +55,7 @@ public final class MultiThreadedTest extends BaseTest {
         debug("concurrent: START");
         final List<List<Integer>> sets = shuffle(nThreads, keys);
         ThreadPoolExecutor es = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<Runnable>());
-        //for (final EvictionPolicy policy : EvictionPolicy.values()) {
-        {
-            EvictionPolicy policy = EvictionPolicy.LRU;
+        for (final EvictionPolicy policy : EvictionPolicy.values()) {
             debug("Testing with policy: %s", policy);
             final ConcurrentLinkedHashMap<Integer, Integer> cache = new ConcurrentLinkedHashMap<Integer, Integer>(policy, capacity, nThreads);
             Future<?> future = es.submit(new Callable<Void>() {
