@@ -1,4 +1,4 @@
-package com.rc.util.concurrent.caches;
+package com.reardencommerce.kernel.collections.shared.evictable.caches;
 
 import java.util.Collection;
 import java.util.Map;
@@ -7,36 +7,26 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * A {@link ConcurrentMap} that evicts elements once the capacity is reached.
+ * A {@link ConcurrentMap} that evicts elements in FIFO order once the capacity is reached.
  *
- * This implementation uses a second-chance FIFO algorithm. This trades off
- * slightly worse efficiency than an LRU for a simpler, faster approach with
- * much lower lock contention.
- *
- * <b>Note: This was the 2nd prototype of a fast caching algorithm.</b>
+ * <b>Note: This was the 1st prototype of a fast caching algorithm.</b>
  *
  * @author <a href="mailto:ben.manes@reardencommerce.com">Ben Manes</a>
  */
-final class SecondChanceMap<K, V> implements ConcurrentMap<K, V> {
-    private final ConcurrentMap<K, Value<V>> map;
+final class ConcurrentFifoMap<K, V> implements ConcurrentMap<K, V> {
+    private final ConcurrentMap<K, V> map;
     private final AtomicInteger capacity;
     private final AtomicInteger size;
     private final Queue<K> queue;
 
-    /**
-     * A self-evicting map that is bounded to a maximum capacity.
-     *
-     * @param capacity     The maximum size that the map can grow to.
-     */
-    public SecondChanceMap(int capacity) {
+    public ConcurrentFifoMap(int capacity) {
         if (capacity <= 0) {
             throw new IllegalArgumentException("The capacity must be positive");
         }
-        this.map = new ConcurrentHashMap<K, Value<V>>(capacity, 0.75f, 10000);
+        this.map = new ConcurrentHashMap<K, V>(capacity, 0.75f, 10000);
         this.queue = new ConcurrentLinkedQueue<K>();
         this.capacity = new AtomicInteger(capacity);
         this.size = new AtomicInteger();
@@ -70,16 +60,8 @@ final class SecondChanceMap<K, V> implements ConcurrentMap<K, V> {
     private void evict() {
         while (size() > capacity()) {
             K key = queue.poll();
-            if (key == null) {
+            if ((key == null) || (remove(key) != null)) {
                 return;
-            }
-            Value<V> value = map.remove(key);
-            if (value != null) {
-                if (value.isSavedAndReset() && (map.putIfAbsent(key, value) == null)) {
-                    queue.offer(key);
-                } else {
-                    size.decrementAndGet();
-                }
             }
         }
     }
@@ -104,19 +86,20 @@ final class SecondChanceMap<K, V> implements ConcurrentMap<K, V> {
      * {@inheritDoc}
      */
     public boolean containsValue(Object value) {
-        return map.containsValue(new Value<Object>(value));
+        return map.containsValue(value);
     }
 
     /**
      * {@inheritDoc}
      */
     public Set<Entry<K, V>> entrySet() {
-        return null;
+        return map.entrySet();
     }
 
     /**
      * {@inheritDoc}
      */
+    @Override
     public boolean equals(Object o) {
         return map.equals(o);
     }
@@ -125,17 +108,13 @@ final class SecondChanceMap<K, V> implements ConcurrentMap<K, V> {
      * {@inheritDoc}
      */
     public V get(Object key) {
-        Value<V> value = map.get(key);
-        if (value != null) {
-            value.save();
-            return value.getValue();
-        }
-        return null;
+        return map.get(key);
     }
 
     /**
      * {@inheritDoc}
      */
+    @Override
     public int hashCode() {
         return map.hashCode();
     }
@@ -167,36 +146,33 @@ final class SecondChanceMap<K, V> implements ConcurrentMap<K, V> {
      * {@inheritDoc}
      */
     public V put(K key, V value) {
-        Value<V> old = map.put(key, new Value<V>(value));
+        V old = map.put(key, value);
         if (old == null) {
             size.incrementAndGet();
             queue.offer(key);
             evict();
-            return null;
         }
-        return old.getValue();
+        return old;
     }
 
     /**
      * {@inheritDoc}
      */
     public V putIfAbsent(K key, V value) {
-        Value<V> old = map.putIfAbsent(key, new Value<V>(value));
+        V old = map.putIfAbsent(key, value);
         if (old == null) {
             size.incrementAndGet();
             queue.offer(key);
             evict();
-            return null;
         }
-        return old.getValue();
+        return old;
     }
 
     /**
      * {@inheritDoc}
      */
-    @SuppressWarnings("unchecked")
     public boolean remove(Object key, Object value) {
-        if (map.remove(key, new Value<V>((V) value))) {
+        if (map.remove(key, value)) {
             size.decrementAndGet();
             return true;
         }
@@ -207,26 +183,25 @@ final class SecondChanceMap<K, V> implements ConcurrentMap<K, V> {
      * {@inheritDoc}
      */
     public V remove(Object key) {
-        Value<V> old = map.remove(key);
-        if (old != null) {
+        V value = map.remove(key);
+        if (value != null) {
             size.decrementAndGet();
-            return old.getValue();
         }
-        return null;
+        return value;
     }
 
     /**
      * {@inheritDoc}
      */
     public boolean replace(K key, V oldValue, V newValue) {
-        return map.replace(key, new Value<V>(oldValue), new Value<V>(newValue));
+        return map.replace(key, oldValue, newValue);
     }
 
     /**
      * {@inheritDoc}
      */
     public V replace(K key, V value) {
-        return map.replace(key, new Value<V>(value)).getValue();
+        return map.replace(key, value);
     }
 
     /**
@@ -240,28 +215,6 @@ final class SecondChanceMap<K, V> implements ConcurrentMap<K, V> {
      * {@inheritDoc}
      */
     public Collection<V> values() {
-        return null;
-    }
-
-    private static final class Value<V> {
-        private final V value;
-        private final AtomicBoolean saved;
-
-        public Value(V value) {
-            if (value == null) {
-                throw new IllegalArgumentException("Null value");
-            }
-            this.value = value;
-            this.saved = new AtomicBoolean();
-        }
-        public V getValue() {
-            return value;
-        }
-        public void save() {
-            saved.set(true);
-        }
-        public boolean isSavedAndReset() {
-            return saved.getAndSet(false);
-        }
+        return map.values();
     }
 }

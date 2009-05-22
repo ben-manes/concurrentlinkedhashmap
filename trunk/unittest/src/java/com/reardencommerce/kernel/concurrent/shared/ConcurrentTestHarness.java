@@ -1,4 +1,4 @@
-package com.rc.util.concurrent;
+package com.reardencommerce.kernel.concurrent.shared;
 
 import java.util.ArrayList;
 import java.util.List;
