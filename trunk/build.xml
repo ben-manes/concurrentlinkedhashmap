@@ -193,6 +193,8 @@
        outputdir="@{outputdir}"
       >
         <classfileset dir="${test.build.dir}"/>
+        <jvmarg value="-Xms64m"/>
+        <jvmarg value="-Xmx128m"/>
         <jvmarg value="-Xss4m"/>
 
         <!-- All tests -->

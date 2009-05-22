@@ -71,7 +71,6 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
      *
      * @param policy          The eviction policy to apply when the size exceeds the maximum capacity.
      * @param maximumCapacity The maximum capacity to coerces to. The size may exceed it temporarily.
-     * @param listener        The listener registered for notification when an entry is evicted.
      */
     @SuppressWarnings("unchecked")
     public ConcurrentLinkedHashMap(EvictionPolicy policy, int maximumCapacity) {
@@ -130,7 +129,7 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
      * @return Whether the map has overflowed and an entry should be evicted.
      */
     private boolean isOverflow() {
-        return length.get() > capacity();
+        return size() > capacity();
     }
 
     /**
@@ -439,10 +438,10 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
          * Creates a new sentinel node.
          */
         private Node() {
-            key = null;
+            this.key = null;
             setPrev(this);
             setNext(this);
-            sentinel = this;
+            this.sentinel = this;
         }
 
         /**
@@ -460,7 +459,7 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
          * Removes the node from the list.
          */
         public void remove() {
-            while (!tryRemove()) { /* retry */ };
+            while (!tryRemove()) { /* retry */ }
         }
 
         /**
