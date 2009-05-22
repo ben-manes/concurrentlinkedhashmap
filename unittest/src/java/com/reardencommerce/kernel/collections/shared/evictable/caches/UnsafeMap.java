@@ -1,4 +1,4 @@
-package com.rc.util.concurrent.caches;
+package com.reardencommerce.kernel.collections.shared.evictable.caches;
 
 import java.util.LinkedHashMap;
 import java.util.Map;

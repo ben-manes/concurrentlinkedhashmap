@@ -1,4 +1,4 @@
-package com.rc.util.concurrent.distribution;
+package com.reardencommerce.kernel.collections.shared.evictable.distribution;
 
 import java.util.concurrent.Callable;
 
@@ -9,6 +9,7 @@ import java.util.concurrent.Callable;
  */
 public enum Distribution {
     UNIFORM() {
+        @Override
         public Callable<Double> getAlgorithm() {
             double lower = Double.valueOf(System.getProperty("efficiency.distribution.uniform.lower"));
             double upper = Double.valueOf(System.getProperty("efficiency.distribution.uniform.upper"));
@@ -16,12 +17,14 @@ public enum Distribution {
         }
     },
     EXPONENTIAL() {
+        @Override
         public Callable<Double> getAlgorithm() {
             double mean = Double.valueOf(System.getProperty("efficiency.distribution.exponential.mean"));
             return new Exponential(mean);
         }
     },
     GAUSSIAN() {
+        @Override
         public Callable<Double> getAlgorithm() {
             double mean = Double.valueOf(System.getProperty("efficiency.distribution.gaussian.mean"));
             double sigma = Double.valueOf(System.getProperty("efficiency.distribution.gaussian.sigma"));
@@ -29,12 +32,14 @@ public enum Distribution {
         }
     },
     POISSON() {
+        @Override
         public Callable<Double> getAlgorithm() {
             double mean = Double.valueOf(System.getProperty("efficiency.distribution.poisson.mean"));
             return new Poisson(mean);
         }
     },
     ZIPFIAN() {
+        @Override
         public Callable<Double> getAlgorithm() {
             double skew = Double.valueOf(System.getProperty("efficiency.distribution.zipfian.skew"));
             return new Zipfian(skew);

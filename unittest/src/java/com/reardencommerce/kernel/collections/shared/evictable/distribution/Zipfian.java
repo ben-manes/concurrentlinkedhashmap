@@ -1,4 +1,4 @@
-package com.rc.util.concurrent.distribution;
+package com.reardencommerce.kernel.collections.shared.evictable.distribution;
 
 import java.util.Date;
 import java.util.concurrent.Callable;

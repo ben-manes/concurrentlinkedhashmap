@@ -1,4 +1,4 @@
-package com.rc.util.concurrent.caches;
+package com.reardencommerce.kernel.collections.shared.evictable.caches;
 
 import java.util.AbstractMap;
 import java.util.Collection;
@@ -209,12 +209,14 @@ final class EhcacheMap<K, V> extends AbstractMap<K, V> {
         public boolean containsAll(Collection<?> c) {
             return keys.containsAll(c);
         }
+        @Override
         public boolean equals(Object o) {
             return keys.equals(o);
         }
         public K get(int index) {
             return keys.get(index);
         }
+        @Override
         public int hashCode() {
             return keys.hashCode();
         }

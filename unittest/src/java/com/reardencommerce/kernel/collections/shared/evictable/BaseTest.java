@@ -1,4 +1,4 @@
-package com.rc.util.concurrent;
+package com.reardencommerce.kernel.collections.shared.evictable;
 
 import java.io.Serializable;
 import java.util.Collection;
@@ -7,8 +7,8 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import org.testng.Assert;
 import org.testng.annotations.BeforeClass;
 
-import com.rc.util.concurrent.ConcurrentLinkedHashMap.EvictionListener;
-import com.rc.util.concurrent.ConcurrentLinkedHashMap.EvictionPolicy;
+import com.reardencommerce.kernel.collections.shared.evictable.ConcurrentLinkedHashMap.EvictionListener;
+import com.reardencommerce.kernel.collections.shared.evictable.ConcurrentLinkedHashMap.EvictionPolicy;
 
 /**
  * Base utilities for testing purposes.

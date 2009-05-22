@@ -1,4 +1,4 @@
-package com.rc.util.concurrent;
+package com.reardencommerce.kernel.collections.shared.evictable;
 
 import static java.lang.String.format;
 
@@ -10,7 +10,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.apache.commons.lang.SerializationUtils;
 import org.testng.annotations.Test;
 
-import com.rc.util.concurrent.ConcurrentLinkedHashMap.EvictionPolicy;
+import com.reardencommerce.kernel.collections.shared.evictable.ConcurrentLinkedHashMap.EvictionPolicy;
 
 /**
  * The non-concurrent tests for the {@link ConcurrentLinkedHashMap}.

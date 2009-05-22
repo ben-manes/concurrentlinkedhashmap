@@ -1,4 +1,4 @@
-package com.rc.util.concurrent;
+package com.reardencommerce.kernel.collections.shared.evictable;
 
 import java.text.NumberFormat;
 import java.util.ArrayList;
@@ -9,9 +9,9 @@ import java.util.concurrent.Callable;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
-import com.rc.util.concurrent.ConcurrentLinkedHashMap.EvictionPolicy;
-import com.rc.util.concurrent.caches.Cache;
-import com.rc.util.concurrent.distribution.Distribution;
+import com.reardencommerce.kernel.collections.shared.evictable.ConcurrentLinkedHashMap.EvictionPolicy;
+import com.reardencommerce.kernel.collections.shared.evictable.caches.Cache;
+import com.reardencommerce.kernel.collections.shared.evictable.distribution.Distribution;
 
 /**
  * The efficiency tests for the {@link ConcurrentLinkedHashMap}.

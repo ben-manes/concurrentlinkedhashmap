@@ -7,12 +7,14 @@ import java.util.Properties;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-
-import com.rc.util.concurrent.ConcurrentLinkedHashMap;
-import com.rc.util.concurrent.ConcurrentLinkedHashMap.EvictionPolicy;
-
 import org.cachebench.CacheWrapper;
 
+import com.reardencommerce.kernel.collections.shared.evictable.ConcurrentLinkedHashMap;
+import com.reardencommerce.kernel.collections.shared.evictable.ConcurrentLinkedHashMap.EvictionPolicy;
+
+/**
+ * @author Adam Zell
+ */
 @SuppressWarnings("unchecked")
 public class CLHMCacheWrapper implements CacheWrapper
 {

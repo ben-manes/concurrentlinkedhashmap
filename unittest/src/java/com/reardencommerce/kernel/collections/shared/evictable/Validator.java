@@ -1,4 +1,4 @@
-package com.rc.util.concurrent;
+package com.reardencommerce.kernel.collections.shared.evictable;
 
 import static java.lang.String.format;
 
@@ -8,7 +8,7 @@ import java.util.Map;
 
 import org.testng.Assert;
 
-import com.rc.util.concurrent.ConcurrentLinkedHashMap.Node;
+import com.reardencommerce.kernel.collections.shared.evictable.ConcurrentLinkedHashMap.Node;
 
 /**
  * Validations for the concurrent data structure.

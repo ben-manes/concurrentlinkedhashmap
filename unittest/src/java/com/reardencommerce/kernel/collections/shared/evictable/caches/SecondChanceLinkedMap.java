@@ -1,4 +1,4 @@
-package com.rc.util.concurrent.caches;
+package com.reardencommerce.kernel.collections.shared.evictable.caches;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -268,6 +268,7 @@ final class SecondChanceLinkedMap<K, V> implements ConcurrentMap<K, V> {
     /**
      * {@inheritDoc}
      */
+    @Override
     public boolean equals(Object o) {
         return map.equals(o);
     }
@@ -275,6 +276,7 @@ final class SecondChanceLinkedMap<K, V> implements ConcurrentMap<K, V> {
     /**
      * {@inheritDoc}
      */
+    @Override
     public int hashCode() {
         return map.hashCode();
     }

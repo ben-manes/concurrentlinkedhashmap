@@ -1,4 +1,4 @@
-package com.rc.util.concurrent;
+package com.reardencommerce.kernel.collections.shared.evictable;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -20,8 +20,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
-import com.rc.util.concurrent.ConcurrentLinkedHashMap;
-import com.rc.util.concurrent.ConcurrentLinkedHashMap.EvictionPolicy;
+import com.reardencommerce.kernel.collections.shared.evictable.ConcurrentLinkedHashMap.EvictionPolicy;
+import com.reardencommerce.kernel.concurrent.shared.ConcurrentTestHarness;
 
 /**
  * The concurrent tests for the {@link ConcurrentLinkedHashMap}.
