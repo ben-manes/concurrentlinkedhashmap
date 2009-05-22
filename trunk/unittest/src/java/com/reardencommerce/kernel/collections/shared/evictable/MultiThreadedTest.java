@@ -116,7 +116,7 @@ public final class MultiThreadedTest extends BaseTest {
      * Executes operations against the cache to simulate random load.
      */
     private final class Thrasher implements Runnable {
-        private static final int OPERATIONS = 16;
+        private static final int OPERATIONS = 17;
 
         private final ConcurrentLinkedHashMap<Integer, Integer> cache;
         private final List<List<Integer>> sets;
@@ -158,7 +158,9 @@ public final class MultiThreadedTest extends BaseTest {
                     cache.isEmpty();
                     break;
                 case 3:
-                    cache.size();
+                    if (cache.size() < 0) {
+                        throw new IllegalStateException();
+                    }
                     break;
                 case 4:
                     cache.get(key);
@@ -222,6 +224,9 @@ public final class MultiThreadedTest extends BaseTest {
                     break;
                 case 16:
                     cache.equals(cache);
+                    break;
+                case 17:
+                    cache.toString();
                     break;
                 default:
                     throw new IllegalArgumentException();
