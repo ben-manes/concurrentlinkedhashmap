@@ -1,18 +1,18 @@
 #summary Frequently Asked Questions
 
-= Acknowledgements =
+== Acknowledgements ==
 I'd like to thank everyone who has submitted bugs, feature requests, or has reviewed the algorithm/implementation.
 
 Special thanks to:
  * Adam Zell, who wrote the build, code reviews, and finds interesting papers.
  * Bob Lane, whose performance and concurrency expertise was invaluable when exploring algorithmic ideas.
 
-= Usage =
+== Usage ==
 * Which eviction policy is recommended?
 
 The _Second Chance Fifo_ policy provides both an excellent hit rate and concurrency performance. It is recommended as the primary policy.
 
-= Development =
+== Development ==
 * Why are fields marked volatile with an [http://java.sun.com/javase/6/docs/api/java/util/concurrent/atomic/AtomicReferenceFieldUpdater.html AtomicReferenceFieldUpdater] instead of using an [http://java.sun.com/javase/6/docs/api/java/util/concurrent/atomic/AtomicReference.html AtomicReference]?
 
 This was done based on a [http://cs.oswego.edu/pipermail/concurrency-interest/2007-March/003802.html recommendation] by Doug Lea in regards to [http://java.sun.com/javase/6/docs/api/java/util/concurrent/ConcurrentLinkedQueue.html ConcurrentLinkedQueue].
