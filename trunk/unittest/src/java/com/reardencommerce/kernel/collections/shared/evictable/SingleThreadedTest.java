@@ -1,5 +1,8 @@
 package com.reardencommerce.kernel.collections.shared.evictable;
 
+import static com.reardencommerce.kernel.collections.shared.evictable.ConcurrentLinkedHashMap.EvictionPolicy.FIFO;
+import static com.reardencommerce.kernel.collections.shared.evictable.ConcurrentLinkedHashMap.EvictionPolicy.LRU;
+import static com.reardencommerce.kernel.collections.shared.evictable.ConcurrentLinkedHashMap.EvictionPolicy.SECOND_CHANCE;
 import static java.lang.String.format;
 
 import java.util.Arrays;
@@ -10,7 +13,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.apache.commons.lang.SerializationUtils;
 import org.testng.annotations.Test;
 
-import com.reardencommerce.kernel.collections.shared.evictable.ConcurrentLinkedHashMap.EvictionPolicy;
+import com.reardencommerce.kernel.collections.shared.evictable.ConcurrentLinkedHashMap.Node;
 
 /**
  * The non-concurrent tests for the {@link ConcurrentLinkedHashMap}.
@@ -25,7 +28,7 @@ public final class SingleThreadedTest extends BaseTest {
      */
     @Test(groups="development")
     public void empty() {
-        debug("empty: START");
+        debug(" * empty: START");
         ConcurrentLinkedHashMap<Integer, Integer> cache = createGuarded();
         validator.state(cache);
         validator.empty(cache);
@@ -36,7 +39,7 @@ public final class SingleThreadedTest extends BaseTest {
      */
     @Test(groups="development")
     public void putAll() {
-        debug("putAll: START");
+        debug(" * putAll: START");
         ConcurrentLinkedHashMap<Integer, Integer> expected = createWarmedMap();
         ConcurrentLinkedHashMap<Integer, Integer> cache = createGuarded();
         cache.putAll(expected);
@@ -51,7 +54,7 @@ public final class SingleThreadedTest extends BaseTest {
      */
     @Test(groups="development")
     public void put() {
-        debug("put: START");
+        debug(" * put: START");
         ConcurrentLinkedHashMap<Integer, Integer> cache = create();
         cache.put(0, 0);
         int old = cache.put(0, 1);
@@ -68,7 +71,7 @@ public final class SingleThreadedTest extends BaseTest {
      */
     @Test(groups="development")
     public void putIfAbsent() {
-        debug("putIfAbsent: START");
+        debug(" * putIfAbsent: START");
         ConcurrentLinkedHashMap<Integer, Integer> cache = createGuarded();
         for (Integer i=0; i<capacity; i++) {
             assertNull(cache.putIfAbsent(i, i));
@@ -77,7 +80,7 @@ public final class SingleThreadedTest extends BaseTest {
         }
         assertEquals(cache.size(), capacity, "Not warmed to max size");
         validator.state(cache);
-        validator.allNodesMarked(cache, (defaultPolicy == EvictionPolicy.SECOND_CHANCE));
+        validator.allNodesMarked(cache, (defaultPolicy == SECOND_CHANCE));
         assertEquals(cache, createWarmedMap());
     }
 
@@ -86,7 +89,7 @@ public final class SingleThreadedTest extends BaseTest {
      */
     @Test(groups="development")
     public void retrieval() {
-        debug("retrieval: START");
+        debug(" * retrieval: START");
         ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap(guard);
         for (Integer i=-capacity; i<0; i++) {
             assertNull(cache.get(i));
@@ -108,11 +111,102 @@ public final class SingleThreadedTest extends BaseTest {
     }
 
     /**
+     * Tests the Fifo policy is being working correctly when the entry is retrieved by {@link Map#containsKey(Object)}
+     * and {@link Map#putIfAbsent()}. The latter is critical for proper usage in a memoizer (e.g. SelfPopulatingMap).
+     */
+    @Test(groups="development")
+    public void FifoOnAccess() {
+        debug(" * FifoOnAccess: START");
+        ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap(FIFO, 50);
+        Node<Integer, Integer> node = cache.sentinel.getNext();
+        int length = cache.length.get();
+        int size = cache.data.size();
+        assertFalse(node.isMarked());
+
+        // Get
+        cache.get(node.getKey());
+        assertSame(cache.sentinel.getNext(), node);
+        assertEquals(cache.length.get(), length);
+        assertEquals(cache.data.size(), size);
+        assertFalse(node.isMarked());
+
+        // PutIfAbsent
+        cache.putIfAbsent(node.getKey(), node.getValue());
+        assertSame(cache.sentinel.getNext(), node);
+        assertEquals(cache.length.get(), length);
+        assertEquals(cache.data.size(), size);
+        assertFalse(node.isMarked());
+    }
+
+    /**
+     * Tests the SecondChance Fifo policy is being working correctly when the entry is retrieved by
+     * {@link Map#containsKey(Object)} and {@link Map#putIfAbsent()}. The latter is critical for proper
+     * usage in a memoizer (e.g. SelfPopulatingMap).
+     */
+    @Test(groups="development")
+    public void SecondChanceOnAccess() {
+        debug(" * SecondChanceOnAccess: START");
+        ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap(SECOND_CHANCE, 50);
+        Node<Integer, Integer> headNode = cache.sentinel.getNext();
+        Node<Integer, Integer> tailNode = cache.sentinel.getPrev();
+        int length = cache.length.get();
+        int size = cache.data.size();
+        assertFalse(headNode.isMarked());
+        assertFalse(tailNode.isMarked());
+
+        // Get
+        cache.get(headNode.getKey());
+        assertSame(cache.sentinel.getNext(), headNode);
+        assertEquals(cache.length.get(), length);
+        assertEquals(cache.data.size(), size);
+        assertTrue(headNode.isMarked());
+
+        // PutIfAbsent
+        cache.putIfAbsent(tailNode.getKey(), tailNode.getValue());
+        assertSame(cache.sentinel.getPrev(), tailNode);
+        assertEquals(cache.length.get(), length);
+        assertEquals(cache.data.size(), size);
+        assertTrue(tailNode.isMarked());
+    }
+
+    /**
+     * Tests the Lru policy is being working correctly when the entry is retrieved by {@link Map#containsKey(Object)}
+     * and {@link Map#putIfAbsent()}. The latter is critical for proper usage in a memoizer (e.g. SelfPopulatingMap).
+     */
+    @Test(groups="development")
+    public void LruOnAccess() {
+        debug(" * LruOnAccess: START");
+        ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap(LRU, 50);
+        Node<Integer, Integer> headNode = cache.sentinel.getNext();
+        Node<Integer, Integer> tailNode = cache.sentinel.getPrev();
+        int length = cache.length.get();
+        int size = cache.data.size();
+        assertFalse(headNode.isMarked());
+        assertFalse(tailNode.isMarked());
+
+        // Get
+        cache.get(headNode.getKey());
+        assertNotSame(cache.sentinel.getNext(), headNode);
+        assertSame(cache.sentinel.getPrev(), headNode);
+        assertEquals(cache.length.get(), length);
+        assertEquals(cache.data.size(), size);
+        assertFalse(headNode.isMarked());
+
+        // PutIfAbsent
+        assertNotSame(cache.sentinel.getPrev(), tailNode); // due to get()
+        cache.putIfAbsent(tailNode.getKey(), tailNode.getValue());
+        assertSame(cache.sentinel.getPrev(), tailNode);
+        assertEquals(cache.length.get(), length);
+        assertEquals(cache.data.size(), size);
+        assertFalse(tailNode.isMarked());
+    }
+
+    /**
      * Tests {@link Map#remove()} and {@link java.util.concurrent.ConcurrentMap#remove(Object, Object)}
      */
     @Test(groups="development")
     public void remove() {
-        debug("remove: START");
+        debug(" * remove: START");
         EvictionMonitor guard = EvictionMonitor.newGuard();
 
         // Map#remove()
@@ -143,7 +237,7 @@ public final class SingleThreadedTest extends BaseTest {
      */
     @Test(groups="development")
     public void replace() {
-        debug("replace: START");
+        debug(" * replace: START");
         Integer dummy = -1;
         ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap();
         for (Integer i=0; i<capacity; i++) {
@@ -164,7 +258,7 @@ public final class SingleThreadedTest extends BaseTest {
      */
     @Test(groups="development")
     public void clear() {
-        debug("clear: START");
+        debug(" * clear: START");
         EvictionMonitor guard = EvictionMonitor.newGuard();
         ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap(guard);
         cache.clear();
@@ -176,7 +270,7 @@ public final class SingleThreadedTest extends BaseTest {
      */
     @Test(groups="development")
     public void capacity() {
-        debug("capacity: START");
+        debug(" * capacity: START");
         ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap();
 
         int newMaxCapacity = 2*capacity;
@@ -213,7 +307,7 @@ public final class SingleThreadedTest extends BaseTest {
      */
     @Test(groups="development")
     public void object() {
-        debug("object: START");
+        debug(" * object: START");
         ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap(guard);
         Map<Integer, Integer> expected = new ConcurrentHashMap<Integer, Integer>(capacity);
         for (Integer i=0; i<capacity; i++) {
@@ -229,7 +323,7 @@ public final class SingleThreadedTest extends BaseTest {
      */
     @Test(groups="development")
     public void serialize() {
-        debug("serialize: START");
+        debug(" * serialize: START");
         ConcurrentLinkedHashMap<Integer, Integer> expected = createWarmedMap(guard);
         Object cache = SerializationUtils.clone(expected);
         assertEquals(cache, expected);
@@ -241,9 +335,9 @@ public final class SingleThreadedTest extends BaseTest {
      */
     @Test(groups="development")
     public void evictAsFifo() {
-        debug("evictAsFifo: START");
+        debug(" * evictAsFifo: START");
         EvictionMonitor<Integer, Integer> monitor = EvictionMonitor.newMonitor();
-        ConcurrentLinkedHashMap<Integer, Integer> cache = create(EvictionPolicy.FIFO, monitor);
+        ConcurrentLinkedHashMap<Integer, Integer> cache = create(FIFO, monitor);
 
         // perform test
         doFifoEvictionTest(cache, monitor);
@@ -254,9 +348,9 @@ public final class SingleThreadedTest extends BaseTest {
      */
     @Test(groups="development")
     public void evictSecondChanceAsFifo() {
-        debug("evictSecondChanceAsFifo: START");
+        debug(" * evictSecondChanceAsFifo: START");
         EvictionMonitor<Integer, Integer> monitor = EvictionMonitor.newMonitor();
-        ConcurrentLinkedHashMap<Integer, Integer> cache = create(EvictionPolicy.SECOND_CHANCE, monitor);
+        ConcurrentLinkedHashMap<Integer, Integer> cache = create(SECOND_CHANCE, monitor);
 
         // perform test
         doFifoEvictionTest(cache, monitor);
@@ -267,10 +361,10 @@ public final class SingleThreadedTest extends BaseTest {
      */
     @Test(groups="development")
     public void evictAsSecondChance() {
-        debug("evictAsSecondChance: START");
+        debug(" * evictAsSecondChance: START");
         Map<Integer, Integer> expected = new HashMap<Integer, Integer>(capacity);
         EvictionMonitor<Integer, Integer> monitor = EvictionMonitor.newMonitor();
-        ConcurrentLinkedHashMap<Integer, Integer> cache = create(EvictionPolicy.SECOND_CHANCE, monitor);
+        ConcurrentLinkedHashMap<Integer, Integer> cache = create(SECOND_CHANCE, monitor);
         for (Integer i=0; i<capacity; i++) {
             cache.put(i, i);
             if (i%2 == 0) {
@@ -295,9 +389,9 @@ public final class SingleThreadedTest extends BaseTest {
      */
     @Test(groups="development")
     public void evictSecondChanceFullScan() {
-        debug("evictSecondChanceFullScan: START");
+        debug(" * evictSecondChanceFullScan: START");
         EvictionMonitor<Integer, Integer> monitor = EvictionMonitor.newMonitor();
-        ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap(EvictionPolicy.SECOND_CHANCE, capacity, monitor);
+        ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap(SECOND_CHANCE, capacity, monitor);
         for (int i=0; i<capacity; i++) {
             cache.get(i);
         }
@@ -315,8 +409,8 @@ public final class SingleThreadedTest extends BaseTest {
      */
     @Test(groups="development")
     public void evictAsLru() {
-        debug("evictAsLru: START");
-        ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap(EvictionPolicy.LRU, 10);
+        debug(" * evictAsLru: START");
+        ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap(LRU, 10);
 
         debug("Initial: %s", validator.printFwd(cache));
         assertTrue(cache.keySet().containsAll(Arrays.asList(0, 1, 2, 3, 4, 5, 6, 7, 8, 9)), "Instead: " + cache.keySet());

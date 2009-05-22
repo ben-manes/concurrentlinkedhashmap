@@ -51,7 +51,8 @@ public final class EfficiencyTest extends BaseTest {
      * Tests that entries are evicted in FIFO order using a complex working set.
      */
     @Test(groups="development")
-    public void efficencyTestAsFifo() {
+    public void FifoEfficency() {
+        debug(" * Fifo-efficency: START");
         ConcurrentLinkedHashMap<Long, Long> actual = create(EvictionPolicy.FIFO);
         Map<Long, Long> expected = Cache.SYNC_FIFO.create(capacity, capacity, 1);
         doEfficencyTest(actual, expected);
@@ -61,9 +62,21 @@ public final class EfficiencyTest extends BaseTest {
      * Tests that entries are evicted in Second Chance FIFO order using a complex working set.
      */
     @Test(groups="development")
-    public void efficencyTestAsSecondChance() {
+    public void SecondChanceEfficency() {
+        debug(" * SecondChance-efficency: START");
         ConcurrentLinkedHashMap<Long, Long> actual = create(EvictionPolicy.SECOND_CHANCE);
         Map<Long, Long> expected = Cache.FAST_FIFO_2C.create(capacity, capacity, 1);
+        doEfficencyTest(actual, expected);
+    }
+
+    /**
+     * Tests that entries are evicted in LRU order using a complex working set.
+     */
+    @Test(groups="development")
+    public void LruEfficency() {
+        debug(" * Lru-efficency: START");
+        ConcurrentLinkedHashMap<Long, Long> actual = create(EvictionPolicy.LRU);
+        Map<Long, Long> expected = Cache.SYNC_LRU.create(capacity, capacity, 1);
         doEfficencyTest(actual, expected);
     }
 
@@ -113,6 +126,7 @@ public final class EfficiencyTest extends BaseTest {
         List<Long> workingSet = createWorkingSet(Distribution.EXPONENTIAL, 10*capacity);
         long hitExpected = determineEfficiency(expected, workingSet);
         long hitActual = determineEfficiency(actual, workingSet);
+        assertTrue(actual.equals(expected), "Expected \n" + expected + "\nActual:\n" + expected);
         assertEquals(hitActual, hitExpected);
         assertTrue(hitExpected > 0);
         assertTrue(hitActual > 0);

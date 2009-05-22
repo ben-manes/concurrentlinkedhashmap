@@ -31,7 +31,7 @@ public abstract class BaseTest extends Assert {
         capacity = Integer.valueOf(System.getProperty("test.maximumCapacity"));
         debug = Boolean.valueOf(System.getProperty("test.debugMode"));
 
-        info("%s:\n", getClass().getSimpleName());
+        info("\n%s:\n", getClass().getSimpleName());
     }
 
     /**
