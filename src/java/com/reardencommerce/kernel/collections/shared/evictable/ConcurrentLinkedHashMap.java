@@ -146,9 +146,7 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
             throw new IllegalArgumentException();
         }
         this.capacity.set(capacity);
-        while (isOverflow()) {
-            evict();
-        }
+        while (evict()) { /* spin */ }
     }
 
     /**
@@ -198,25 +196,26 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
     /**
      * Evicts a single entry if the map exceeds the maximum capacity.
      */
-    private void evict() {
+    private boolean evict() {
         while (isOverflow()) {
             Node<K, V> node = sentinel.getNext();
             if (node == sentinel) {
-                return;
+                return false;
             } else if (policy.onEvict(this, node)) {
-                // Attempt to remove the node and return it if successful
+                // Attempt to remove the node if its still available
                 if (data.remove(node.getKey(), new Identity(node))) {
                     length.decrementAndGet();
                     node.remove();
                     listener.onEviction(node.getKey(), node.getValue());
+                    return true;
                 }
-                return;
             } else {
                 if (node.tryRemove()) {
                     node.appendToTail();
                 }
             }
         }
+        return false;
     }
 
     /**
