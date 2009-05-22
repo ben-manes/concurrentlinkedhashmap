@@ -11,19 +11,19 @@ A [http://java.sun.com/j2se/1.5.0/docs/api/java/util/concurrent/Future.html Futu
 
 {{{
 public class Example {
-  private final FutureTask<Computation> future = new FutureTask<Computation>(new Computable());
+    private final FutureTask<Computation> future = new FutureTask<Computation>(new Computable());
 
-  // Lazily computes the work and returns the value
-  public Computation getComputation() throws Exception {
-    future.run(); // no-ops on all subsequent calls
-    return future.get();
-  }
-
-  private static final class Computable implements Callable<Computation> {
-    public Computation call() {
-      // do work, return
+    // Lazily computes the work and returns the value
+    public Computation getComputation() throws Exception {
+        future.run(); // no-ops on all subsequent calls
+        return future.get();
     }
-  }
+
+    private static final class Computable implements Callable<Computation> {
+        public Computation call() {
+          // do work, return
+        }
+    }
 }
 }}}
 
@@ -33,40 +33,40 @@ By using a Map multiple items can be lazily loaded. If unbounded this provides a
 
 {{{
 public class SelfPopulatingMap<K, V> implements Map<K, V> {
-  private final ConcurrentMap<K, Future<V>> map;
-  private final EntryFactory<K, V> factory;
+    private final ConcurrentMap<K, Future<V>> map;
+    private final EntryFactory<K, V> factory;
 
-  public SelfPopulatingMap(ConcurrentMap<K, Future<V>> map, EntryFactory<K, V> factory) {
-    this.map = map;
-    this.factory = factory;
-  }
-
-  // Retrieves the value, creating it if needed.
-  public V get(final K key) {
-    FutureTask<V> task = new FutureTask<V>(
-      new Callable<V>() {
-        public V call() throws Exception {
-          return factory.createEntry(key);
-        }
-      });
-    Future<V> future = map.putIfAbsent(key, task);
-    try {
-      if (future == null) {
-        future = task;
-        task.run();
-      }
-      return future.get();
-    } catch (Exception e) {
-      remove(key);
-      throw new RuntimeException(e);
+    public SelfPopulatingMap(ConcurrentMap<K, Future<V>> map, EntryFactory<K, V> factory) {
+        this.map = map;
+        this.factory = factory;
     }
-  }
 
-  public static interface EntryFactory<K, V> {
-    V createEntry(K key) throws Exception;
-  }
+    // Retrieves the value, creating it if needed.
+    public V get(final K key) {
+        FutureTask<V> task = new FutureTask<V>(
+            new Callable<V>() {
+                public V call() throws Exception {
+                return factory.createEntry(key);
+            }
+        });
+        Future<V> future = map.putIfAbsent(key, task);
+        if (future == null) {
+            future = task;
+            task.run();
+        }
+        try {
+            return future.get();
+        } catch (Exception e) {
+            remove(key);
+            throw new RuntimeException(e);
+        }
+    }
 
-  // further implementation details for a Map<K, V>
+    public interface EntryFactory<K, V> {
+        V createEntry(K key) throws Exception;
+    }
+
+    // further implementation details for a Map<K, V>
 }
 }}}
 
@@ -74,16 +74,16 @@ public class SelfPopulatingMap<K, V> implements Map<K, V> {
 The following shows a production-quality implementation, but to avoid introducing bugs it does not generalize out custom utilities. In addition to the single retrieval approach described above, it extends the concept to support bulk retrieval.
 
 {{{
-package com.rc.collections;
+package com.reardencommerce.kernel.collections.shared;
 
-import static com.rc.collections.Maps2.forEach;
-import static com.rc.collections.Maps2.subMap;
-import static com.rc.collections.functions.Functions2.asFunction2ByValue;
-import static com.rc.collections.functions.Functions2.asMapEntryFunction;
-import static com.rc.util.Assertions.notNull;
-import static com.rc.util.concurrent.Futures.asFuture;
-import static com.rc.util.concurrent.Futures.fromFuture;
-import static com.rc.util.concurrent.Futures.fromFutures;
+import static com.reardencommerce.kernel.collections.shared.Maps2.forEach;
+import static com.reardencommerce.kernel.collections.shared.Maps2.subMap;
+import static com.reardencommerce.kernel.collections.shared.functions.Functions2.asFunction2ByValue;
+import static com.reardencommerce.kernel.collections.shared.functions.Functions2.asMapEntryFunction;
+import static com.reardencommerce.kernel.concurrent.shared.Futures.asFuture;
+import static com.reardencommerce.kernel.concurrent.shared.Futures.fromFuture;
+import static com.reardencommerce.kernel.concurrent.shared.Futures.fromFutures;
+import static com.reardencommerce.kernel.utilities.shared.Assertions.notNull;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -99,9 +99,9 @@ import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
 
 import com.google.common.base.Function;
-import com.rc.collections.functions.Function2;
-import com.rc.collections.transforming.TransformingConcurrentMap;
-import com.rc.collections.transforming.TransformingSet;
+import com.reardencommerce.kernel.collections.shared.functions.Function2;
+import com.reardencommerce.kernel.collections.shared.transforming.TransformingConcurrentMap;
+import com.reardencommerce.kernel.collections.shared.transforming.TransformingSet;
 
 /**
  * A {@link ConcurrentMap} that automatically creates an entry when not found and blocks other callers for that entry
@@ -110,7 +110,7 @@ import com.rc.collections.transforming.TransformingSet;
  * This implementation is not fully type-safe due to the inability to inspect the necessary type information at runtime.
  * For methods using raw object parameters, such as {@link #get(Object)}, a {@link ClassCastException} will be thrown
  * rather than returning a negative result on an invalid parameter type. This can be resolved by decorating with the
- * {@link com.rc.collections.Maps2#checkedConcurrentMap(Map, Class, Class)}.
+ * {@link com.reardencommerce.kernel.collections.shared.Maps2#checkedConcurrentMap(Map, Class, Class)}.
  *
  * @author <a href="mailto:ben.manes@reardencommerce.com">Ben Manes</a>
  * @see <tt>Java Concurrency in Practice</tt>'s Memoizer example.
@@ -358,7 +358,7 @@ public class SelfPopulatingMap<K, V> extends TransformingConcurrentMap<K, Future
     }
 
     /**
-     * A loader that is optimized for a serial creation.
+     * A loader that is optimized for serial creation.
      */
     private class SerialLoader implements Loader<K, V> {
         private final EntryFactory<K, V> factory;
@@ -413,12 +413,12 @@ public class SelfPopulatingMap<K, V> extends TransformingConcurrentMap<K, Future
             // Sets up a bulk operation to be performed for the keys that are not found
             final Collection<K> creationKeys = new ArrayList<K>(keys.size());
             final FutureTask<Map<K, V>> task = new FutureTask<Map<K, V>>(
-                    new Callable<Map<K, V>>() {
-                        public Map<K, V> call() throws Exception {
-                            return creationKeys.isEmpty() ? Collections.<K, V>emptyMap()
-                                                          : factory.createEntries(creationKeys);
-                        }
-                    });
+                new Callable<Map<K, V>>() {
+                    public Map<K, V> call() throws Exception {
+                        return creationKeys.isEmpty() ? Collections.<K, V>emptyMap()
+                                                      : factory.createEntries(creationKeys);
+                    }
+                });
 
             // For any key not found, adds a proxy for retrieval once the the bulk operation
             // has completed. Also composes a map of all keys to their value holder.
@@ -508,8 +508,10 @@ public class SelfPopulatingMap<K, V> extends TransformingConcurrentMap<K, Future
 }
 }}}
 {{{
-import static com.rc.collections.Collections3.combine;
-import static com.rc.collections.Maps2.forEach;
+package com.reardencommerce.kernel.collections.shared;
+
+import static com.reardencommerce.kernel.collections.shared.Collections3.combine;
+import static com.reardencommerce.kernel.collections.shared.Maps2.forEach;
 import static java.lang.Integer.valueOf;
 import static java.util.Arrays.asList;
 import static org.testng.Assert.assertEquals;
@@ -526,7 +528,7 @@ import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import com.google.common.base.Function;
-import com.rc.collections.SelfPopulatingMap.BulkEntryFactory;
+import com.reardencommerce.kernel.collections.shared.SelfPopulatingMap.BulkEntryFactory;
 
 /**
  * A unit test for the {@link SelfPopulatingMap}.
