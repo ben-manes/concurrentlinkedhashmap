@@ -16,8 +16,11 @@
 package com.reardencommerce.kernel.collections.shared.evictable;
 
 import java.io.Serializable;
+import java.util.AbstractCollection;
 import java.util.AbstractMap;
 import java.util.AbstractSet;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -162,7 +165,8 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
      */
     @Override
     public int size() {
-        return length.get();
+        int size = length.get();
+        return (size >= 0) ? size : 0;
     }
 
     /**
@@ -325,6 +329,14 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
     @Override
     public Set<K> keySet() {
         return data.keySet();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public Collection<V> values() {
+        return new Values();
     }
 
     /**
@@ -605,18 +617,75 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
     }
 
     /**
+     * An adapter to represent the data store's values in the external type.
+     */
+    private final class Values extends AbstractCollection<V> {
+        private final ConcurrentLinkedHashMap<K, V> map = ConcurrentLinkedHashMap.this;
+
+        @Override
+        public int size() {
+            return map.size();
+        }
+        @Override
+        public void clear() {
+            map.clear();
+        }
+        @Override
+        public Iterator<V> iterator() {
+            return new ValueIterator();
+        }
+        @Override
+        public boolean contains(Object o) {
+            return map.containsValue(o);
+        }
+        @Override
+        public Object[] toArray() {
+            Collection<V> values = new ArrayList<V>(size());
+            for (V value : this) {
+                values.add(value);
+            }
+            return values.toArray();
+        }
+        @Override
+        public <T> T[] toArray(T[] array) {
+            Collection<V> values = new ArrayList<V>(size());
+            for (V value : this) {
+                values.add(value);
+            }
+            return values.toArray(array);
+        }
+    }
+
+    /**
+     * An adapter to represent the data store's values in the external type.
+     */
+    private final class ValueIterator implements Iterator<V> {
+        private final EntryIterator iterator = new EntryIterator(ConcurrentLinkedHashMap.this.data.values().iterator());
+
+        public boolean hasNext() {
+            return iterator.hasNext();
+        }
+        public V next() {
+            return iterator.next().getValue();
+        }
+        public void remove() {
+            iterator.remove();
+        }
+    }
+
+    /**
      * An adapter to represent the data store's entry set in the external type.
      */
     private final class EntrySet extends AbstractSet<Entry<K,V>> {
         private final ConcurrentLinkedHashMap<K, V> map = ConcurrentLinkedHashMap.this;
 
         @Override
-        public void clear() {
-            map.clear();
-        }
-        @Override
         public int size() {
             return map.size();
+        }
+        @Override
+        public void clear() {
+            map.clear();
         }
         @Override
         public Iterator<Entry<K, V>> iterator() {
@@ -642,6 +711,22 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
             }
             Entry<?, ?> entry = (Entry<?, ?>) obj;
             return map.remove(entry.getKey(), entry.getValue());
+        }
+        @Override
+        public Object[] toArray() {
+            Collection<Entry<K, V>> entries = new ArrayList<Entry<K, V>>(size());
+            for (Entry<K, V> entry : this) {
+                entries.add(new SimpleEntry<K, V>(entry));
+            }
+            return entries.toArray();
+        }
+        @Override
+        public <T> T[] toArray(T[] array) {
+            Collection<Entry<K, V>> entries = new ArrayList<Entry<K, V>>(size());
+            for (Entry<K, V> entry : this) {
+                entries.add(new SimpleEntry<K, V>(entry));
+            }
+            return entries.toArray(array);
         }
     }
 
@@ -682,6 +767,10 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
         public SimpleEntry(K key, V value) {
             this.key   = key;
             this.value = value;
+        }
+        public SimpleEntry(Entry<K, V> e) {
+            this.key   = e.getKey();
+            this.value = e.getValue();
         }
         public K getKey() {
             return key;
