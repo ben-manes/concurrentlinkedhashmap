@@ -52,7 +52,7 @@ public final class MultiThreadedTest extends BaseTest {
      */
     @Test(groups="development")
     public void concurrent() throws InterruptedException {
-        debug("concurrent: START");
+        debug(" * concurrent: START");
         final List<List<Integer>> sets = shuffle(nThreads, keys);
         ThreadPoolExecutor es = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<Runnable>());
         for (final EvictionPolicy policy : EvictionPolicy.values()) {
