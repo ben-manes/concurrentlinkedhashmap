@@ -185,24 +185,36 @@ public final class MultiThreadedTest extends BaseTest {
                     cache.clear();
                     break;
                 case 12:
-                    for (Integer i : cache.keySet()) {
-                        if (i == null) {
-                            throw new IllegalArgumentException();
+                    if ((key % 2) == 0) {
+                        for (Integer i : cache.keySet()) {
+                            if (i == null) {
+                                throw new IllegalArgumentException();
+                            }
                         }
+                    } else {
+                        for (Integer i : cache.keySet().toArray(new Integer[cache.size()])) { };
                     }
                     break;
                 case 13:
-                    for (Integer i : cache.values()) {
-                        if (i == null) {
-                            throw new IllegalArgumentException();
+                    if ((key % 2) == 0) {
+                        for (Integer i : cache.values()) {
+                            if (i == null) {
+                                throw new IllegalArgumentException();
+                            }
                         }
+                    } else {
+                        for (Integer i : cache.values().toArray(new Integer[cache.size()])) { };
                     }
                     break;
                 case 14:
-                    for (Entry<Integer, Integer> entry : cache.entrySet()) {
-                        if ((entry == null) || (entry.getKey() == null) || (entry.getValue() == null)) {
-                            throw new IllegalArgumentException(String.valueOf(entry));
+                    if ((key % 2) == 0) {
+                        for (Entry<Integer, Integer> entry : cache.entrySet()) {
+                            if ((entry == null) || (entry.getKey() == null) || (entry.getValue() == null)) {
+                                throw new IllegalArgumentException(String.valueOf(entry));
+                            }
                         }
+                    } else {
+                        for (Entry<?, ?> entry : cache.entrySet().toArray(new Entry[cache.size()])) { };
                     }
                     break;
                 case 15:
