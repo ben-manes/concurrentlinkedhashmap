@@ -3,7 +3,8 @@
 == Acknowledgements ==
 I'd like to thank everyone who has submitted bugs, feature requests, or has reviewed the algorithm/implementation.
 
-Special thanks to:
+Special thanks to (in no particular order):
+ * Greg Luck, who provided valuable feedback based on his own testing.
  * Adam Zell, who wrote the build, code reviews, and finds interesting papers.
  * Bob Lane, whose performance and concurrency expertise was invaluable when exploring algorithmic ideas.
 
