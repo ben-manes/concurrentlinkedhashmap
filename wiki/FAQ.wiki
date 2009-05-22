@@ -1,5 +1,12 @@
 #summary Frequently Asked Questions
 
+= Acknowledgements =
+I'd like to thank everyone who has submitted bugs, feature requests, or has reviewed the algorithm/implementation.
+
+Special thanks to:
+ * Adam Zell, who wrote the build, code reviews, and finds interesting papers.
+ * Bob Lane, whose performance and concurrency expertise was invaluable when exploring algorithmic ideas.
+
 = Usage =
 * Which eviction policy is recommended?
 
