@@ -428,7 +428,7 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
      * A node on the double-linked list. This list cross-cuts the data store.
      */
     @SuppressWarnings("unchecked")
-    static class Node<K, V> implements java.io.Serializable {
+    static final class Node<K, V> implements Serializable {
         private static final long serialVersionUID = 1461281468985304519L;
         private static final AtomicReferenceFieldUpdater<Node, Object> valueUpdater =
             AtomicReferenceFieldUpdater.newUpdater(Node.class, Object.class, "value");
@@ -448,7 +448,7 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
         /**
          * Creates a new sentinel node.
          */
-        private Node() {
+        public Node() {
             this.key = null;
             setPrev(this);
             setNext(this);
@@ -458,7 +458,7 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
         /**
          * Creates a new, unlinked node.
          */
-        private Node(K key, V value, Node<K, V> sentinel) {
+        public Node(K key, V value, Node<K, V> sentinel) {
             this.sentinel = sentinel;
             this.value = value;
             this.key = key;
