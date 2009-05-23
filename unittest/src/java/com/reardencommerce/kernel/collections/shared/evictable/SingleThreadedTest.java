@@ -4,10 +4,18 @@ import static com.reardencommerce.kernel.collections.shared.evictable.Concurrent
 import static com.reardencommerce.kernel.collections.shared.evictable.ConcurrentLinkedHashMap.EvictionPolicy.LRU;
 import static com.reardencommerce.kernel.collections.shared.evictable.ConcurrentLinkedHashMap.EvictionPolicy.SECOND_CHANCE;
 import static java.lang.String.format;
+import static java.util.Arrays.asList;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.apache.commons.lang.SerializationUtils;
@@ -303,6 +311,159 @@ public final class SingleThreadedTest extends BaseTest {
     }
 
     /**
+     * Tests that {@link Map#keySet()} functions correctly.
+     */
+    @Test(groups="development")
+    public void keySet() {
+        debug(" * keySet: START");
+        ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap();
+        Set<Integer> keys = cache.keySet();
+        Integer key = keys.iterator().next();
+        int initialSize = cache.size();
+
+        assertEquals(keys, cache.data.keySet());
+        try {
+            assertFalse(keys.add(key));
+            fail("Not supported by maps");
+        } catch (UnsupportedOperationException e) {
+            // expected
+        }
+
+        assertTrue(keys.contains(key));
+        assertTrue(keys.remove(key));
+        assertFalse(keys.remove(key));
+        assertFalse(keys.contains(key));
+        assertEquals(keys.size(), initialSize-1);
+        assertEquals(cache.size(), initialSize-1);
+
+        Iterator<Integer> iter = keys.iterator();
+        Integer i = iter.next();
+        iter.remove();
+        assertFalse(keys.contains(i));
+        assertFalse(cache.containsKey(i));
+        assertEquals(keys.size(), initialSize-2);
+        assertEquals(cache.size(), initialSize-2);
+
+        assertTrue(Arrays.equals(keys.toArray(), cache.data.keySet().toArray()));
+        assertTrue(Arrays.equals(keys.toArray(new Integer[cache.size()]),
+                                 cache.data.keySet().toArray(new Integer[cache.size()])));
+
+        cache.setCapacity(capacity/2);
+        assertEquals(keys.size(), capacity/2);
+
+        keys.clear();
+        assertTrue(cache.isEmpty());
+        assertTrue(keys.isEmpty());
+    }
+
+    /**
+     * Tests that {@link Map#values()} functions correctly.
+     */
+    @Test(groups="development")
+    public void values() {
+        debug(" * values: START");
+        ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap();
+        Collection<Integer> values = cache.values();
+        Integer value = values.iterator().next();
+        int initialSize = cache.size();
+
+        Iterator<Integer> iterator = values.iterator();
+        for (Node<Integer, Integer> node : cache.data.values()) {
+            assertEquals(iterator.next(), node.getValue());
+        }
+        assertFalse(iterator.hasNext());
+
+        try {
+            assertFalse(values.add(value));
+            fail("Not supported by maps");
+        } catch (UnsupportedOperationException e) {
+            // expected
+        }
+
+        assertTrue(values.contains(value));
+        assertTrue(values.remove(value));
+        assertFalse(values.remove(value));
+        assertFalse(values.contains(value));
+        assertEquals(values.size(), initialSize-1);
+        assertEquals(cache.size(), initialSize-1);
+
+        Iterator<Integer> iter = values.iterator();
+        Integer i = iter.next();
+        iter.remove();
+        assertFalse(values.contains(i));
+        assertFalse(cache.containsValue(i));
+        assertEquals(values.size(), initialSize-2);
+        assertEquals(cache.size(), initialSize-2);
+
+        List<Integer> list = new ArrayList<Integer>();
+        for (Node<Integer, Integer> node : cache.data.values()) {
+            list.add(node.getValue());
+        }
+        assertTrue(Arrays.equals(values.toArray(), list.toArray()));
+        assertTrue(Arrays.equals(values.toArray(new Integer[cache.size()]), list.toArray(new Integer[cache.size()])));
+
+        cache.setCapacity(capacity/2);
+        assertEquals(values.size(), capacity/2);
+
+        values.clear();
+        assertTrue(cache.isEmpty());
+        assertTrue(values.isEmpty());
+    }
+
+    /**
+     * Tests that {@link Map#entrySet()} functions correctly.
+     */
+    @Test(groups="development")
+    public void entrySet() {
+        debug(" * entrySet: START");
+        ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap();
+        Set<Entry<Integer, Integer>> entries = cache.entrySet();
+        Entry<Integer, Integer> entry = entries.iterator().next();
+        int initialSize = cache.size();
+
+        assertEquals(entries.size(), initialSize);
+        assertTrue(entries.contains(entry));
+        assertFalse(entries.add(entry));
+        assertTrue(entries.remove(entry));
+        assertFalse(entries.remove(entry));
+        assertFalse(cache.containsKey(entry.getKey()));
+        assertFalse(cache.containsValue(entry.getKey()));
+        assertEquals(entries.size(), initialSize-1);
+        assertEquals(cache.size(), initialSize-1);
+        assertTrue(entries.add(entry));
+        assertEquals(entries.size(), initialSize);
+
+        Map<Integer, Integer> map = new HashMap<Integer, Integer>();
+        for (Entry<Integer, Integer> e : entries) {
+            map.put(e.getKey(), e.getValue());
+        }
+        assertEquals(cache, map);
+
+        Iterator<Entry<Integer, Integer>> iter = entries.iterator();
+        Entry<Integer, Integer> e = iter.next();
+        iter.remove();
+        assertFalse(entries.contains(e));
+        assertFalse(cache.containsKey(e.getKey()));
+        assertEquals(entries.size(), initialSize-1);
+        assertEquals(cache.size(), initialSize-1);
+
+        List<Entry<Integer, Integer>> list = asList(entries.toArray((Entry<Integer, Integer>[]) new Entry[initialSize-1]));
+        assertTrue(new HashSet<Entry<Integer, Integer>>(list).equals(entries));
+        assertTrue(new HashSet(asList(entries.toArray())).equals(entries));
+
+        //TODO: support?
+        //entry.setValue(Integer.MIN_VALUE);
+        //assertTrue(cache.containsValue(Integer.MIN_VALUE));
+
+        cache.setCapacity(capacity/2);
+        assertEquals(entries.size(), capacity/2);
+
+        entries.clear();
+        assertTrue(cache.isEmpty());
+        assertTrue(entries.isEmpty());
+    }
+
+    /**
      * Tests {@link Object#equals(Object)}, {@link Object#hashCode()}, {@link Object#toString()}.
      */
     @Test(groups="development")
@@ -413,7 +574,7 @@ public final class SingleThreadedTest extends BaseTest {
         ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap(LRU, 10);
 
         debug("Initial: %s", validator.printFwd(cache));
-        assertTrue(cache.keySet().containsAll(Arrays.asList(0, 1, 2, 3, 4, 5, 6, 7, 8, 9)), "Instead: " + cache.keySet());
+        assertTrue(cache.keySet().containsAll(asList(0, 1, 2, 3, 4, 5, 6, 7, 8, 9)), "Instead: " + cache.keySet());
         assertEquals(cache.size(), 10);
 
         // re-order
@@ -422,7 +583,7 @@ public final class SingleThreadedTest extends BaseTest {
         cache.get(2);
 
         debug("Reordered #1: %s", validator.printFwd(cache));
-        assertTrue(cache.keySet().containsAll(Arrays.asList(3, 4, 5, 6, 7, 8, 9, 0, 1, 2)), "Instead: " + cache.keySet());
+        assertTrue(cache.keySet().containsAll(asList(3, 4, 5, 6, 7, 8, 9, 0, 1, 2)), "Instead: " + cache.keySet());
         assertEquals(cache.size(), 10);
 
         // evict 3, 4, 5
@@ -431,7 +592,7 @@ public final class SingleThreadedTest extends BaseTest {
         cache.put(12, 12);
 
         debug("Evict #1: %s", validator.printFwd(cache));
-        assertTrue(cache.keySet().containsAll(Arrays.asList(6, 7, 8, 9, 0, 1, 2, 10, 11, 12)), "Instead: " + cache.keySet());
+        assertTrue(cache.keySet().containsAll(asList(6, 7, 8, 9, 0, 1, 2, 10, 11, 12)), "Instead: " + cache.keySet());
         assertEquals(cache.size(), 10);
 
         // re-order
@@ -440,7 +601,7 @@ public final class SingleThreadedTest extends BaseTest {
         cache.get(8);
 
         debug("Reordered #2: %s", validator.printFwd(cache));
-        assertTrue(cache.keySet().containsAll(Arrays.asList(9, 0, 1, 2, 10, 11, 12, 6, 7, 8)), "Instead: " + cache.keySet());
+        assertTrue(cache.keySet().containsAll(asList(9, 0, 1, 2, 10, 11, 12, 6, 7, 8)), "Instead: " + cache.keySet());
         assertEquals(cache.size(), 10);
 
         // evict 9, 0, 1
@@ -449,7 +610,7 @@ public final class SingleThreadedTest extends BaseTest {
         cache.put(15, 15);
 
         debug("Evict #2: %s", validator.printFwd(cache));
-        assertTrue(cache.keySet().containsAll(Arrays.asList(2, 10, 11, 12, 6, 7, 8, 13, 14, 15)), "Instead: " + cache.keySet());
+        assertTrue(cache.keySet().containsAll(asList(2, 10, 11, 12, 6, 7, 8, 13, 14, 15)), "Instead: " + cache.keySet());
         assertEquals(cache.size(), 10);
     }
 
