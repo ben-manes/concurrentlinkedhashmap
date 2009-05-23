@@ -146,7 +146,7 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
             throw new IllegalArgumentException();
         }
         this.capacity.set(capacity);
-        while (evict()) { /* spin */ }
+        while (evict()) { }
     }
 
     /**
@@ -449,10 +449,11 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
          * Creates a new sentinel node.
          */
         public Node() {
+            this.sentinel = this;
+            this.value = null;
             this.key = null;
             setPrev(this);
             setNext(this);
-            this.sentinel = this;
         }
 
         /**
