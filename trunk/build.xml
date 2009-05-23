@@ -200,9 +200,9 @@
         <!-- All tests -->
         <sysproperty key="test.debugMode" value="${test.debugMode}"/>
         <sysproperty key="test.exhaustive" value="${test.exhaustive}"/>
-        <sysproperty key="test.maximumCapacity" value="${test.maximumCapacity}"/>
 
         <!-- Efficiency tests -->
+        <sysproperty key="efficiency.maximumCapacity" value="${efficiency.maximumCapacity}"/>
         <sysproperty key="efficiency.workingSetSize" value="${efficiency.workingSetSize}"/>
         <sysproperty key="efficiency.distribution" value="${efficiency.distribution}"/>
         <sysproperty key="efficiency.distribution.uniform.lower" value="${efficiency.distribution.uniform.lower}"/>
@@ -213,10 +213,14 @@
         <sysproperty key="efficiency.distribution.poisson.mean" value="${efficiency.distribution.poisson.mean}"/>
         <sysproperty key="efficiency.distribution.zipfian.skew" value="${efficiency.distribution.zipfian.skew}"/>
 
-        <!-- Multi-threading tests -->
-        <sysproperty key="concurrent.nThreads" value="${concurrent.nThreads}"/>
-        <sysproperty key="concurrent.iterations" value="${concurrent.iterations}"/>
-        <sysproperty key="concurrent.timeout" value="${concurrent.timeout}"/>
+        <!-- Single-threaded tests -->
+        <sysproperty key="singleThreaded.maximumCapacity" value="${singleThreaded.maximumCapacity}"/>
+
+        <!-- Multi-threaded tests -->
+        <sysproperty key="multiThreaded.maximumCapacity" value="${multiThreaded.maximumCapacity}"/>
+        <sysproperty key="multiThreaded.nThreads" value="${multiThreaded.nThreads}"/>
+        <sysproperty key="multiThreaded.iterations" value="${multiThreaded.iterations}"/>
+        <sysproperty key="multiThreaded.timeout" value="${multiThreaded.timeout}"/>
         <args/>
       </testng>
     </sequential>

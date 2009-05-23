@@ -34,11 +34,15 @@ public final class MultiThreadedTest extends BaseTest {
     private int timeout = 180;
     private int nThreads;
 
+    public MultiThreadedTest() {
+        super(Integer.valueOf(System.getProperty("multiThreaded.maximumCapacity")));
+    }
+
     @BeforeClass(alwaysRun=true)
     public void beforeMultiThreaded() {
-        int iterations = Integer.valueOf(System.getProperty("concurrent.iterations"));
-        nThreads = Integer.valueOf(System.getProperty("concurrent.nThreads"));
-        timeout = Integer.valueOf(System.getProperty("concurrent.timeout"));
+        int iterations = Integer.valueOf(System.getProperty("multiThreaded.iterations"));
+        nThreads = Integer.valueOf(System.getProperty("multiThreaded.nThreads"));
+        timeout = Integer.valueOf(System.getProperty("multiThreaded.timeout"));
         failures = new ConcurrentLinkedQueue<String>();
         keys = new ArrayList<Integer>();
         Random random = new Random();
@@ -65,8 +69,11 @@ public final class MultiThreadedTest extends BaseTest {
                 }
             });
             try {
+                long start = System.nanoTime();
                 future.get(timeout, TimeUnit.SECONDS);
                 validator.state(cache);
+                long end = System.nanoTime();
+                debug("\nExecuted in %d seconds", TimeUnit.NANOSECONDS.toSeconds(end - start));
             } catch (ExecutionException e) {
                 fail("Exception during test: " + e.toString(), e);
             } catch (TimeoutException e) {

@@ -22,15 +22,17 @@ public abstract class BaseTest extends Assert {
     protected boolean debug;
     protected int capacity;
 
+    public BaseTest(int capacity) {
+        this.capacity = capacity;
+    }
+
     /**
      * Initializes the test with runtime properties.
      */
     @BeforeClass(alwaysRun=true)
     public void before() {
         validator = new Validator(Boolean.valueOf(System.getProperty("test.exhaustive")));
-        capacity = Integer.valueOf(System.getProperty("test.maximumCapacity"));
         debug = Boolean.valueOf(System.getProperty("test.debugMode"));
-
         info("\n%s:\n", getClass().getSimpleName());
     }
 
