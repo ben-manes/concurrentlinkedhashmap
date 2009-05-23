@@ -327,7 +327,7 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
      */
     @Override
     public Set<K> keySet() {
-        return data.keySet();
+        return new KeySet();
     }
 
     /**
@@ -616,6 +616,59 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
     }
 
     /**
+     * An adapter to safely externalize the keys.
+     */
+    private final class KeySet extends AbstractSet<K> {
+        private final Set<K> keys = ConcurrentLinkedHashMap.this.data.keySet();
+
+        @Override
+        public int size() {
+            return keys.size();
+        }
+        @Override
+        public void clear() {
+            ConcurrentLinkedHashMap.this.clear();
+        }
+        @Override
+        public Iterator<K> iterator() {
+            return new KeyIterator();
+        }
+        @Override
+        public boolean contains(Object obj) {
+            return keys.contains(obj);
+        }
+        @Override
+        public boolean remove(Object obj) {
+            return (ConcurrentLinkedHashMap.this.remove(obj) != null);
+        }
+        @Override
+        public Object[] toArray() {
+            return keys.toArray();
+        }
+        @Override
+        public <T> T[] toArray(T[] array) {
+            return keys.toArray(array);
+        }
+    }
+
+    /**
+     * An adapter to safely externalize the keys.
+     */
+    private final class KeyIterator implements Iterator<K> {
+        private final EntryIterator iterator = new EntryIterator(ConcurrentLinkedHashMap.this.data.values().iterator());
+
+        public boolean hasNext() {
+            return iterator.hasNext();
+        }
+        public K next() {
+            return iterator.next().getKey();
+        }
+        public void remove() {
+            iterator.remove();
+        }
+    }
+
+    /**
      * An adapter to represent the data store's values in the external type.
      */
     private final class Values extends AbstractCollection<V> {
@@ -675,7 +728,7 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
     /**
      * An adapter to represent the data store's entry set in the external type.
      */
-    private final class EntrySet extends AbstractSet<Entry<K,V>> {
+    private final class EntrySet extends AbstractSet<Entry<K, V>> {
         private final ConcurrentLinkedHashMap<K, V> map = ConcurrentLinkedHashMap.this;
 
         @Override
