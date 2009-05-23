@@ -31,6 +31,10 @@ import com.reardencommerce.kernel.collections.shared.evictable.ConcurrentLinkedH
 @SuppressWarnings("unchecked")
 public final class SingleThreadedTest extends BaseTest {
 
+    public SingleThreadedTest() {
+        super(Integer.valueOf(System.getProperty("singleThreaded.maximumCapacity")));
+    }
+
     /**
      * Tests {@link ConcurrentLinkedHashMap#ConcurrentLinkedHashMap(int)} is empty.
      */

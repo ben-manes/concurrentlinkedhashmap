@@ -22,6 +22,10 @@ public final class EfficiencyTest extends BaseTest {
     private Distribution distribution;
     private int size;
 
+    public EfficiencyTest() {
+        super(Integer.valueOf(System.getProperty("efficiency.maximumCapacity")));
+    }
+
     @BeforeClass(groups="efficiency")
     public void beforeEfficiency() {
         size = Integer.valueOf(System.getProperty("efficiency.workingSetSize"));
