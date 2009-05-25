@@ -1,4 +1,5 @@
 #summary The algorithmic design of a concurrent linked hash map.
+#labels Featured,Phase-Design
 
 = Introduction =
 The following describes the algorithm for a concurrent [http://java.sun.com/javase/6/docs/api/java/util/LinkedHashMap.html LinkedHashMap].
