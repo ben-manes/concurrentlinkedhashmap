@@ -133,12 +133,12 @@ Remove {K2, E2} from the hash table. Perform step #1.
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/spin/remove_E2_1.png]
 
 === Lock ===
-Lock. Perform step #2.
+Lock. Perform step #2 - #3.
 
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/spin/remove_E2_2.png]
 
 === Unlink ===
-Unlink. Perform steps #3 - #4.
+Unlink. Perform steps #4 - #5.
 
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/spin/remove_E2_3.png]
 
