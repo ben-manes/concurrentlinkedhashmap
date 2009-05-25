@@ -4,7 +4,9 @@
 = Introduction =
 The following describes the algorithm for a concurrent [http://java.sun.com/javase/6/docs/api/java/util/LinkedHashMap.html LinkedHashMap].
 
-This algorithm builds on the concepts outlined in [Design design #1], which describes a functional concurrent algorithm using per-node locking. This algorithm removes the explicit locking by introducing _compare-and-swap_ operations. This was done by making the following observations:
+This algorithm builds on the concepts outlined in [Design design #1], which describes a functional concurrent algorithm using per-node locking. Please read that document first.
+
+This algorithm removes the explicit locking by introducing _compare-and-swap_ operations. This was done by making the following observations:
 
  * An *insertion* can be reduced from 2 to 1 blocking instruction by introducing a CAS loop.
   # The new element's _previous_ is eagerly set to the existing tail's auxiliary (the sentinel's _previous_).
@@ -12,6 +14,8 @@ This algorithm builds on the concepts outlined in [Design design #1], which desc
   # Set the previous tail's _auxiliary's next_ to the new element.
  * A *removal* must introduce a CAS loop if the adjacent element is being linked by the above *insertion* algorithm. It is modified by repeatedly attempting to set the next element's _previous_ to the removed element's _previous_, if it equalled the removed element's _auxiliary_.
  * If the above is done, then auxiliaries are only beneficial for removals. They can be removed by introducing further CAS operations.
+
+In this algorithm, an element is considered to be locked when its _next_ is set to _null_ and the previous value is captured in an _auxiliary_ reference. When the right-hand side element attempts to swing _next_ to a new value, it will fail as _next_ does not point to it. It will be unblocked and succeed once its _prev_->_next_ once again equals itself.
 
 ----
 == Empty ==
