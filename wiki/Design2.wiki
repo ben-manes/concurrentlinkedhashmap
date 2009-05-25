@@ -48,7 +48,7 @@ An update corresponds to the _put_ and _replace_ operations on a [http://java.su
    * If _replace_, this is a _get_ with the element found
  # E->value = new_value
    * This may be conditional on a _replace(key, oldValue, newValue)_
- # Perform _retrieval_ step #2.
+ # Perform _retrieval_ step #2
 
 ----
 == Insertion ==
@@ -60,7 +60,9 @@ The following shows the algorithm for inserting an entry. This corresponds to th
  # E_new->prev->next = E_new iff (E_new->prev->next == S)
    * If unsuccessful, repeat at (2).
  # S->prev = E_new iff (S->prev == E_new->prev)
-   * If unsuccessful and (S->prev != E_new), repeat at (4)
+   * If unsuccessful
+     * If (S->prev == E_new) then continue as a concurrent removal helped out
+     * Otherwise, repeat at (4)
  # E_new->next = S
 
 === Insert E1 ===
