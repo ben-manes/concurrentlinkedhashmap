@@ -68,53 +68,43 @@ Insert the entry into hash table. Perform steps #1.
 
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/spin/insert_E1_1.png]
 
-==== Insert and Lock Tail ====
-Insert the entry into hash table and obtain the tail's lock. Perform steps #4 - #5.
+==== Link with Tail ====
+Update the tail to link to the new element. Perform steps #2 - #3.
 
-[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/1.5-linked/insert_E1_2.png]
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/spin/insert_E1_2.png]
 
-==== Link Tail ====
-Update the tail link. Perform step #6.
+==== Link with Sentinel ====
+Update the sentinel to link to the new element. Perform step #4.
 
-[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/1.5-linked/insert_E1_3.png]
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/spin/insert_E1_3.png]
 
-==== Link E1 ====
-Insert E1 into list. Perform steps #7 - #8.
+==== Complete Linking ====
+Update the new element to link with sentinel. Perform steps #5.
 
-[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/1.5-linked/insert_E1_4.png]
-
-==== Unlock ====
-Unlock. Perform steps #9 - #10.
-
-[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/1.5-linked/insert_E1_5.png]
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/spin/insert_E1_4.png]
 
 === Insert E2 ===
 The following shows the insertion of {K2, E2} into the above map.
 
-==== Create Bundle ====
-Create the bundle, acquire the element's lock, and set it up for linking. Perform steps #1 - #3.
+==== Insert ====
+Insert the entry into hash table. Perform steps #1.
 
-[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/1.5-linked/insert_E2_1.png]
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/spin/insert_E2_1.png]
 
-==== Insert and Lock Tail ====
-Insert the entry into hash table and obtain the tail's lock. Perform steps #4 - #5.
+==== Link with Tail ====
+Update the tail to link to the new element. Perform steps #2 - #3.
 
-[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/1.5-linked/insert_E2_2.png]
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/spin/insert_E2_2.png]
 
-==== Link Tail ====
-Update the tail link. Perform step #6.
+==== Link with Sentinel ====
+Update the sentinel to link to the new element. Perform step #4.
 
-[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/1.5-linked/insert_E2_3.png]
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/spin/insert_E2_3.png]
 
-==== Link E2 ====
-Insert E2 into list. Perform steps #7 - #8.
+==== Complete Linking ====
+Update the new element to link with sentinel. Perform steps #5.
 
-[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/1.5-linked/insert_E2_4.png]
-
-==== Unlock ====
-Unlock. Perform steps #9 - #10.
-
-[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/1.5-linked/insert_E2_5.png]
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/spin/insert_E2_4.png]
 
 ----
 == Removal ==
