@@ -145,4 +145,4 @@ Unlink. Perform steps #4 - #5.
 [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/spin/remove_E2_4.png]
 
 === Final State ===
-[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/spin/remove_E2_4.png]
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/spin/remove_E2_5.png]
