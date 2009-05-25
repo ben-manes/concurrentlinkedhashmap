@@ -1,9 +1,5 @@
 #summary The algorithmic design of a concurrent linked hash map.
 
-----
-*UNDER CONSTRUCTION*
-----
-
 = Introduction =
 The following describes the algorithm for a concurrent [http://java.sun.com/javase/6/docs/api/java/util/LinkedHashMap.html LinkedHashMap]. This algorithm builds on the concepts outlined in [Design], which describes a functional concurrent algorithm using per-node locking. This algorithm removes the explicit locking by introducing _compare-and-swap_ operations. This was done by making the following observations:
 
