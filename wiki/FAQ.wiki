@@ -41,7 +41,7 @@ A [http://java.sun.com/javase/6/docs/api/java/util/concurrent/ConcurrentHashMap.
 
 At a million or greater entries, the cost of searching the link chain will become unnacceptable. As the hashing function is not truly uniform then the upper bound should probably be at around 200,000 entries. A greater number of entries could be achieved by using a composite view. This composite map would use a different hashing function to select a data map to delegate to. For example, 300+ data maps would be required at 50 million entries to achieve acceptable performance.
 
-An alternative with large maps is to use a skip-list, which provides the properties of a tree with better concurrency characteristics. By delegating to a [http://java.sun.com/javase/6/docs/api/java/util/concurrent/ConcurrentSkipListMap.html ConcurrentSkipListMap] the search becomes O(log n). At over 1.3 million entries the skip-list data structure provides a more efficient structure.
+An alternative with large maps is to use a skip-list, which provides the properties of a tree with better concurrency characteristics. By delegating to a [http://java.sun.com/javase/6/docs/api/java/util/concurrent/ConcurrentSkipListMap.html ConcurrentSkipListMap] the search becomes O(log n). At over 1.3 million entries the skip-list provides a more efficient data structure.
 
 || *N* || *Height* ||
 || 200,000 || 18 ||
