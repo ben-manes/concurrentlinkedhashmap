@@ -30,19 +30,19 @@ public class UserProfileService {
     public User getUserById(long id) {
       User template = new User();
       user.setId(id);
-      cache.get(template, "byId");
+      return cache.get(template, "byId");
     }
 
     public User getUserByEmail(String email) {
       User template = new User();
       user.setEmail(email);
-      cache.get(template, "byEmail");
+      return cache.get(template, "byEmail");
     }
 
     public User getUserByLoginName(String loginName) {
       User template = new User();
       user.setLoginName(loginName);
-      cache.get(template, "byLoginName");
+      return cache.get(template, "byLoginName");
     }
 
     // etc
