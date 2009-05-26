@@ -1,0 +1,588 @@
+#summary A tutorial for implementing a simple indexing decorator.
+#labels Featured
+
+= Introduction =
+
+A [http://java.sun.com/javase/6/docs/api/java/util/Map.html Map] provides the ability to work with key->value pairs and treats each entry independantly. A common use-case is that the same value could be retrieved by multiple keys. In most usages the map is unbounded and used for a short duration, so the value can be safely referenced in multiple key->value pairs.
+
+In caching, the map is bounded and multiple entries for the same value would impact the size and statistical information. An alternative approach is to store a primaryKey->value mapping in the cache and store a key->primaryKey in a separate mapping. When the value is added, removed, or evicted the key mapping must be updated accordingly.
+
+== Example ==
+
+An application may retrieve a user's profile by different lookup approaches. The primary usage may be by a unique identifier, while alternative flows may be by the user's email address or login name. In complex applications, there may be many alternative lookup approaches based on multiple properties.
+
+|| *Key* || *Property* || *Type* ||
+|| id || user.getId() || Primary ||
+|| email || user.getEmail() || Secondary ||
+|| loginName || user.getLoginName() || Secondary ||
+
+An interesting aspect of the keys is that they are all subsets of the properties on the value (its domain model). In most cases, there is a relationship between the key and value, rather than an ad hoc grouping. This can be leveraged to allow automatic extraction of the keys from the value.
+
+== Usage ==
+
+The following shows how automatic indexing can be leveraged by a caching facade. The value contains metadata describing the cache key information to allow automatic key extraction. A benefit is that separate key classes are not required, but rather the domain object treated like a template for retrieving the full value. This can be thought of as a "named lookup" style similar to Hibernate's "named query" approach.
+
+{{{
+public class UserProfileService {
+    @Autowired
+    private Cache cache;
+
+    public User getUserById(long id) {
+      User template = new User();
+      user.setId(id);
+      cache.get(template, "byId");
+    }
+
+    public User getUserByEmail(String email) {
+      User template = new User();
+      user.setEmail(email);
+      cache.get(template, "byEmail");
+    }
+
+    public User getUserByLoginName(String loginName) {
+      User template = new User();
+      user.setLoginName(loginName);
+      cache.get(template, "byLoginName");
+    }
+}}}
+
+= Implementation =
+
+The following shows a production-quality implementation of an indexable caching decorator. Note that in our current usage, concurrent insertion/removal/eviction of the same element doesn't occur. If it did then there is a race condition which would allow stale entries to remain in the key mapping. A future version will fix this by leveraging lock striping.
+
+{{{
+package com.reardencommerce.kernel.collections.shared;
+
+import static com.google.common.collect.Iterators.emptyIterator;
+import static com.google.common.collect.Maps.immutableEntry;
+import static com.reardencommerce.kernel.collections.shared.Maps2.asMap;
+import static com.reardencommerce.kernel.collections.shared.Sets2.union;
+import static com.reardencommerce.kernel.utilities.shared.Assertions.notNull;
+import static java.util.Collections.unmodifiableCollection;
+import static java.util.Collections.unmodifiableSet;
+
+import java.util.AbstractMap;
+import java.util.AbstractSet;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+
+import com.google.common.base.Function;
+import com.google.common.collect.ImmutableSet;
+
+/**
+ * A {@link java.util.Map} where multiple keys index to the same value and removal of the value causes the removal
+ * of all of its associated keys. When a value is added it can be retrieved by using any of the applicable keys.
+ * It is assumed that keys-value mappings do not overlap.
+ * <p>
+ * This implementation provides a different definition of {@link #size()}, which reflects the number of values rather
+ * than the number of key-value pairs. The collections retrieved from {@link #keySet()}, {@link #values()}, and
+ * {@link #entrySet()} are not naturally aligned as they reflect different aspects of the data structure.
+ * <p>
+ * The entries in this map must conform to the following restrictions.
+ * <ul>
+ *   <li> The key-value mappings may not overlap.
+ *   <li> The primary key cannot change over the lifetime of the value.
+ *   <li> The secondary keys may change over the lifetime of the value.
+ * </ul>
+ *
+ * @author <a href="mailto:ben.manes@reardencommerce.com">Ben Manes</a>
+ */
+public class IndexMap<K, V> extends AbstractMap<K, V> implements ConcurrentMap<K, V> {
+    private final ConcurrentMap<K, V> store;
+    private final Function<V, Index<K>> extractor;
+    private final ConcurrentMap<K, Index<K>> indexes;
+
+    /**
+     * An implementation backed by a {@link ConcurrentHashMap}.
+     *
+     * @param extractor Extracts the keys that are associated with the given value.
+     */
+    public IndexMap(Function<V, Index<K>> extractor) {
+        this(new ConcurrentHashMap<K, V>(), extractor);
+    }
+
+    /**
+     * An implementation backed by the specified map.
+     *
+     * @param store     The backing data map to decorate.
+     * @param extractor Extracts the keys that are associated with the given value.
+     */
+    public IndexMap(ConcurrentMap<K, V> store, Function<V, Index<K>> extractor) {
+        this(store, new ConcurrentHashMap<K, Index<K>>(), extractor);
+    }
+
+    /**
+     * An implementation backed by the specified map.
+     *
+     * @param store     The backing data map to decorate.
+     * @param indexes   The backing key index map to decorate.
+     * @param extractor Extracts the keys that are associated with the given value.
+     */
+    public IndexMap(ConcurrentMap<K, V> store, ConcurrentMap<K, Index<K>> indexes, Function<V, Index<K>> extractor) {
+        this.store = notNull(store);
+        this.indexes = notNull(indexes);
+        this.extractor = notNull(extractor);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean containsKey(Object key) {
+        return indexes.containsKey(key);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean containsValue(Object value) {
+        return store.containsValue(value);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean isEmpty() {
+        return store.isEmpty();
+    }
+
+    /**
+     * Retrieves the number of values in the map, rather than the number of key-value pairs. The size reflects the true
+     * size of the store and the number of keys can be retrieved inexpensively through the {@link #keySet()} method.
+     *
+     * @return The number of values in the map.
+     */
+    @Override
+    public int size() {
+        return store.size();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void clear() {
+        for (K key : store.keySet()) {
+            remove(key);
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public V get(Object key) {
+        Index<K> index = indexes.get(key);
+        return (index == null) ? null : store.get(index.getPrimary());
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public V put(K key, V value) {
+        return put(value);
+    }
+
+    /**
+     * Places the value into the map and associates its keys.
+     *
+     * @param value The value to put into the map.
+     * @return      The previous value, or <tt>null</tt> if there was no mapping.
+     */
+    public V put(V value) {
+        Index<K> index = extractor.apply(value);
+        V old = store.put(index.getPrimary(), value);
+        if (old == null) {
+            addIndex(index);
+        } else {
+            updateIndex(extractor.apply(old), index);
+        }
+        return old;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public V putIfAbsent(K key, V value) {
+        return putIfAbsent(value);
+    }
+
+    /**
+     * Places the value into the map if absent and associates its keys.
+     *
+     * @param value The value to put into the map.
+     * @return      The previous value, or <tt>null</tt> if there was no mapping.
+     */
+    public V putIfAbsent(V value) {
+        Index<K> index = extractor.apply(value);
+        V old = store.putIfAbsent(index.getPrimary(), value);
+        if (old == null) {
+            addIndex(index);
+        }
+        return old;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public V replace(K key, V value) {
+        Index<K> index = indexes.get(key);
+        V old = store.replace(index.getPrimary(), value);
+        if (old != null) {
+            updateIndex(index, extractor.apply(value));
+        }
+        return old;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public boolean replace(K key, V oldValue, V newValue) {
+        Index<K> index = indexes.get(key);
+        if (store.replace(index.getPrimary(), oldValue, newValue)) {
+            updateIndex(index, extractor.apply(newValue));
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public V remove(Object key) {
+        Index<K> index = indexes.get(key);
+        if (index == null) {
+            return null;
+        }
+        V value = store.remove(index.getPrimary());
+        removeIndex(index);
+        return value;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public boolean remove(Object key, Object value) {
+        Index<K> index = indexes.get(key);
+        if (index == null) {
+            return false;
+        }
+        if (store.remove(index.getPrimary(), value)) {
+            removeIndex(index);
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Removes the value and its associates keys from the map.
+     *
+     * @param value The value to remove from the map.
+     * @return      Whether the value was found and removed.
+     */
+    public boolean removeValue(V value) {
+        Index<K> index = extractor.apply(value);
+        return remove(index.getPrimary(), value);
+    }
+
+    /**
+     * Adds the indexed keys.
+     */
+    protected void addIndex(Index<K> index) {
+        indexes.putAll(asMap(index.getAll(), index));
+    }
+
+    /**
+     * Removes the indexed keys.
+     */
+    protected void removeIndex(Index<K> index) {
+        for (K key : index.getAll()) {
+            indexes.remove(key);
+        }
+    }
+
+    /**
+     * Updates the index associations for a replaced value. It is expected that the primary key does not change,
+     * but that secondary key associations may have become stale. If so, the stale indexes are removed and the
+     * new indexes added to the mapping.
+     */
+    protected void updateIndex(Index<K> oldIndex, Index<K> newIndex) {
+        // Removes the stale keys that no longer map to the old index
+        Set<K> removed = new HashSet<K>(oldIndex.getSecondaries());
+        removed.removeAll(newIndex.getSecondaries());
+        for (K key : removed) {
+            indexes.remove(key);
+        }
+
+        // Adds the new keys, or updates old ones, to map to the new index
+        addIndex(newIndex);
+    }
+
+    /**
+     * Retrieves the backing map of the keys to their primary.
+     *
+     * @return The key-primary mapping.
+     */
+    protected ConcurrentMap<K, Index<K>> keyDelegate() {
+        return indexes;
+    }
+
+    /**
+     * Retrieves the backing map of the primary key to the value.
+     *
+     * @return The primary-value mapping.
+     */
+    protected ConcurrentMap<K, V> valueDelegate() {
+        return store;
+    }
+
+    /**
+     * Retrieves the function that extracts the keys from a value.
+     *
+     * @return The key generating function.
+     */
+    public Function<V, Index<K>> extractor() {
+        return extractor;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public Set<K> keySet() {
+        return unmodifiableSet(indexes.keySet());
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public Collection<V> values() {
+        return unmodifiableCollection(store.values());
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public Set<Entry<K, V>> entrySet() {
+        return new EntrySetAdapter();
+    }
+
+    /**
+     * The index associated with a value.
+     *
+     * @author <a href="mailto:ben.manes@reardencommerce.com">Ben Manes</a>
+     */
+    public static final class Index<K> {
+        private final K primary;
+        private final Set<K> secondaries;
+
+        /**
+         * The index keys associated with a single value.
+         *
+         * @param primary   The primary key to the value.
+         * @param secondaries The secondary keys to the value.
+         */
+        public Index(K primary, K... secondaries) {
+            this(primary, ImmutableSet.of(secondaries));
+        }
+
+        /**
+         * The index keys associated with a single value.
+         *
+         * @param primary   The primary key to the value.
+         * @param secondary The secondary keys to the value.
+         */
+        public Index(K primary, Set<K> secondaries) {
+            this.primary = notNull(primary);
+            this.secondaries = unmodifiableSet(secondaries);
+        }
+
+        /**
+         * Retrieves the primary key.
+         */
+        public K getPrimary() {
+            return primary;
+        }
+
+        /**
+         * Retrieves the secondary keys to index with.
+         */
+        public Set<K> getSecondaries() {
+            return secondaries;
+        }
+
+        /**
+         * Retrieves all of the keys.
+         */
+        public Set<K> getAll() {
+            return union(getPrimary(), getSecondaries());
+        }
+    }
+
+    /**
+     * An adapter that represents the association of multiple keys to a single value.
+     */
+    private final class EntrySetAdapter extends AbstractSet<Entry<K,V>> {
+        @Override
+        public void clear() {
+            IndexMap.this.clear();
+        }
+        @Override
+        public int size() {
+            return IndexMap.this.size();
+        }
+        @Override
+        public Iterator<Entry<K, V>> iterator() {
+            return new EntryIteratorAdapter(values().iterator());
+        }
+        @Override
+        public boolean contains(Object obj) {
+            if (!(obj instanceof Entry)) {
+                return false;
+            }
+            Entry<?, ?> entry = (Entry<?, ?>) obj;
+            V value = get(entry.getKey());
+            return (value != null) && (value.equals(entry.getValue()));
+        }
+        @Override
+        public boolean add(Entry<K, V> entry) {
+            return (putIfAbsent(entry.getKey(), entry.getValue()) == null);
+        }
+        @Override
+        public boolean remove(Object obj) {
+            if (!(obj instanceof Entry)) {
+                return false;
+            }
+            Entry<?, ?> entry = (Entry<?, ?>) obj;
+            return IndexMap.this.remove(entry.getKey(), entry.getValue());
+        }
+    }
+
+    /**
+     * An adapter that represents the association of multiple keys to a single value.
+     */
+    private final class EntryIteratorAdapter implements Iterator<Entry<K, V>> {
+        private final Iterator<V> values;
+        private Iterator<K> keys;
+        private V value;
+
+        public EntryIteratorAdapter(Iterator<V> values) {
+            this.keys = emptyIterator();
+            this.values = values;
+        }
+        public boolean hasNext() {
+            return keys.hasNext() || values.hasNext();
+        }
+        public Entry<K, V> next() {
+            if (!keys.hasNext()) {
+                value = values.next();
+                Index<K> index = extractor.apply(value);
+                keys = index.getAll().iterator();
+            }
+            return immutableEntry(keys.next(), value);
+        }
+        public void remove() {
+            IndexMap.this.removeValue(value);
+        }
+    }
+}
+}}}
+
+{{{
+package com.reardencommerce.kernel.collections.shared;
+
+import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertFalse;
+import static org.testng.Assert.assertNotNull;
+import static org.testng.Assert.assertNull;
+import static org.testng.Assert.assertTrue;
+
+import java.util.Map.Entry;
+
+import org.testng.annotations.BeforeMethod;
+import org.testng.annotations.Test;
+
+import com.google.common.base.Function;
+import com.reardencommerce.kernel.collections.shared.IndexMap;
+import com.reardencommerce.kernel.collections.shared.IndexMap.Index;
+
+/**
+ * A unit test for the {@link IndexMap}.
+ *
+ * @author <a href="mailto:ben.manes@reardencommerce.com">Ben Manes</a>
+ */
+public final class IndexMapTest {
+    private final IndexMap<Integer, Integer> map = new IndexMap<Integer, Integer>(new IntegerKeyExtractor());
+
+    @BeforeMethod
+    public void reset() {
+        map.clear();
+    }
+
+    @Test
+    public void getPutRemove() {
+        Integer value = 100;
+        assertFalse(map.containsKey(100));
+        assertFalse(map.containsValue(value));
+
+        // add
+        assertNull(map.put(value));
+        assertTrue(map.containsValue(value));
+        for (int i=100; i<105; i++) {
+            assertTrue(map.containsKey(i));
+            assertEquals(map.get(i), value);
+        }
+        assertEquals(map.size(), 1);
+        assertEquals(map.keySet().size(), 5);
+        assertEquals(map.values().size(), 1);
+        assertNotNull(map.putIfAbsent(value));
+
+        // remove
+        assertEquals(map.remove(value), value);
+        for (int i=value; i<value+5; i++) {
+            assertFalse(map.containsKey(i));
+        }
+        assertTrue(map.isEmpty());
+
+        // add back
+        assertNull(map.putIfAbsent(value));
+        assertTrue(map.remove(value+2, value));
+        assertTrue(map.isEmpty());
+    }
+
+    @Test
+    public void iterators() {
+        map.put(100);
+        map.put(200);
+        map.put(300);
+        map.put(400);
+
+        for (int key : map.keySet()) {
+            assertTrue(map.containsKey(key));
+        }
+        for (int value : map.values()) {
+            assertTrue(map.containsValue(value));
+        }
+        for (Entry<Integer, Integer> entry : map.entrySet()) {
+            assertTrue(map.containsKey(entry.getKey()));
+            assertTrue(map.containsValue(entry.getValue()));
+        }
+    }
+
+    private static final class IntegerKeyExtractor implements Function<Integer, Index<Integer>> {
+        public Index<Integer> apply(Integer value) {
+            return new Index<Integer>(value, value+1, value+2, value+3, value+4);
+        }
+    }
+}
+}}}
