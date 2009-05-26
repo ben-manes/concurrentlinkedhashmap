@@ -23,7 +23,7 @@ The probability of a hash collision can be determined by applying the equation d
 
   [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/probability.gif]
 
-|| N || Probability ||
+|| *N* || *Probability* ||
 || 10,000 || 1% ||
 || 50,000 || 25% ||
 || 100,000 || 69% ||
@@ -32,7 +32,7 @@ The probability of a hash collision can be determined by applying the equation d
 
 A [http://java.sun.com/javase/6/docs/api/java/util/concurrent/ConcurrentHashMap.html ConcurrentHashMap] supports up to 65,536 (2^16) segments. By assuming an uniform distribution across segments then the length of the link chain to search through would grow as follows:
 
-|| N || Links ||
+|| *N* || *Links* ||
 || 200,000 || 3 ||
 || 500,000 || 8 ||
 || 1,000,000 || 15 ||
