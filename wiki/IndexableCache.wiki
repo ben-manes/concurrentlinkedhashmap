@@ -44,6 +44,9 @@ public class UserProfileService {
       user.setLoginName(loginName);
       cache.get(template, "byLoginName");
     }
+
+    // etc
+}
 }}}
 
 = Implementation =
