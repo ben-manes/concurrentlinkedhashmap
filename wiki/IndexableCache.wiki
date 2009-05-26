@@ -3,7 +3,7 @@
 
 = Introduction =
 
-A [http://java.sun.com/javase/6/docs/api/java/util/Map.html Map] provides the ability to work with key->value pairs and treats each entry independantly. A common use-case is that the same value could be retrieved by multiple keys. In most usages the map is unbounded and used for a short duration, so the value can be safely referenced in multiple key->value pairs.
+A [http://java.sun.com/javase/6/docs/api/java/util/Map.html Map] provides the ability to work with key->value pairs and treats each entry independently. A common use-case is that the same value could be retrieved by multiple keys. In most usages the map is unbounded and used for a short duration, so the value can be safely referenced in multiple key->value pairs.
 
 In caching, the map is bounded and multiple entries for the same value would impact the size and statistical information. An alternative approach is to store a primaryKey->value mapping in the cache and store a key->primaryKey in a separate mapping. When the value is added, removed, or evicted the key mapping must be updated accordingly.
 
