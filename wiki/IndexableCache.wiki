@@ -51,7 +51,7 @@ public class UserProfileService {
 
 = Implementation =
 
-The following shows a production-quality implementation of an indexable caching decorator. Note that in our current usage, concurrent insertion/removal/eviction of the same element doesn't occur. If it did then there is a race condition which would allow stale entries to remain in the key mapping. A future version will fix this by leveraging lock striping.
+The following shows a production-quality implementation of an indexable caching decorator. Note that in our current usage, concurrent insertion/removal/eviction of the same element doesn't occur. If it did then there is a race condition which would allow stale entries to remain in the key mapping. A future version will fix this by leveraging lock striping. It is assumed that on an cache eviction a listener performs a call-back to update the decorator.
 
 {{{
 package com.reardencommerce.kernel.collections.shared;
