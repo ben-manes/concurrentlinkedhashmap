@@ -19,7 +19,7 @@ If the _Least Recently Used_ policy is used then the amount of expected concurre
 
 A hash table uses a hashing function to spread the entries across segments, each of which consists of a linked list. This requires that each operation searches the segment's link chain, such as to determine the element for retrieval. This provides O(L) performance if the hashing function provides uniform distribution. If there are few hash collisions due to a greater number of segments than entries, the performance is O(1).
 
-The probability of a hash collision can be determined by applying the equation derived from the _birthday problem_ to hashing. In the following equation, *H* is the number of possible outputs (2^32) and *n* is the number of entries.
+The probability of a hash collision can be determined by applying the equation derived from the _birthday problem_ to hashing. In the following equation, *H* is the number of possible outputs and *n* is the number of entries. As Java uses a 32-bit hashcode, *H* is 4.3 billion (2^32).
 
   [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/probability.gif]
 
