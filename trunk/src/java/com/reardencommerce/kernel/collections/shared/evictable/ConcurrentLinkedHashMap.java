@@ -619,7 +619,6 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
      */
     private final class KeySet extends AbstractSet<K> {
         private final ConcurrentLinkedHashMap<K, V> map = ConcurrentLinkedHashMap.this;
-        private final Set<K> keys = map.data.keySet();
 
         @Override
         public int size() {
@@ -635,7 +634,7 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
         }
         @Override
         public boolean contains(Object obj) {
-            return keys.contains(obj);
+            return map.containsKey(obj);
         }
         @Override
         public boolean remove(Object obj) {
@@ -643,11 +642,11 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
         }
         @Override
         public Object[] toArray() {
-            return keys.toArray();
+            return map.data.keySet().toArray();
         }
         @Override
         public <T> T[] toArray(T[] array) {
-            return keys.toArray(array);
+            return map.data.keySet().toArray(array);
         }
     }
 
