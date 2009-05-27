@@ -69,8 +69,7 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
     final Node<K, V> sentinel;
 
     /**
-     * Creates a new, empty, unbounded map with the specified maximum capacity and the default
-     * concurrencyLevel.
+     * Creates a map with the specified eviction policy, maximum capacity, and at the default concurrency level.
      *
      * @param policy          The eviction policy to apply when the size exceeds the maximum capacity.
      * @param maximumCapacity The maximum capacity to coerces to. The size may exceed it temporarily.
@@ -81,8 +80,8 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
     }
 
     /**
-     * Creates a new, empty, unbounded map with the specified maximum capacity and the default
-     * concurrencyLevel.
+     * Creates a map with the specified eviction policy, maximum capacity, eviction listener, and at the
+     * default concurrency level.
      *
      * @param policy          The eviction policy to apply when the size exceeds the maximum capacity.
      * @param maximumCapacity The maximum capacity to coerces to. The size may exceed it temporarily.
@@ -93,7 +92,7 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
     }
 
     /**
-     * Creates a new, empty, unbounded map with the specified maximum capacity and concurrency level.
+     * Creates a map with the specified eviction policy, maximum capacity, and concurrency level.
      *
      * @param policy           The eviction policy to apply when the size exceeds the maximum capacity.
      * @param maximumCapacity  The maximum capacity to coerces to. The size may exceed it temporarily.
@@ -106,7 +105,7 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
     }
 
     /**
-     * Creates a new, empty, unbounded map with the specified maximum capacity and concurrency level.
+     * Creates a map with the specified eviction policy, maximum capacity, eviction listener, and concurrency level.
      *
      * @param policy           The eviction policy to apply when the size exceeds the maximum capacity.
      * @param maximumCapacity  The maximum capacity to coerces to. The size may exceed it temporarily.
@@ -136,8 +135,7 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
     }
 
     /**
-     * Sets the maximum capacity of the map and eagerly evicts entries until the
-     * it shrinks to the appropriate size.
+     * Sets the maximum capacity of the map and eagerly evicts entries until the it shrinks to the appropriate size.
      *
      * @param capacity The maximum capacity of the map.
      */
@@ -620,15 +618,16 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
      * An adapter to safely externalize the keys.
      */
     private final class KeySet extends AbstractSet<K> {
-        private final Set<K> keys = ConcurrentLinkedHashMap.this.data.keySet();
+        private final ConcurrentLinkedHashMap<K, V> map = ConcurrentLinkedHashMap.this;
+        private final Set<K> keys = map.data.keySet();
 
         @Override
         public int size() {
-            return keys.size();
+            return map.size();
         }
         @Override
         public void clear() {
-            ConcurrentLinkedHashMap.this.clear();
+            map.clear();
         }
         @Override
         public Iterator<K> iterator() {
@@ -640,7 +639,7 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
         }
         @Override
         public boolean remove(Object obj) {
-            return (ConcurrentLinkedHashMap.this.remove(obj) != null);
+            return (map.remove(obj) != null);
         }
         @Override
         public Object[] toArray() {
@@ -797,8 +796,7 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
             return iterator.hasNext();
         }
         public Entry<K, V> next() {
-            Node<K, V> node = iterator.next();
-            current = new SimpleEntry<K, V>(node.getKey(), node.getValue());
+            current = new NodeEntry(iterator.next());
             return current;
         }
         public void remove() {
@@ -811,9 +809,60 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
     }
 
     /**
+     * An entry that reflects the current state of the node
+     */
+    private final class NodeEntry implements Entry<K, V> {
+        private final ConcurrentLinkedHashMap<K, V> map = ConcurrentLinkedHashMap.this;
+        private final Node<K, V> node;
+
+        public NodeEntry(Node<K, V> node) {
+            this.node = node;
+        }
+        public K getKey() {
+            return node.getKey();
+        }
+        public V getValue() {
+            if (node.getNext() == null) {
+                V value = map.get(getKey());
+                if (value != null) {
+                    return value;
+                }
+            }
+            return node.getValue();
+        }
+        public V setValue(V value) {
+            return map.replace(getKey(), value);
+        }
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == this) {
+                return true;
+            } else if (!(obj instanceof Entry)) {
+                return false;
+            }
+            Entry<?, ?> entry = (Entry<?, ?>) obj;
+            return eq(getKey(), entry.getKey()) && eq(getValue(), entry.getValue());
+        }
+        @Override
+        public int hashCode() {
+            K key = getKey();
+            V value = getValue();
+            return ((key   == null) ? 0 :   key.hashCode()) ^
+                   ((value == null) ? 0 : value.hashCode());
+        }
+        @Override
+        public String toString() {
+            return getKey() + "=" + getValue();
+        }
+        private boolean eq(Object o1, Object o2) {
+            return (o1 == null) ? (o2 == null) : o1.equals(o2);
+        }
+    }
+
+    /**
      * This duplicates {@link java.util.AbstractMap.SimpleEntry} until the class is made accessible (public in JDK-6).
      */
-    private static final class SimpleEntry<K,V> implements Entry<K,V> {
+    private static class SimpleEntry<K, V> implements Entry<K, V> {
         private final K key;
         private V value;
 

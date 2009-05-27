@@ -123,12 +123,12 @@ public final class SingleThreadedTest extends BaseTest {
     }
 
     /**
-     * Tests the Fifo policy is being working correctly when the entry is retrieved by {@link Map#containsKey(Object)}
+     * Tests that the Fifo policy is working correctly when the entry is retrieved by {@link Map#containsKey(Object)}
      * and {@link Map#putIfAbsent()}. The latter is critical for proper usage in a memoizer (e.g. SelfPopulatingMap).
      */
     @Test(groups="development")
-    public void FifoOnAccess() {
-        debug(" * FifoOnAccess: START");
+    public void fifoOnAccess() {
+        debug(" * fifoOnAccess: START");
         ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap(FIFO, 50);
         Node<Integer, Integer> node = cache.sentinel.getNext();
         int length = cache.length.get();
@@ -151,13 +151,13 @@ public final class SingleThreadedTest extends BaseTest {
     }
 
     /**
-     * Tests the SecondChance Fifo policy is being working correctly when the entry is retrieved by
+     * Tests that the SecondChance Fifo policy is working correctly when the entry is retrieved by
      * {@link Map#containsKey(Object)} and {@link Map#putIfAbsent()}. The latter is critical for proper
      * usage in a memoizer (e.g. SelfPopulatingMap).
      */
     @Test(groups="development")
     public void SecondChanceOnAccess() {
-        debug(" * SecondChanceOnAccess: START");
+        debug(" * secondChanceOnAccess: START");
         ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap(SECOND_CHANCE, 50);
         Node<Integer, Integer> headNode = cache.sentinel.getNext();
         Node<Integer, Integer> tailNode = cache.sentinel.getPrev();
@@ -182,12 +182,12 @@ public final class SingleThreadedTest extends BaseTest {
     }
 
     /**
-     * Tests the Lru policy is being working correctly when the entry is retrieved by {@link Map#containsKey(Object)}
+     * Tests the the Lru policy is working correctly when the entry is retrieved by {@link Map#containsKey(Object)}
      * and {@link Map#putIfAbsent()}. The latter is critical for proper usage in a memoizer (e.g. SelfPopulatingMap).
      */
     @Test(groups="development")
-    public void LruOnAccess() {
-        debug(" * LruOnAccess: START");
+    public void lruOnAccess() {
+        debug(" * lruOnAccess: START");
         ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap(LRU, 50);
         Node<Integer, Integer> headNode = cache.sentinel.getNext();
         Node<Integer, Integer> tailNode = cache.sentinel.getPrev();
@@ -325,6 +325,7 @@ public final class SingleThreadedTest extends BaseTest {
         Integer key = keys.iterator().next();
         int initialSize = cache.size();
 
+        // key set reflects map
         assertEquals(keys, cache.data.keySet());
         try {
             assertFalse(keys.add(key));
@@ -340,6 +341,13 @@ public final class SingleThreadedTest extends BaseTest {
         assertEquals(keys.size(), initialSize-1);
         assertEquals(cache.size(), initialSize-1);
 
+        // key iterator
+        Iterator<Integer> iterator = keys.iterator();
+        for (Node<Integer, Integer> node : cache.data.values()) {
+            assertEquals(iterator.next(), node.getKey());
+        }
+        assertFalse(iterator.hasNext());
+
         Iterator<Integer> iter = keys.iterator();
         Integer i = iter.next();
         iter.remove();
@@ -348,10 +356,12 @@ public final class SingleThreadedTest extends BaseTest {
         assertEquals(keys.size(), initialSize-2);
         assertEquals(cache.size(), initialSize-2);
 
+        // toArray
         assertTrue(Arrays.equals(keys.toArray(), cache.data.keySet().toArray()));
         assertTrue(Arrays.equals(keys.toArray(new Integer[cache.size()]),
                                  cache.data.keySet().toArray(new Integer[cache.size()])));
 
+        // other
         cache.setCapacity(capacity/2);
         assertEquals(keys.size(), capacity/2);
 
@@ -371,12 +381,7 @@ public final class SingleThreadedTest extends BaseTest {
         Integer value = values.iterator().next();
         int initialSize = cache.size();
 
-        Iterator<Integer> iterator = values.iterator();
-        for (Node<Integer, Integer> node : cache.data.values()) {
-            assertEquals(iterator.next(), node.getValue());
-        }
-        assertFalse(iterator.hasNext());
-
+        // value collection reflects map
         try {
             assertFalse(values.add(value));
             fail("Not supported by maps");
@@ -391,6 +396,13 @@ public final class SingleThreadedTest extends BaseTest {
         assertEquals(values.size(), initialSize-1);
         assertEquals(cache.size(), initialSize-1);
 
+        // values iterator
+        Iterator<Integer> iterator = values.iterator();
+        for (Node<Integer, Integer> node : cache.data.values()) {
+            assertEquals(iterator.next(), node.getValue());
+        }
+        assertFalse(iterator.hasNext());
+
         Iterator<Integer> iter = values.iterator();
         Integer i = iter.next();
         iter.remove();
@@ -399,6 +411,7 @@ public final class SingleThreadedTest extends BaseTest {
         assertEquals(values.size(), initialSize-2);
         assertEquals(cache.size(), initialSize-2);
 
+        // toArray
         List<Integer> list = new ArrayList<Integer>();
         for (Node<Integer, Integer> node : cache.data.values()) {
             list.add(node.getValue());
@@ -406,6 +419,7 @@ public final class SingleThreadedTest extends BaseTest {
         assertTrue(Arrays.equals(values.toArray(), list.toArray()));
         assertTrue(Arrays.equals(values.toArray(new Integer[cache.size()]), list.toArray(new Integer[cache.size()])));
 
+        // other
         cache.setCapacity(capacity/2);
         assertEquals(values.size(), capacity/2);
 
@@ -425,18 +439,26 @@ public final class SingleThreadedTest extends BaseTest {
         Entry<Integer, Integer> entry = entries.iterator().next();
         int initialSize = cache.size();
 
+        // Entry updates reflect map
+        Integer oldValue = entry.getValue();
+        assertEquals(entry.setValue(Integer.MIN_VALUE), oldValue);
+        assertTrue(entry.getValue().equals(Integer.MIN_VALUE));
+        assertTrue(cache.containsValue(Integer.MIN_VALUE));
+
+        // entryset reflects map
         assertEquals(entries.size(), initialSize);
         assertTrue(entries.contains(entry));
         assertFalse(entries.add(entry));
         assertTrue(entries.remove(entry));
         assertFalse(entries.remove(entry));
         assertFalse(cache.containsKey(entry.getKey()));
-        assertFalse(cache.containsValue(entry.getKey()));
+        assertFalse(cache.containsValue(entry.getValue()));
         assertEquals(entries.size(), initialSize-1);
         assertEquals(cache.size(), initialSize-1);
         assertTrue(entries.add(entry));
         assertEquals(entries.size(), initialSize);
 
+        // entry iterator
         Map<Integer, Integer> map = new HashMap<Integer, Integer>();
         for (Entry<Integer, Integer> e : entries) {
             map.put(e.getKey(), e.getValue());
@@ -451,14 +473,12 @@ public final class SingleThreadedTest extends BaseTest {
         assertEquals(entries.size(), initialSize-1);
         assertEquals(cache.size(), initialSize-1);
 
+        // toArray
         List<Entry<Integer, Integer>> list = asList(entries.toArray((Entry<Integer, Integer>[]) new Entry[initialSize-1]));
         assertTrue(new HashSet<Entry<Integer, Integer>>(list).equals(entries));
         assertTrue(new HashSet(asList(entries.toArray())).equals(entries));
 
-        //TODO: support?
-        //entry.setValue(Integer.MIN_VALUE);
-        //assertTrue(cache.containsValue(Integer.MIN_VALUE));
-
+        // other
         cache.setCapacity(capacity/2);
         assertEquals(entries.size(), capacity/2);
 
@@ -522,7 +542,7 @@ public final class SingleThreadedTest extends BaseTest {
     }
 
     /**
-     * Tests that entries are evicted in Second Chance FIFO order using a simple working set.
+     * Tests that entries are evicted in Second Chance FIFO order.
      */
     @Test(groups="development")
     public void evictAsSecondChance() {
@@ -570,7 +590,7 @@ public final class SingleThreadedTest extends BaseTest {
     }
 
     /**
-     * Tests that entries are evicted in LRU order using a complex working set.
+     * Tests that entries are evicted in LRU order.
      */
     @Test(groups="development")
     public void evictAsLru() {
