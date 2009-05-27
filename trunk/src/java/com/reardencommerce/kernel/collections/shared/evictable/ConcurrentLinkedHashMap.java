@@ -809,7 +809,7 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
     }
 
     /**
-     * An entry that reflects the current state of the node
+     * An entry that is tied to the map instance to allow updates through the entry or the map to be visible.
      */
     private final class NodeEntry implements Entry<K, V> {
         private final ConcurrentLinkedHashMap<K, V> map = ConcurrentLinkedHashMap.this;
