@@ -9,7 +9,7 @@ In caches the map is bounded and multiple entries for the same value would impac
 
 == Example ==
 
-An application may retrieve a user's profile by different lookup approaches. The primary usage may be by a unique identifier, while alternative flows may be by the user's email address or login name. In complex applications, there may be many alternative lookup approaches based on multiple properties.
+An application may retrieve a user's profile by different lookup approaches. The primary usage may be by a unique identifier, while alternative flows may be by the user's email address or login name. In complex applications there may be many alternative lookup approaches based on multiple properties.
 
 || *Key* || *Property* || *Type* ||
 || id || user.getId() || Primary ||
