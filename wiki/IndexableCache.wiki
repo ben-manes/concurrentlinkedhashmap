@@ -20,7 +20,7 @@ An interesting aspect of the keys is that they are all subsets of the properties
 
 == Usage ==
 
-The following shows how indexing can be leveraged by a caching facade. The value contains metadata describing the cache information to allow automatic key extraction and association to a cache region. A benefit is that separate key classes are not required, but rather the domain object treated is like a template for retrieving the full value. This can be thought of as a "named lookup" style similar to Hibernate's "named query" approach.
+The following shows how indexing can be leveraged by a caching facade. The value contains metadata describing the cache information to allow automatic key extraction and association to a cache region. A benefit is that separate key classes are not required, but rather the domain object is treated like a template for retrieving the full value. This can be thought of as a "named lookup" style similar to Hibernate's "named query" approach.
 
 {{{
 public class UserProfileService {
