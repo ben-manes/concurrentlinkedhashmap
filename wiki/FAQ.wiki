@@ -42,7 +42,7 @@ The probability of a hash collision can be determined by applying the equation d
 || 150,000 || 93% ||
 || 200,000 || 99% ||
 
-A [http://java.sun.com/javase/6/docs/api/java/util/concurrent/ConcurrentHashMap.html ConcurrentHashMap] supports up to 65,536 (2^16) segments. By assuming an uniform distribution across segments then the length of the link chain to search through would grow as follows:
+A [http://java.sun.com/javase/6/docs/api/java/util/concurrent/ConcurrentHashMap.html ConcurrentHashMap] supports up to 65,536 (2^16) segments. By assuming a uniform distribution across segments then the length of the link chain to search through would grow as follows:
 
 || *N* || *Links* ||
 || 200,000 || 3 ||
