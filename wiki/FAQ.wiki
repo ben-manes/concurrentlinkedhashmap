@@ -17,7 +17,7 @@ The practicality of why one would need this data structure is an interesting que
 
 If the application realizes a noticable performance gain by using this type of data structure, it most likely indicates that there is a design flaw. As memory is a very expensive resource, a layering of caches (memory, disk, etc) should provide an acceptable miss penalty. The scope of data should be limited when possible, such as through thread-local storage if used only by a single execution flow. Techniques like these should be leveraged so that the application's acceptable performance is not impacted by this type of data structure.
 
-The primary value for using this data structure should be (1) as a performance buffer to provide time to fix the application's architecture; (2) to improve operational cost and aid in capacity planning. By having a higher performance application, costs can be reduced in cooling, server management, hardware, etc. This goal is achieved by aggregating many improvements.
+The primary value for using this data structure should be (1) as a performance buffer to provide time to fix the application's architecture; (2) to improve operational cost and aid in capacity planning. By having a higher performance application the costs can be reduced in cooling, server management, hardware, etc. This goal is achieved by aggregating many improvements.
 
 This discussion is not to disway usage of this data structure or others like it. However, from a practical perspective it should have limited value. From a theoretical perspective, it is a fun engineering exercise.
 
