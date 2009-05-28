@@ -19,7 +19,7 @@ If the application realizes a noticable performance gain by using this type of d
 
 The primary value for using this data structure should be (1) as a performance buffer to provide time to fix the application's architecture; (2) to improve operational cost and aid in capacity planning. By having a higher performance application the costs can be reduced in cooling, server management, hardware, etc. This goal is achieved by aggregating many improvements.
 
-This discussion is not to disway usage of this data structure or others like it. However, from a practical perspective it should have limited value. From a theoretical perspective, it is a fun engineering exercise.
+This discussion is not to disway usage of this data structure or others like it. However, from a practical perspective it should have limited value. From a theoretical perspective it is a fun engineering exercise.
 
 * Which eviction policy is recommended?
 
