@@ -9,6 +9,18 @@ Special thanks to (in no particular order):
  * Bob Lane, whose performance and concurrency expertise was invaluable when exploring algorithmic ideas.
 
 == Usage ==
+* Should I use this data structure?
+
+While a goal is to have a functional implementation that can be used, the primary motivation for its creation was exploratory. It serves as a means to better understand concurrent and lock free algorithms by experimenting with different techinques. A pragmatic approach would be to implement a known algorithm, but this would not be educational and therefore defeats this project's sole purpose.
+
+The practicality of why one would need this data structure is an interesting question. The miss penalty of a cache will far outweigh the overhead of synchronization on a cache hit. If lock contention is the issue then much simpler approaches offer equivilant performance. Example acceptable solutions include (1) an eviction thread that is woken when a threshold is crossed, (2) an eviction queue, (3) a LinkedHashMap guarded by a read/write lock, and (4) eviction based on statistical sampling.
+
+If the application realizes a noticable performance gain by using this type of data structure, it most likely indicates that there is a design flaw. As memory is a very expensive resource, a layering of caches (memory, disk, etc) should provide an acceptable miss penalty. The scope of data should be limited when possible, such as through thread-local storage if used only by a single execution flow. Techniques like these should be leveraged so that the application's acceptable performance is not impacted by this type of data structure.
+
+The primary value for using this data structure should be (1) as a performance buffer to provide time to fix the application's architecture; (2) to improve operational cost and aid in capacity planning. By having a higher performance application, costs can be reduced in cooling, server management, hardware, etc. This goal is achieved by aggregating many improvements.
+
+This discussion is not to disway usage of this data structure or others like it. However, from a practical perspective it should have limited value. From a theoretical perspective, it is a fun engineering exercise.
+
 * Which eviction policy is recommended?
 
 The _Second Chance Fifo_ policy provides both an excellent hit rate and concurrency performance. It is recommended as the primary policy.
