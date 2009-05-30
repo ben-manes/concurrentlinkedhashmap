@@ -27,42 +27,6 @@ The _Second Chance Fifo_ policy provides both an excellent hit rate and concurre
 
 If the _Least Recently Used_ policy is used then the amount of expected concurrency should be relatively small. This is because each operation requires reordering the list which creates contention at the tail. In practice the cost is acceptable, but in extreme usages this policy will have poor performance characteristics.
 
-* What is the maximum capacity?
-
-A hash table uses a hashing function to spread the entries across segments, each of which consists of a linked list. This requires that each operation searches the segment's link chain, such as to determine the element for retrieval. This provides O(L) performance if the hashing function provides uniform distribution. If there are few hash collisions due to a greater number of segments than entries, the performance is O(1).
-
-The probability of a hash collision can be determined by applying the equation derived from the _birthday problem_ to hashing. In the following equation, *H* is the number of possible outputs and *n* is the number of entries. As Java uses a 32-bit hashcode, *H* is 4.3 billion (2^32).
-
-  [http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/probability.gif]
-
-|| *N* || *Probability* ||
-|| 10,000 || 1% ||
-|| 50,000 || 25% ||
-|| 100,000 || 69% ||
-|| 150,000 || 93% ||
-|| 200,000 || 99% ||
-
-A [http://java.sun.com/javase/6/docs/api/java/util/concurrent/ConcurrentHashMap.html ConcurrentHashMap] supports up to 65,536 (2^16) segments. By assuming a uniform distribution across segments then the length of the link chain to search through would grow as follows:
-
-|| *N* || *Links* ||
-|| 200,000 || 3 ||
-|| 500,000 || 8 ||
-|| 1,000,000 || 15 ||
-|| 5,000,000 || 76 ||
-|| 10,000,000 || 153 ||
-
-At a million or greater entries, the cost of searching the link chain will become unnacceptable. As the hashing function is not truly uniform then the upper bound should probably be at around 200,000 entries. A greater number of entries could be achieved by using a composite view. This composite map would use a different hashing function to select a data map to delegate to. For example, 300+ data maps would be required at 50 million entries to achieve acceptable performance.
-
-An alternative with large maps is to use a skip-list, which provides the properties of a tree with better concurrency characteristics. By delegating to a [http://java.sun.com/javase/6/docs/api/java/util/concurrent/ConcurrentSkipListMap.html ConcurrentSkipListMap] the search becomes O(log n). At over 1.3 million entries the skip-list provides a more efficient data structure.
-
-|| *N* || *Height* ||
-|| 200,000 || 18 ||
-|| 500,000 || 19 ||
-|| 1,000,000 || 20 ||
-|| 5,000,000 || 22 ||
-|| 10,000,000 || 23 ||
-
-
 == Development ==
 * Why are fields marked volatile with an [http://java.sun.com/javase/6/docs/api/java/util/concurrent/atomic/AtomicReferenceFieldUpdater.html AtomicReferenceFieldUpdater] instead of using an [http://java.sun.com/javase/6/docs/api/java/util/concurrent/atomic/AtomicReference.html AtomicReference]?
 
