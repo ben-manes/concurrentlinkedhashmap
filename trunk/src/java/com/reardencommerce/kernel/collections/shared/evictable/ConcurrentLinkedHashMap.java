@@ -135,7 +135,7 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
     }
 
     /**
-     * Sets the maximum capacity of the map and eagerly evicts entries until the it shrinks to the appropriate size.
+     * Sets the maximum capacity of the map and eagerly evicts entries until it shrinks to the appropriate size.
      *
      * @param capacity The maximum capacity of the map.
      */
@@ -200,7 +200,7 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
             if (node == sentinel) {
                 return false;
             } else if (policy.onEvict(this, node)) {
-                // Attempt to remove the node if its still available
+                // Attempt to remove the node if it's still available
                 if (data.remove(node.getKey(), new Identity(node))) {
                     length.decrementAndGet();
                     node.remove();
@@ -359,7 +359,7 @@ public class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements 
     }
 
     /**
-     * The replacement policy to apply to determine which entry to discard to when the capacity has been reached.
+     * The replacement policy to apply to determine which entry to discard when the capacity has been reached.
      */
     public enum EvictionPolicy {
 
