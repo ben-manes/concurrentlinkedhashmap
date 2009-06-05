@@ -28,21 +28,21 @@ public class UserProfileService {
     private Cache cache;
 
     public User getUserById(long id) {
-      User template = new User();
+      User user = new User();
       user.setId(id);
-      return cache.get(template, "byId");
+      return cache.get(user, "byId");
     }
 
     public User getUserByEmail(String email) {
-      User template = new User();
+      User user = new User();
       user.setEmail(email);
-      return cache.get(template, "byEmail");
+      return cache.get(user, "byEmail");
     }
 
     public User getUserByLoginName(String loginName) {
-      User template = new User();
+      User user = new User();
       user.setLoginName(loginName);
-      return cache.get(template, "byLoginName");
+      return cache.get(user, "byLoginName");
     }
 
     // etc
