@@ -51,7 +51,418 @@ public class UserProfileService {
 
 = Implementation =
 
-The following shows an implementation of an indexable caching decorator. Note that in our current usage, a concurrent insertion/removal/eviction of the same element doesn't occur. If it did then there is a race condition which would allow stale entries to remain in the key mapping. A future version will fix this by leveraging lock striping. Improvements in test coverage is also desirable. It is assumed that on an cache eviction a listener performs a call-back to update the decorator.
+The following shows an implementation of an indexable caching decorator. It uses a data map to store the association from the primaryKey to the value. A secondary map stores a key to the index. An entry is retrieved by using the lookup table to determine the primary key for retrieval from the data map.
+
+== Concurrency ==
+
+The !IndexMap must perform multiple operations when a insertion, update, or removal occurs to keep both mappings in sync. Rather than using a single lock, _lock striping_ can be used as each entry must have a unique set of keys. This allows a high level of concurrency while maintaining correctness by blocking concurrent operations for the same entry.
+
+A traditional _static_ model is adopted by using an array of locks. This approach is performant, but requires a good sizing as independent entry operations may contend due to sharing a lock instance. An alternative _dynamic_ model leverages the garbage collector to acheive per entry locks, but will likely not offer a significant performance improvement in practice.
+
+{{{
+/**
+ * A reentrant mutual exclusive {@link StripedLock} with a selection algorithm based on the object's identity
+ * ({@link #hashCode()} and {@link #equals(Object)} operations).
+ * <p>
+ * The individual locks supports a maximum of 2147483648 recursive locks by the same thread.
+ *
+ * @author <a href="mailto:ben.manes@reardencommerce.com">Ben Manes</a>
+ */
+public final class ReentrantStripedLock extends ForwardingStripedLock {
+    private final AbstractReentrantStripedLock delegate;
+
+    /**
+     * Creates a {@link StripedLock} using a default number of stripes.
+     *
+     * @return A reentrant mutual exclusive {@link StripedLock}.
+     */
+    public static ReentrantStripedLock createFixed() {
+        return createFixed(256);
+    }
+
+    /**
+     * Creates a {@link StripedLock} using the specified number of stripes.
+     *
+     * @param size The number of locks.
+     * @return     A reentrant mutual exclusive {@link StripedLock}.
+     */
+    public static ReentrantStripedLock createFixed(int size) {
+        return new ReentrantStripedLock(new FixedStripedLock(size));
+    }
+
+    /**
+     * Creates a {@link StripedLock} using a dynamic number of stripes.
+     *
+     * @return A reentrant mutual exclusive {@link StripedLock}.
+     */
+    public static ReentrantStripedLock createDynamic() {
+        return new ReentrantStripedLock(new DynamicStripedLock());
+    }
+
+    /**
+     * Creates a reentrant mutual exclusive {@link StripedLock} with the given selection algorithm.
+     *
+     * @param delegate The lock selection algorithm.
+     */
+    private ReentrantStripedLock(AbstractReentrantStripedLock delegate) {
+        this.delegate = notNull(delegate);
+    }
+
+    /**
+     * Queries if this lock is held by any thread. This method is designed for use in monitoring of the system
+     * state, not for synchronization control.
+     *
+     * @param o The object to select the lock for.
+     * @return  <tt>true</tt> if any thread holds this lock and <tt>false</tt> otherwise.
+     * @see     ReentrantLock#isLocked()
+     */
+    public boolean isLocked(Object o) {
+        return delegate().isLocked(o);
+    }
+
+    /**
+     * Queries if this lock is held by the current thread.
+     *
+     * @param o The object to select the lock for.
+     * @return  <tt>true</tt> if current thread holds this lock and <tt>false</tt> otherwise.
+     * @see     ReentrantLock#isHeldByCurrentThread()
+     */
+    public boolean isHeldByCurrentThread(Object o) {
+        return delegate().isHeldByCurrentThread(o);
+    }
+
+    /**
+     * Queries the number of holds on this lock by the current thread.
+     *
+     * @param o The object to select the lock for.
+     * @return  The number of holds on this lock by the current thread, or zero if this lock is not held
+     *          by the current thread.
+     * @see     ReentrantLock#getHoldCount()
+     */
+    public int getHoldCount(Object o) {
+        return delegate().getHoldCount(o);
+    }
+
+    /**
+     * Queries whether any threads are waiting to acquire this lock. Note that because cancellations may occur at any
+     * time, a <tt>true</tt> return does not guarantee that any other thread will ever acquire this lock.
+     * This method is designed primarily for use in monitoring of the system state.
+     *
+     * @param o The object to select the lock for.
+     * @return  <tt>true</tt> if there may be other threads waiting to acquire the lock.
+     * @see     ReentrantLock#hasQueuedThreads()
+     */
+    public boolean hasQueuedThreads(Object o) {
+        return delegate().hasQueuedThreads(o);
+    }
+
+    /**
+     * Queries whether the given thread is waiting to acquire this lock. Note that because cancellations may occur at
+     * any time, a <tt>true</tt> return does not guarantee that this thread will ever acquire this lock.  This method
+     * is designed primarily for use in monitoring of the system state.
+     *
+     * @param o      The object to select the lock for.
+     * @param thread The thread,
+     * @return       <tt>true</tt> if the given thread is queued waiting for this lock.
+     * @see          ReentrantLock#hasQueuedThread(Thread)
+     */
+    public boolean hasQueuedThread(Object o, Thread thread) {
+        return delegate().hasQueuedThread(o, thread);
+    }
+
+    /**
+     * Returns an estimate of the number of threads waiting to acquire this lock.  The value is only an estimate
+     * because the number of threads may change dynamically while this method traverses internal data structures.
+     * This method is designed for use in monitoring of the system state, not for synchronization control.
+     *
+     * @param o The object to select the lock for.
+     * @return  The estimated number of threads waiting for this lock
+     * @see     ReentrantLock#getQueueLength()
+     */
+    public int getQueueLength(Object o) {
+        return delegate().getQueueLength(o);
+    }
+
+    /**
+     * Queries whether any threads are waiting on the given condition associated with this lock. Note that because
+     * timeouts and interrupts may occur at any time, a <tt>true</tt> return does not guarantee that a future
+     * <tt>signal</tt> will awaken any threads.  This method is designed primarily for use in monitoring of
+     * the system state.
+     *
+     * @param o         The object to select the lock for.
+     * @param condition The condition
+     * @return          <tt>true</tt> if there are any waiting threads.
+     * @see             ReentrantLock#hasWaiters(Condition)
+     */
+    public boolean hasWaiters(Object o, Condition condition) {
+        return delegate().hasWaiters(o, condition);
+    }
+
+    /**
+     * Returns an estimate of the number of threads waiting on the given condition associated with this lock.
+     * Note that because timeouts and interrupts may occur at any time, the estimate serves only as an upper
+     * bound on the actual number of waiters. This method is designed for use in monitoring of the system
+     * state, not for synchronization control.
+     *
+     * @param o         The object to select the lock for.
+     * @param condition The condition.
+     * @return          The estimated number of waiting threads.
+     * @see             ReentrantLock#getWaitQueueLength(Condition)
+     */
+    public int getWaitQueueLength(Object o, Condition condition) {
+        return delegate().getWaitQueueLength(o, condition);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    protected AbstractReentrantStripedLock delegate() {
+        return delegate;
+    }
+
+    /**
+     * The base class for a reentrant striped lock selection algorithm.
+     */
+    private static abstract class AbstractReentrantStripedLock implements StripedLock {
+
+        /**
+         * Retrieves the lock instance for the object.
+         *
+         * @param o The object to select the lock for.
+         * @return  The shared lock instance.
+         */
+        protected abstract ReentrantLock getLock(Object o);
+
+        /**
+         * @see ReentrantStripedLock#isLocked(Object)
+         */
+        public boolean isLocked(Object o) {
+            return getLock(o).isLocked();
+        }
+
+        /**
+         * @see ReentrantStripedLock#isHeldByCurrentThread(Object)
+         */
+        public boolean isHeldByCurrentThread(Object o) {
+            return getLock(o).isHeldByCurrentThread();
+        }
+
+        /**
+         * @see ReentrantStripedLock#getHoldCount(Object)
+         */
+        public int getHoldCount(Object o) {
+            return getLock(o).getHoldCount();
+        }
+
+        /**
+         * @see ReentrantStripedLock#hasQueuedThreads(Object)
+         */
+        public boolean hasQueuedThreads(Object o) {
+            return getLock(o).hasQueuedThreads();
+        }
+
+        /**
+         * @see ReentrantStripedLock#hasQueuedThread(Object, Thread)
+         */
+       public boolean hasQueuedThread(Object o, Thread thread) {
+           return getLock(o).hasQueuedThread(thread);
+       }
+
+       /**
+        * @see ReentrantStripedLock#getQueueLength(Object)
+        */
+       public int getQueueLength(Object o) {
+           return getLock(o).getQueueLength();
+       }
+
+       /**
+        * @see ReentrantStripedLock#getWaitQueueLength(Object, Condition)
+        */
+       public int getWaitQueueLength(Object o, Condition condition) {
+           return getLock(o).getWaitQueueLength(condition);
+       }
+
+       /**
+        * @see ReentrantStripedLock#hasWaiters(Object, Condition)
+        */
+       public boolean hasWaiters(Object o, Condition condition) {
+           return getLock(o).hasWaiters(condition);
+       }
+    }
+
+    /**
+     * Selects the lock based on the object's {@link #hashCode()}. A universal hashing algorithm is applied to
+     * improve the spreading across the lock instances.
+     */
+    private static final class FixedStripedLock extends AbstractReentrantStripedLock {
+        private final ReentrantLock[] locks;
+
+        private FixedStripedLock(int size) {
+            greaterThan(0, size);
+            locks = new ReentrantLock[size];
+            for (int i=0; i<size; i++) {
+                locks[i] = new ReentrantLock();
+            }
+        }
+        @Override
+        protected ReentrantLock getLock(Object o) {
+            return locks[abs(hash(notNull(o)) % locks.length)];
+        }
+        public void lock(Object o) {
+            getLock(o).lock();
+        }
+        public void lockInterruptibly(Object o) throws InterruptedException {
+            getLock(o).lockInterruptibly();
+        }
+        public boolean tryLock(Object o) {
+            return getLock(o).tryLock();
+        }
+        public boolean tryLock(Object o, long time, TimeUnit unit) throws InterruptedException {
+            return getLock(o).tryLock(time, unit);
+        }
+        public void unlock(Object o) {
+            getLock(o).unlock();
+        }
+        public Condition newCondition(Object o) {
+            return getLock(o).newCondition();
+        }
+        @Override
+        public String toString() {
+            return Arrays.toString(locks);
+        }
+    }
+
+    /**
+     * Selects the lock by associating the object to a unique lock instance. The instances are discarded by a weak
+     * reference eviction policy so that mutual exclusion is guaranteed for the duration of the lock's shared usage.
+     * If multiple requests for the lock occur, the operations will be performed serially as only one thread can
+     * lock the mutex. When no threads reference the lock instance then it is eligible for garbage collection.
+     */
+    private static final class DynamicStripedLock extends AbstractReentrantStripedLock {
+        private final ConcurrentMap<Object, ReentrantLock> locks;
+        private final ConcurrentMap<Lock, Integer> references;
+
+        private DynamicStripedLock() {
+            references = new ConcurrentHashMap<Lock, Integer>();
+            locks = new ReferenceMap<Object, ReentrantLock>(STRONG, WEAK);
+        }
+
+        /**
+         * Acquires a strong reference to the lock while it is in use.
+         *
+         * @param lock The shared lock that is being used by this thread.
+         */
+        private void acquire(ReentrantLock lock) {
+            for (;;) {
+                Integer current = references.putIfAbsent(lock, 1);
+                if ((current == null) || references.replace(lock, current, ++current)) {
+                    return; // inserted first use or incremented usage count
+                }
+            }
+        }
+
+        /**
+         * Releases a strong reference to the lock. When it is no longer shared, it is eligible for garbage collection.
+         *
+         * @param lock The shared lock that was previously used by this thread.
+         */
+        private void release(ReentrantLock lock) {
+            for (;;) {
+                Integer current = references.get(lock);
+                if (current.intValue() == 1) {
+                    if (references.remove(lock, current)) {
+                        return; // removed only usage of lock
+                    }
+                    continue; // retry
+                } else if (references.replace(lock, current, --current)) {
+                    return; // decremented shared usage of lock
+                }
+            }
+        }
+        @Override
+        protected ReentrantLock getLock(Object o) {
+            ReentrantLock lock = new ReentrantLock();
+            ReentrantLock current = locks.putIfAbsent(o, lock);
+            return (current == null) ? lock : current;
+        }
+        public void lock(Object o) {
+            ReentrantLock lock = getLock(o);
+            acquire(lock);
+            lock.lock();
+        }
+        public void lockInterruptibly(Object o) throws InterruptedException {
+            ReentrantLock lock = getLock(o);
+            acquire(lock);
+            lock.lockInterruptibly();
+        }
+        public boolean tryLock(Object o) {
+            ReentrantLock lock = getLock(o);
+            if (lock.tryLock()) {
+                acquire(lock);
+                return true;
+            }
+            return false;
+        }
+        public boolean tryLock(Object o, long time, TimeUnit unit) throws InterruptedException {
+            ReentrantLock lock = getLock(o);
+            if (lock.tryLock(time, unit)) {
+                acquire(lock);
+                return true;
+            }
+            return false;
+        }
+        public void unlock(Object o) {
+            ReentrantLock lock = getLock(o);
+            lock.unlock();
+            release(lock);
+        }
+        public Condition newCondition(final Object o) {
+            return new DynamicCondition(getLock(o));
+        }
+        @Override
+        public boolean hasWaiters(Object o, Condition condition) {
+            if (!(condition instanceof DynamicCondition)) {
+                throw new IllegalArgumentException("not owner");
+            }
+            return getLock(o).hasWaiters(((DynamicCondition) condition).condition);
+        }
+        @Override
+        public int getWaitQueueLength(Object o, Condition condition) {
+            if (!(condition instanceof DynamicCondition)) {
+                throw new IllegalArgumentException("not owner");
+            }
+            return getLock(o).getWaitQueueLength(((DynamicCondition) condition).condition);
+        }
+        @Override
+        public String toString() {
+            return locks.toString();
+        }
+
+        /**
+         * A condition that while strongly reachable its associated lock is strongly reachable too.
+         */
+        private static final class DynamicCondition extends ForwardingCondition {
+            @SuppressWarnings("unused")
+            private final ReentrantLock lock;
+            private final Condition condition;
+
+            public DynamicCondition(ReentrantLock lock) {
+                this.lock = lock;
+                this.condition = lock.newCondition();
+            }
+            @Override
+            protected Condition delegate() {
+                return condition;
+            }
+        }
+    }
+}
+}}}
+
+== !IndexMap ==
+
+When used with a cache as the data store, it is assumed that on an eviction a listener performs a call-back to notify the decorator. With a bit of care, the !SelfPopulatingMap can decorate the !IndexMap.
 
 {{{
 package com.reardencommerce.kernel.collections.shared;
@@ -60,12 +471,15 @@ import static com.google.common.collect.Iterators.emptyIterator;
 import static com.google.common.collect.Maps.immutableEntry;
 import static com.reardencommerce.kernel.collections.shared.Maps2.asMap;
 import static com.reardencommerce.kernel.collections.shared.Sets2.union;
+import static com.reardencommerce.kernel.concurrent.shared.locks.ReentrantStripedLock.createFixed;
+import static com.reardencommerce.kernel.utilities.shared.Assertions.isTrue;
 import static com.reardencommerce.kernel.utilities.shared.Assertions.notNull;
 import static java.util.Collections.unmodifiableCollection;
 import static java.util.Collections.unmodifiableSet;
 
 import java.util.AbstractMap;
 import java.util.AbstractSet;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -75,11 +489,13 @@ import java.util.concurrent.ConcurrentMap;
 
 import com.google.common.base.Function;
 import com.google.common.collect.ImmutableSet;
+import com.reardencommerce.kernel.concurrent.shared.locks.StripedLock;
 
 /**
- * A {@link java.util.Map} where multiple keys index to the same value and removal of the value causes the removal
+ * A {@link ConcurrentMap} where multiple keys index to the same value and removal of the value causes the removal
  * of all of its associated keys. When a value is added it can be retrieved by using any of the applicable keys.
- * It is assumed that keys-value mappings do not overlap.
+ * It is assumed that keys-value mappings do not overlap. All operations that update associations in the map and
+ * accept both a key and a value parameter will assert that the given key is a valid association.
  * <p>
  * This implementation provides a different definition of {@link #size()}, which reflects the number of values rather
  * than the number of key-value pairs. The collections retrieved from {@link #keySet()}, {@link #values()}, and
@@ -95,27 +511,40 @@ import com.google.common.collect.ImmutableSet;
  * @author <a href="mailto:ben.manes@reardencommerce.com">Ben Manes</a>
  */
 public class IndexMap<K, V> extends AbstractMap<K, V> implements ConcurrentMap<K, V> {
-    private final ConcurrentMap<K, V> store;
-    private final Function<V, Index<K>> extractor;
     private final ConcurrentMap<K, Index<K>> indexes;
+    private final Function<V, Index<K>> extractor;
+    private final ConcurrentMap<K, V> store;
+    private final StripedLock lock;
 
     /**
-     * An implementation backed by a {@link ConcurrentHashMap}.
+     * An {@link IndexMap} backed by a {@link ConcurrentHashMap}.
      *
      * @param extractor Extracts the keys that are associated with the given value.
      */
-    public IndexMap(Function<V, Index<K>> extractor) {
-        this(new ConcurrentHashMap<K, V>(), extractor);
+    public static <K, V> IndexMap<K, V> create(Function<V, Index<K>> extractor) {
+        return create(new ConcurrentHashMap<K, V>(), extractor);
     }
 
     /**
-     * An implementation backed by the specified map.
+     * An {@link IndexMap} backed by the specified map.
      *
      * @param store     The backing data map to decorate.
      * @param extractor Extracts the keys that are associated with the given value.
      */
-    public IndexMap(ConcurrentMap<K, V> store, Function<V, Index<K>> extractor) {
-        this(store, new ConcurrentHashMap<K, Index<K>>(), extractor);
+    public static <K, V> IndexMap<K, V> create(ConcurrentMap<K, V> store, Function<V, Index<K>> extractor) {
+        return create(store, new ConcurrentHashMap<K, Index<K>>(), extractor);
+    }
+
+    /**
+     * An {@link IndexMap} backed by the specified maps.
+     *
+     * @param store     The backing data map to decorate.
+     * @param indexes   The backing key index map to decorate.
+     * @param extractor Extracts the keys that are associated with the given value.
+     */
+    public static <K, V> IndexMap<K, V> create(ConcurrentMap<K, V> store, ConcurrentMap<K, Index<K>> indexes,
+                                               Function<V, Index<K>> extractor) {
+        return new IndexMap<K, V>(store, indexes, extractor);
     }
 
     /**
@@ -125,10 +554,11 @@ public class IndexMap<K, V> extends AbstractMap<K, V> implements ConcurrentMap<K
      * @param indexes   The backing key index map to decorate.
      * @param extractor Extracts the keys that are associated with the given value.
      */
-    public IndexMap(ConcurrentMap<K, V> store, ConcurrentMap<K, Index<K>> indexes, Function<V, Index<K>> extractor) {
-        this.store = notNull(store);
-        this.indexes = notNull(indexes);
+    protected IndexMap(ConcurrentMap<K, V> store, ConcurrentMap<K, Index<K>> indexes, Function<V, Index<K>> extractor) {
         this.extractor = notNull(extractor);
+        this.indexes = notNull(indexes);
+        this.store = notNull(store);
+        this.lock = createFixed();
     }
 
     /**
@@ -190,7 +620,8 @@ public class IndexMap<K, V> extends AbstractMap<K, V> implements ConcurrentMap<K
      */
     @Override
     public V put(K key, V value) {
-        return put(value);
+        Index<K> index = checkIndex(key, value);
+        return put(index, value);
     }
 
     /**
@@ -199,22 +630,41 @@ public class IndexMap<K, V> extends AbstractMap<K, V> implements ConcurrentMap<K
      * @param value The value to put into the map.
      * @return      The previous value, or <tt>null</tt> if there was no mapping.
      */
-    public V put(V value) {
+    public V putValue(V value) {
+        notNull(value);
         Index<K> index = extractor.apply(value);
-        V old = store.put(index.getPrimary(), value);
-        if (old == null) {
-            addIndex(index);
-        } else {
-            updateIndex(extractor.apply(old), index);
+        return put(index, value);
+    }
+
+    /**
+     * Places the value into the map and associates its keys.
+     *
+     * @param index The key associations.
+     * @param value The value to put into the map.
+     * @return      The previous value, or <tt>null</tt> if there was no mapping.
+     */
+    private V put(Index<K> index, V value) {
+        lock.lock(index.getPrimary());
+        try {
+            V old = store.put(index.getPrimary(), value);
+            if (old == null) {
+                addIndex(index);
+            } else {
+                updateIndex(extractor.apply(old), index);
+            }
+            return old;
+        } finally {
+            lock.unlock(index.getPrimary());
         }
-        return old;
     }
 
     /**
      * {@inheritDoc}
      */
     public V putIfAbsent(K key, V value) {
-        return putIfAbsent(value);
+        notNull(key);
+        Index<K> index = checkIndex(key, value);
+        return putIfAbsent(index, value);
     }
 
     /**
@@ -223,37 +673,118 @@ public class IndexMap<K, V> extends AbstractMap<K, V> implements ConcurrentMap<K
      * @param value The value to put into the map.
      * @return      The previous value, or <tt>null</tt> if there was no mapping.
      */
-    public V putIfAbsent(V value) {
+    public V putIfAbsentValue(V value) {
+        notNull(value);
         Index<K> index = extractor.apply(value);
-        V old = store.putIfAbsent(index.getPrimary(), value);
-        if (old == null) {
-            addIndex(index);
+        return putIfAbsent(index, value);
+    }
+
+    /**
+     * Places the value into the map if absent and associates its keys.
+     *
+     * @param index The key associations.
+     * @param value The value to put into the map.
+     * @return      The previous value, or <tt>null</tt> if there was no mapping.
+     */
+    private V putIfAbsent(Index<K> index, V value) {
+        K primary = index.getPrimary();
+        lock.lock(primary);
+        try {
+            V old = store.putIfAbsent(index.getPrimary(), value);
+            if (old == null) {
+                addIndex(index);
+            }
+            return old;
+        } finally {
+            lock.unlock(primary);
         }
-        return old;
     }
 
     /**
      * {@inheritDoc}
      */
     public V replace(K key, V value) {
-        Index<K> index = indexes.get(key);
-        V old = store.replace(index.getPrimary(), value);
-        if (old != null) {
-            updateIndex(index, extractor.apply(value));
+        notNull(key);
+        Index<K> index = checkIndex(key, value);
+        return replace(index, value);
+    }
+
+    /**
+     * Replaces the entry based on the primary key only if it is currently mapped to some value.
+     *
+     * @param value The value to put into the map.
+     * @return      The previous value, or <tt>null</tt> if there was no mapping.
+     */
+    public V replaceValue(V value) {
+        notNull(value);
+        Index<K> index = extractor.apply(value);
+        return replace(index, value);
+    }
+
+    /**
+     * Replaces the entry based on the primary key only if it is currently mapped to some value.
+     *
+     * @param index The key associations.
+     * @param value The value to put into the map.
+     * @return      The previous value, or <tt>null</tt> if there was no mapping.
+     */
+    private V replace(Index<K> index, V value) {
+        K primary = index.getPrimary();
+        lock.lock(primary);
+        try {
+            V old = store.replace(primary, value);
+            if (old != null) {
+                updateIndex(indexes.get(primary), index);
+            }
+            return old;
+        } finally {
+            lock.unlock(primary);
         }
-        return old;
     }
 
     /**
      * {@inheritDoc}
      */
     public boolean replace(K key, V oldValue, V newValue) {
-        Index<K> index = indexes.get(key);
-        if (store.replace(index.getPrimary(), oldValue, newValue)) {
-            updateIndex(index, extractor.apply(newValue));
-            return true;
+        notNull(key);
+        Index<K> index = checkIndex(key, oldValue);
+        return replace(index, oldValue, newValue);
+    }
+
+    /**
+     * Replaces the entry based on the primary key only if it is currently mapped to the given value.
+     *
+     * @param oldValue The expected value in the map.
+     * @param newValue The value to put into the map.
+     * @return         The previous value, or <tt>null</tt> if there was no mapping.
+     */
+    public boolean replaceValue(V oldValue, V newValue) {
+        notNull(oldValue);
+        notNull(newValue);
+        Index<K> oldIndex = extractor.apply(oldValue);
+        return replace(oldIndex, oldValue, newValue);
+    }
+
+    /**
+     * Replaces the entry based on the primary key only if it is currently mapped to the given value.
+     *
+     * @param oldIndex The old key associations.
+     * @param oldValue The expected value in the map.
+     * @param newValue The value to put into the map.
+     * @return         The previous value, or <tt>null</tt> if there was no mapping.
+     */
+    public boolean replace(Index<K> oldIndex, V oldValue, V newValue) {
+        K primary = oldIndex.getPrimary();
+        lock.lock(primary);
+        try {
+            if (store.replace(primary, oldValue, newValue)) {
+                updateIndex(oldIndex, extractor.apply(newValue));
+                return true;
+            }
+            return false;
+        } finally {
+            lock.unlock(primary);
         }
-        return false;
     }
 
     /**
@@ -261,13 +792,25 @@ public class IndexMap<K, V> extends AbstractMap<K, V> implements ConcurrentMap<K
      */
     @Override
     public V remove(Object key) {
+        notNull(key);
         Index<K> index = indexes.get(key);
         if (index == null) {
             return null;
         }
-        V value = store.remove(index.getPrimary());
-        removeIndex(index);
-        return value;
+        K primary = index.getPrimary();
+        lock.lock(primary);
+        try {
+            // if the store is bounded then the value may be evicted and a call-back performed to cleanup
+            // the index keys. Therefore remove them if found, regardless of whether the value still exists
+            V value = store.remove(primary);
+            index = indexes.get(primary);
+            if (index != null) {
+                removeIndex(index);
+            }
+            return value;
+        } finally {
+            lock.unlock(primary);
+        }
     }
 
     /**
@@ -278,11 +821,17 @@ public class IndexMap<K, V> extends AbstractMap<K, V> implements ConcurrentMap<K
         if (index == null) {
             return false;
         }
-        if (store.remove(index.getPrimary(), value)) {
-            removeIndex(index);
-            return true;
+        K primary = index.getPrimary();
+        lock.lock(primary);
+        try {
+            if (store.remove(primary, value)) {
+                removeIndex(indexes.get(primary));
+                return true;
+            }
+            return false;
+        } finally {
+            lock.unlock(primary);
         }
-        return false;
     }
 
     /**
@@ -294,6 +843,20 @@ public class IndexMap<K, V> extends AbstractMap<K, V> implements ConcurrentMap<K
     public boolean removeValue(V value) {
         Index<K> index = extractor.apply(value);
         return remove(index.getPrimary(), value);
+    }
+
+    /**
+     * Extracts the index from the value and asserts that the given key is a valid association.
+     *
+     * @param key   The key.
+     * @param value The value.
+     * @return      The index.
+     */
+    private Index<K> checkIndex(K key, V value) {
+        notNull(key);
+        notNull(value);
+        Index<K> index = extractor.apply(value);
+        return isTrue(index.getAll().contains(key), index, "Invalid association: %s not in %s", key, index);
     }
 
     /**
@@ -377,7 +940,7 @@ public class IndexMap<K, V> extends AbstractMap<K, V> implements ConcurrentMap<K
      */
     @Override
     public Set<Entry<K, V>> entrySet() {
-        return new EntrySetAdapter();
+        return new EntrySet();
     }
 
     /**
@@ -430,12 +993,20 @@ public class IndexMap<K, V> extends AbstractMap<K, V> implements ConcurrentMap<K
         public Set<K> getAll() {
             return union(getPrimary(), getSecondaries());
         }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public String toString() {
+            return getAll().toString();
+        }
     }
 
     /**
      * An adapter that represents the association of multiple keys to a single value.
      */
-    private final class EntrySetAdapter extends AbstractSet<Entry<K,V>> {
+    private final class EntrySet extends AbstractSet<Entry<K, V>> {
         @Override
         public void clear() {
             IndexMap.this.clear();
@@ -446,7 +1017,7 @@ public class IndexMap<K, V> extends AbstractMap<K, V> implements ConcurrentMap<K
         }
         @Override
         public Iterator<Entry<K, V>> iterator() {
-            return new EntryIteratorAdapter(values().iterator());
+            return new EntryIterator(values().iterator());
         }
         @Override
         public boolean contains(Object obj) {
@@ -469,17 +1040,35 @@ public class IndexMap<K, V> extends AbstractMap<K, V> implements ConcurrentMap<K
             Entry<?, ?> entry = (Entry<?, ?>) obj;
             return IndexMap.this.remove(entry.getKey(), entry.getValue());
         }
+        @Override
+        public Object[] toArray() {
+            // avoids indexes for concurrent collections
+            Collection<Entry<K, V>> entries = new ArrayList<Entry<K, V>>(size());
+            for (Entry<K, V> entry : this) {
+                entries.add(entry);
+            }
+            return entries.toArray();
+        }
+        @Override
+        public <T> T[] toArray(T[] array) {
+            // avoids indexes for concurrent collections
+            Collection<Entry<K, V>> entries = new ArrayList<Entry<K, V>>(size());
+            for (Entry<K, V> entry : this) {
+                entries.add(entry);
+            }
+            return entries.toArray(array);
+        }
     }
 
     /**
      * An adapter that represents the association of multiple keys to a single value.
      */
-    private final class EntryIteratorAdapter implements Iterator<Entry<K, V>> {
+    private final class EntryIterator implements Iterator<Entry<K, V>> {
         private final Iterator<V> values;
         private Iterator<K> keys;
         private V value;
 
-        public EntryIteratorAdapter(Iterator<V> values) {
+        public EntryIterator(Iterator<V> values) {
             this.keys = emptyIterator();
             this.values = values;
         }
@@ -496,95 +1085,6 @@ public class IndexMap<K, V> extends AbstractMap<K, V> implements ConcurrentMap<K
         }
         public void remove() {
             IndexMap.this.removeValue(value);
-        }
-    }
-}
-}}}
-
-{{{
-package com.reardencommerce.kernel.collections.shared;
-
-import static org.testng.Assert.assertEquals;
-import static org.testng.Assert.assertFalse;
-import static org.testng.Assert.assertNotNull;
-import static org.testng.Assert.assertNull;
-import static org.testng.Assert.assertTrue;
-
-import java.util.Map.Entry;
-
-import org.testng.annotations.BeforeMethod;
-import org.testng.annotations.Test;
-
-import com.google.common.base.Function;
-import com.reardencommerce.kernel.collections.shared.IndexMap;
-import com.reardencommerce.kernel.collections.shared.IndexMap.Index;
-
-/**
- * A unit test for the {@link IndexMap}.
- *
- * @author <a href="mailto:ben.manes@reardencommerce.com">Ben Manes</a>
- */
-public final class IndexMapTest {
-    private final IndexMap<Integer, Integer> map = new IndexMap<Integer, Integer>(new IntegerKeyExtractor());
-
-    @BeforeMethod
-    public void reset() {
-        map.clear();
-    }
-
-    @Test
-    public void getPutRemove() {
-        Integer value = 100;
-        assertFalse(map.containsKey(100));
-        assertFalse(map.containsValue(value));
-
-        // add
-        assertNull(map.put(value));
-        assertTrue(map.containsValue(value));
-        for (int i=100; i<105; i++) {
-            assertTrue(map.containsKey(i));
-            assertEquals(map.get(i), value);
-        }
-        assertEquals(map.size(), 1);
-        assertEquals(map.keySet().size(), 5);
-        assertEquals(map.values().size(), 1);
-        assertNotNull(map.putIfAbsent(value));
-
-        // remove
-        assertEquals(map.remove(value), value);
-        for (int i=value; i<value+5; i++) {
-            assertFalse(map.containsKey(i));
-        }
-        assertTrue(map.isEmpty());
-
-        // add back
-        assertNull(map.putIfAbsent(value));
-        assertTrue(map.remove(value+2, value));
-        assertTrue(map.isEmpty());
-    }
-
-    @Test
-    public void iterators() {
-        map.put(100);
-        map.put(200);
-        map.put(300);
-        map.put(400);
-
-        for (int key : map.keySet()) {
-            assertTrue(map.containsKey(key));
-        }
-        for (int value : map.values()) {
-            assertTrue(map.containsValue(value));
-        }
-        for (Entry<Integer, Integer> entry : map.entrySet()) {
-            assertTrue(map.containsKey(entry.getKey()));
-            assertTrue(map.containsValue(entry.getValue()));
-        }
-    }
-
-    private static final class IntegerKeyExtractor implements Function<Integer, Index<Integer>> {
-        public Index<Integer> apply(Integer value) {
-            return new Index<Integer>(value, value+1, value+2, value+3, value+4);
         }
     }
 }
