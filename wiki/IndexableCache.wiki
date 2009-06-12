@@ -472,6 +472,7 @@ import static com.google.common.collect.Maps.immutableEntry;
 import static com.reardencommerce.kernel.collections.shared.Maps2.asMap;
 import static com.reardencommerce.kernel.collections.shared.Sets2.union;
 import static com.reardencommerce.kernel.concurrent.shared.locks.ReentrantStripedLock.createFixed;
+import static com.reardencommerce.kernel.utilities.shared.Assertions.isFalse;
 import static com.reardencommerce.kernel.utilities.shared.Assertions.isTrue;
 import static com.reardencommerce.kernel.utilities.shared.Assertions.notNull;
 import static java.util.Collections.unmodifiableCollection;
@@ -616,6 +617,17 @@ public class IndexMap<K, V> extends AbstractMap<K, V> implements ConcurrentMap<K
     }
 
     /**
+     * Places the values into the map and associates its keys.
+     *
+     * @param values The values to put into the map.
+     */
+    public void putAllValues(Iterable<? extends V> values) {
+        for (V value : values) {
+            putValue(value);
+        }
+    }
+
+    /**
      * {@inheritDoc}
      */
     @Override
@@ -644,13 +656,14 @@ public class IndexMap<K, V> extends AbstractMap<K, V> implements ConcurrentMap<K
      * @return      The previous value, or <tt>null</tt> if there was no mapping.
      */
     private V put(Index<K> index, V value) {
-        lock.lock(index.getPrimary());
+        K primary = index.getPrimary();
+        lock.lock(primary);
         try {
-            V old = store.put(index.getPrimary(), value);
+            V old = store.put(primary, value);
             if (old == null) {
                 addIndex(index);
             } else {
-                updateIndex(extractor.apply(old), index);
+                updateIndex(indexes.get(primary), index);
             }
             return old;
         } finally {
@@ -662,7 +675,6 @@ public class IndexMap<K, V> extends AbstractMap<K, V> implements ConcurrentMap<K
      * {@inheritDoc}
      */
     public V putIfAbsent(K key, V value) {
-        notNull(key);
         Index<K> index = checkIndex(key, value);
         return putIfAbsent(index, value);
     }
@@ -702,9 +714,10 @@ public class IndexMap<K, V> extends AbstractMap<K, V> implements ConcurrentMap<K
 
     /**
      * {@inheritDoc}
+     * <p>
+     * The key should
      */
     public V replace(K key, V value) {
-        notNull(key);
         Index<K> index = checkIndex(key, value);
         return replace(index, value);
     }
@@ -747,8 +760,13 @@ public class IndexMap<K, V> extends AbstractMap<K, V> implements ConcurrentMap<K
      */
     public boolean replace(K key, V oldValue, V newValue) {
         notNull(key);
-        Index<K> index = checkIndex(key, oldValue);
-        return replace(index, oldValue, newValue);
+        notNull(oldValue);
+        notNull(newValue);
+        Index<K> oldIndex = extractor.apply(oldValue);
+        Index<K> newIndex = extractor.apply(newValue);
+        Set<K> keys = union(oldIndex.getAll(), newIndex.getAll());
+        isTrue(keys.contains(key), null, "Invalid association: %s not in %s or %s", key, oldIndex, newIndex);
+        return replace(oldIndex, oldValue, newValue);
     }
 
     /**
@@ -773,7 +791,7 @@ public class IndexMap<K, V> extends AbstractMap<K, V> implements ConcurrentMap<K
      * @param newValue The value to put into the map.
      * @return         The previous value, or <tt>null</tt> if there was no mapping.
      */
-    public boolean replace(Index<K> oldIndex, V oldValue, V newValue) {
+    private boolean replace(Index<K> oldIndex, V oldValue, V newValue) {
         K primary = oldIndex.getPrimary();
         lock.lock(primary);
         try {
@@ -971,6 +989,7 @@ public class IndexMap<K, V> extends AbstractMap<K, V> implements ConcurrentMap<K
         public Index(K primary, Set<K> secondaries) {
             this.primary = notNull(primary);
             this.secondaries = unmodifiableSet(secondaries);
+            isFalse(secondaries.contains(primary), null);
         }
 
         /**
@@ -1013,7 +1032,7 @@ public class IndexMap<K, V> extends AbstractMap<K, V> implements ConcurrentMap<K
         }
         @Override
         public int size() {
-            return IndexMap.this.size();
+            return IndexMap.this.indexes.size();
         }
         @Override
         public Iterator<Entry<K, V>> iterator() {
@@ -1085,6 +1104,338 @@ public class IndexMap<K, V> extends AbstractMap<K, V> implements ConcurrentMap<K
         }
         public void remove() {
             IndexMap.this.removeValue(value);
+        }
+    }
+}
+}}}
+{{{
+package com.reardencommerce.kernel.collections.shared;
+
+import static com.google.common.collect.Sets.difference;
+import static com.google.common.collect.Sets.intersection;
+import static com.reardencommerce.kernel.collections.shared.Maps2.entry;
+import static com.reardencommerce.kernel.concurrent.shared.ConcurrentTestHarness.timeTasks;
+import static com.reardencommerce.kernel.utilities.shared.Assertions.greaterThan;
+import static com.reardencommerce.kernel.utilities.shared.Assertions.notBlank;
+import static java.util.Arrays.asList;
+import static java.util.Collections.emptyList;
+import static java.util.Collections.emptySet;
+import static java.util.Collections.shuffle;
+import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertFalse;
+import static org.testng.Assert.assertNotNull;
+import static org.testng.Assert.assertNotSame;
+import static org.testng.Assert.assertNull;
+import static org.testng.Assert.assertTrue;
+
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Queue;
+import java.util.Random;
+import java.util.Set;
+import java.util.Map.Entry;
+import java.util.concurrent.ConcurrentLinkedQueue;
+
+import org.testng.annotations.BeforeMethod;
+import org.testng.annotations.Test;
+
+import com.google.common.base.Function;
+import com.google.common.collect.Iterables;
+import com.reardencommerce.kernel.collections.shared.IndexMap.Index;
+
+/**
+ * A unit test for the {@link IndexMap}.
+ *
+ * @author <a href="mailto:ben.manes@reardencommerce.com">Ben Manes</a>
+ */
+public final class IndexMapTest {
+    private final User alice = new User(1, "alice", "alice@gmail.com", "alice123");  // original profile
+    private final User alice2 = new User(1, "alice", "alice@gmail.com", "alice456"); // updated profile
+    private final User bob = new User(2, "bob", "bob@yahoo.com", "bob");
+    private final User charlie = new User(3, "charlie", "charlie@hotmail.com", "charlie1960");
+    private final IndexMap<Object, User> map = IndexMap.create(new UserKeyExtractor());
+    private final Random random = new Random();
+
+    @BeforeMethod
+    public void reset() {
+        map.clear();
+        assertEmpty();
+    }
+
+    @Test
+    public void index() {
+        Index<Object> index = map.extractor().apply(alice);
+        assertTrue(index.getAll().contains(index.getPrimary()));
+        assertTrue(index.getAll().containsAll(index.getSecondaries()));
+        assertFalse(index.getSecondaries().contains(index.getPrimary()));
+        assertEquals(index.toString(), index.getAll().toString());
+    }
+
+    @Test
+    public void internals() {
+        assertTrue(map.keyDelegate().isEmpty());
+        assertTrue(map.valueDelegate().isEmpty());
+        map.putAllValues(asList(alice, bob, charlie));
+        assertEquals(map.keyDelegate().size(), 9);
+        assertEquals(map.valueDelegate().size(), 3);
+    }
+
+    @Test
+    public void getPutRemove() {
+        // insert
+        assertNull(map.putValue(alice));
+        assertContainsOnly(alice);
+        assertNotFound(bob, charlie);
+
+        // update
+        assertEquals(map.put("alice456", alice2), alice);
+        assertUpdate(alice, alice2);
+        assertEquals(map.put("alice123", alice), alice2);
+        assertUpdate(alice2, alice); // restored
+
+        // add
+        assertEquals(map.putIfAbsentValue(alice), alice);
+        assertNull(map.putIfAbsent("bob@yahoo.com", bob));
+        assertContainsOnly(alice, bob);
+        assertNotFound(charlie);
+
+        // remove
+        assertNull(map.remove("charlie1960"));
+        assertFalse(map.removeValue(charlie));
+        assertFalse(map.remove("charlie@hotmail.com", charlie));
+        assertEquals(map.remove("bob@yahoo.com"), bob);
+        assertTrue(map.remove("alice123", alice));
+
+        assertEmpty();
+    }
+
+    @Test
+    public void replace() {
+        assertNull(map.replaceValue(alice));
+        assertNull(map.replace("alice123", alice));
+        assertFalse(map.replaceValue(alice, alice2));
+        assertFalse(map.replace("alice123", alice, alice2));
+        map.putAllValues(asList(alice, bob, charlie));
+
+        // v1 -> v2
+        assertEquals(map.replaceValue(alice2), alice);
+        assertUpdate(alice, alice2);
+
+        // v2 -> v1
+        assertEquals(map.replace(1, alice), alice2);
+        assertUpdate(alice2, alice);
+
+        // v1 -> v2
+        assertTrue(map.replaceValue(alice, alice2));
+        assertUpdate(alice, alice2);
+
+        // v2 -> v1
+        assertTrue(map.replace(1, alice2, alice));
+        assertUpdate(alice2, alice);
+
+        assertContainsOnly(alice, bob, charlie);
+    }
+
+    @Test
+    public void clear() {
+        map.putAllValues(asList(alice, bob, charlie));
+        assertContainsOnly(alice, bob, charlie);
+        map.clear();
+        assertEmpty();
+    }
+
+    @Test
+    public void entrySet() {
+        // contains, add, remove
+        Set<Entry<Object, User>> set = map.entrySet();
+        assertFalse(set.contains(entry((Object) 1, alice)));
+        assertFalse(set.containsAll((asList(entry(1, alice)))));
+        assertTrue(set.add(entry((Object) 1, alice)));
+        assertFalse(set.add(entry((Object) 1, alice)));
+        assertEquals(set.size(), 3); // 1 value -> 3 keys
+        assertTrue(set.contains(entry((Object) 1, alice)));
+        assertTrue(set.containsAll((asList(entry(1, alice)))));
+        assertFalse(set.contains(alice));
+        assertFalse(set.remove(new Object()));
+        assertTrue(set.remove(entry((Object) 1, alice)));
+        assertFalse(set.remove(entry((Object) 1, alice)));
+        assertTrue(set.isEmpty());
+        assertEmpty();
+
+        // clear
+        map.putAllValues(asList(alice, bob, charlie));
+        assertFalse(set.isEmpty());
+        set.clear();
+        assertTrue(set.isEmpty());
+        assertEmpty();
+
+        // toArray
+        assertEquals(set.toArray().length, 0);
+        assertEquals(set.toArray(new Entry[set.size()]).length, 0);
+        map.putAllValues(asList(alice, bob, charlie));
+        Object[] array1 = set.toArray();
+        Entry<?, ?>[] array2 = set.toArray(new Entry[set.size()]);
+        assertEquals(array1, array2);
+        assertEquals(set.toArray().length, 9); // 3 values -> 9 keys
+        for (User user : asList(alice, bob, charlie)) {
+            for (Object key : map.extractor().apply(user).getAll()) {
+                assertTrue(asList(array1).contains(entry(key, user)));
+            }
+        }
+
+        // iterator
+        map.putAllValues(asList(alice, bob, charlie));
+        assertContainsOnly(alice, bob, charlie);
+        for (Iterator<Entry<Object, User>> i=map.entrySet().iterator(); i.hasNext();) {
+            assertNotNull(i.next());
+            i.remove();
+        }
+        assertEmpty();
+    }
+
+    @Test(expectedExceptions=IllegalStateException.class)
+    public void putWithBadKey() {
+        map.put(1, bob);
+    }
+
+    @Test(expectedExceptions=IllegalStateException.class)
+    public void putIfAbsentWithBadKey() {
+        map.putIfAbsent(1, bob);
+    }
+
+    @Test(expectedExceptions=IllegalStateException.class)
+    public void replaceWithBadKey() {
+        map.replace(1, bob);
+    }
+
+    @Test(expectedExceptions=IllegalStateException.class)
+    public void replaceConditionallyWithBadKey() {
+        map.replace(1, bob, charlie);
+    }
+
+    @Test
+    public void concurrent() throws InterruptedException {
+        final int nThreads = 10;
+        final int variations = 15;
+        final Queue<User> users = createUsers(nThreads, variations);
+        timeTasks(nThreads, new Runnable() {
+            public void run() {
+                for (int i=0; i<variations/3; i++) {
+                    map.putValue(users.poll());
+                    map.removeValue(users.poll());
+                    Set<Object> keys = map.extractor().apply(users.poll()).getAll();
+                    map.get(Iterables.get(keys, random.nextInt(3)));
+                }
+            }
+        });
+        for (User user : map.values()) {
+            Set<Object> keys = map.extractor().apply(user).getAll();
+            assertKeysFound(keys, user);
+            map.removeValue(user);
+        }
+        assertEmpty();
+    }
+
+    private Queue<User> createUsers(int users, int variations) {
+        List<User> list = new ArrayList<User>();
+        for (int i=1; i<=users; i++) {
+            for (int j=1; j<=variations; j++) {
+                String name = "name-" + i + (random.nextBoolean() ? "" : ":" + j);
+                String email = "email-" + i + (random.nextBoolean() ? "" : ":" + j);
+                String login = "login-" + i + (random.nextBoolean() ? "" : ":" + j);
+                list.add(new User(i, name, email, login));
+            }
+        }
+        shuffle(list);
+        return new ConcurrentLinkedQueue<User>(list);
+    }
+
+    private void assertEmpty() {
+        assertTrue(map.isEmpty());
+        assertEquals(map.size(), 0);
+        assertEquals(map.values(), emptyList());
+        assertEquals(map.keySet(), emptySet());
+        assertEquals(map.entrySet(), emptySet());
+        assertNotFound(alice, bob, charlie);
+    }
+
+    private void assertContainsOnly(User... users) {
+        for (User user : users) {
+            assertTrue(map.containsValue(user));
+            Set<Object> keys = map.extractor().apply(user).getAll();
+            assertEquals(keys.size(), 3);
+            assertKeysFound(keys, user);
+            assertTrue(map.keySet().containsAll(keys));
+            assertTrue(map.values().contains(user));
+        }
+        assertEquals(map.size(), users.length);
+        assertEquals(map.values().size(), users.length);
+        assertEquals(map.keySet().size(), 3 * users.length);
+        assertEquals(map.entrySet().size(), 3 * users.length);
+        for (Entry<Object, User> entry : map.entrySet()) {
+            assertEquals(map.get(entry.getKey()), entry.getValue());
+        }
+    }
+
+    private void assertNotFound(User... users) {
+        for (User user : users) {
+            assertFalse(map.containsValue(user));
+            Set<Object> keys = map.extractor().apply(user).getAll();
+            assertEquals(keys.size(), 3);
+            assertKeysNotFound(keys);
+        }
+    }
+
+    private void assertUpdate(User oldUser, User newUser) {
+        assertNotSame(oldUser, newUser);
+        Index<Object> oldIndex = map.extractor().apply(oldUser);
+        Index<Object> newIndex = map.extractor().apply(newUser);
+        assertEquals(newIndex.getPrimary(), oldIndex.getPrimary());
+        assertEquals(map.get(newIndex.getPrimary()), newUser);
+
+        Set<Object> diff = difference(oldIndex.getAll(), newIndex.getAll());
+        assertKeysNotFound(diff);
+
+        Set<Object> union = intersection(oldIndex.getAll(), newIndex.getAll());
+        assertKeysFound(union, newUser);
+    }
+
+    private void assertKeysFound(Set<Object> keys, User user) {
+        for (Object key : keys) {
+            assertTrue(map.containsKey(key));
+            assertEquals(map.get(key), user);
+        }
+    }
+
+    private void assertKeysNotFound(Set<Object> keys) {
+        for (Object key : keys) {
+            assertNull(map.get(key));
+            assertFalse(map.containsKey(key));
+        }
+    }
+
+    static final class User {
+        final int id;
+        final String name;
+        final String email;
+        final String loginName;
+
+        public User(int id, String name, String email, String loginName) {
+            this.id = greaterThan(0, id);
+            this.name = notBlank(name);
+            this.email = notBlank(email);
+            this.loginName = notBlank(loginName);
+        }
+        @Override
+        public String toString() {
+            return String.format("%d: name=%s, loginName=%s, email=%s", id, name, loginName, email);
+        }
+    }
+
+    private static final class UserKeyExtractor implements Function<User, Index<Object>> {
+        public Index<Object> apply(User user) {
+            return new Index<Object>(user.id, user.email, user.loginName); // 3 keys
         }
     }
 }
