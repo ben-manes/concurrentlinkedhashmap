@@ -1,5 +1,10 @@
 package com.reardencommerce.kernel.collections.shared.evictable;
 
+import static com.reardencommerce.kernel.collections.shared.evictable.ConcurrentLinkedHashMap.create;
+import static com.reardencommerce.kernel.collections.shared.evictable.ConcurrentLinkedHashMap.EvictionPolicy.FIFO;
+import static com.reardencommerce.kernel.collections.shared.evictable.ConcurrentLinkedHashMap.EvictionPolicy.LRU;
+import static com.reardencommerce.kernel.collections.shared.evictable.ConcurrentLinkedHashMap.EvictionPolicy.SECOND_CHANCE;
+
 import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.List;
@@ -9,7 +14,6 @@ import java.util.concurrent.Callable;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
-import com.reardencommerce.kernel.collections.shared.evictable.ConcurrentLinkedHashMap.EvictionPolicy;
 import com.reardencommerce.kernel.collections.shared.evictable.caches.Cache;
 import com.reardencommerce.kernel.collections.shared.evictable.distribution.Distribution;
 
@@ -57,7 +61,7 @@ public final class EfficiencyTest extends BaseTest {
     @Test(groups="development")
     public void FifoEfficency() {
         debug(" * Fifo-efficency: START");
-        ConcurrentLinkedHashMap<Long, Long> actual = create(EvictionPolicy.FIFO);
+        ConcurrentLinkedHashMap<Long, Long> actual = create(FIFO, capacity);
         Map<Long, Long> expected = Cache.SYNC_FIFO.create(capacity, capacity, 1);
         doEfficencyTest(actual, expected);
     }
@@ -68,7 +72,7 @@ public final class EfficiencyTest extends BaseTest {
     @Test(groups="development")
     public void SecondChanceEfficency() {
         debug(" * SecondChance-efficency: START");
-        ConcurrentLinkedHashMap<Long, Long> actual = create(EvictionPolicy.SECOND_CHANCE);
+        ConcurrentLinkedHashMap<Long, Long> actual = create(SECOND_CHANCE, capacity);
         Map<Long, Long> expected = Cache.FAST_FIFO_2C.create(capacity, capacity, 1);
         doEfficencyTest(actual, expected);
     }
@@ -79,7 +83,7 @@ public final class EfficiencyTest extends BaseTest {
     @Test(groups="development")
     public void LruEfficency() {
         debug(" * Lru-efficency: START");
-        ConcurrentLinkedHashMap<Long, Long> actual = create(EvictionPolicy.LRU);
+        ConcurrentLinkedHashMap<Long, Long> actual = create(LRU, capacity);
         Map<Long, Long> expected = Cache.SYNC_LRU.create(capacity, capacity, 1);
         doEfficencyTest(actual, expected);
     }

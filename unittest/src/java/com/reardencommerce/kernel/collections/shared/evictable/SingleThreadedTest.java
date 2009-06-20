@@ -1,5 +1,6 @@
 package com.reardencommerce.kernel.collections.shared.evictable;
 
+import static com.reardencommerce.kernel.collections.shared.evictable.ConcurrentLinkedHashMap.create;
 import static com.reardencommerce.kernel.collections.shared.evictable.ConcurrentLinkedHashMap.EvictionPolicy.FIFO;
 import static com.reardencommerce.kernel.collections.shared.evictable.ConcurrentLinkedHashMap.EvictionPolicy.LRU;
 import static com.reardencommerce.kernel.collections.shared.evictable.ConcurrentLinkedHashMap.EvictionPolicy.SECOND_CHANCE;
@@ -67,7 +68,7 @@ public final class SingleThreadedTest extends BaseTest {
     @Test(groups="development")
     public void put() {
         debug(" * put: START");
-        ConcurrentLinkedHashMap<Integer, Integer> cache = create();
+        ConcurrentLinkedHashMap<Integer, Integer> cache = create(defaultPolicy, capacity);
         cache.put(0, 0);
         int old = cache.put(0, 1);
         int current = cache.get(0);
@@ -522,7 +523,7 @@ public final class SingleThreadedTest extends BaseTest {
     public void evictAsFifo() {
         debug(" * evictAsFifo: START");
         EvictionMonitor<Integer, Integer> monitor = EvictionMonitor.newMonitor();
-        ConcurrentLinkedHashMap<Integer, Integer> cache = create(FIFO, monitor);
+        ConcurrentLinkedHashMap<Integer, Integer> cache = create(FIFO, capacity, monitor);
 
         // perform test
         doFifoEvictionTest(cache, monitor);
@@ -535,7 +536,7 @@ public final class SingleThreadedTest extends BaseTest {
     public void evictSecondChanceAsFifo() {
         debug(" * evictSecondChanceAsFifo: START");
         EvictionMonitor<Integer, Integer> monitor = EvictionMonitor.newMonitor();
-        ConcurrentLinkedHashMap<Integer, Integer> cache = create(SECOND_CHANCE, monitor);
+        ConcurrentLinkedHashMap<Integer, Integer> cache = create(SECOND_CHANCE, capacity, monitor);
 
         // perform test
         doFifoEvictionTest(cache, monitor);
@@ -549,7 +550,7 @@ public final class SingleThreadedTest extends BaseTest {
         debug(" * evictAsSecondChance: START");
         Map<Integer, Integer> expected = new HashMap<Integer, Integer>(capacity);
         EvictionMonitor<Integer, Integer> monitor = EvictionMonitor.newMonitor();
-        ConcurrentLinkedHashMap<Integer, Integer> cache = create(SECOND_CHANCE, monitor);
+        ConcurrentLinkedHashMap<Integer, Integer> cache = create(SECOND_CHANCE, capacity, monitor);
         for (Integer i=0; i<capacity; i++) {
             cache.put(i, i);
             if (i%2 == 0) {

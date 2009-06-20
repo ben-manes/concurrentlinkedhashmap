@@ -1,5 +1,8 @@
 package com.reardencommerce.kernel.collections.shared.evictable;
 
+import static com.reardencommerce.kernel.collections.shared.evictable.ConcurrentLinkedHashMap.create;
+import static com.reardencommerce.kernel.concurrent.shared.ConcurrentTestHarness.timeTasks;
+
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -21,7 +24,6 @@ import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
 import com.reardencommerce.kernel.collections.shared.evictable.ConcurrentLinkedHashMap.EvictionPolicy;
-import com.reardencommerce.kernel.concurrent.shared.ConcurrentTestHarness;
 
 /**
  * The concurrent tests for the {@link ConcurrentLinkedHashMap}.
@@ -61,19 +63,15 @@ public final class MultiThreadedTest extends BaseTest {
         ThreadPoolExecutor es = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<Runnable>());
         for (final EvictionPolicy policy : EvictionPolicy.values()) {
             debug("Testing with policy: %s", policy);
-            final ConcurrentLinkedHashMap<Integer, Integer> cache = new ConcurrentLinkedHashMap<Integer, Integer>(policy, capacity, nThreads);
-            Future<?> future = es.submit(new Callable<Void>() {
-                public Void call() throws Exception {
-                    ConcurrentTestHarness.timeTasks(nThreads, new Thrasher(cache, sets));
-                    return null;
+            final ConcurrentLinkedHashMap<Integer, Integer> cache = create(policy, capacity, nThreads);
+            Future<Long> future = es.submit(new Callable<Long>() {
+                public Long call() throws Exception {
+                    return timeTasks(nThreads, new Thrasher(cache, sets));
                 }
             });
             try {
-                long start = System.nanoTime();
-                future.get(timeout, TimeUnit.SECONDS);
+                debug("\nExecuted in %d seconds", future.get(timeout, TimeUnit.SECONDS));
                 validator.state(cache);
-                long end = System.nanoTime();
-                debug("\nExecuted in %d seconds", TimeUnit.NANOSECONDS.toSeconds(end - start));
             } catch (ExecutionException e) {
                 fail("Exception during test: " + e.toString(), e);
             } catch (TimeoutException e) {
@@ -97,7 +95,7 @@ public final class MultiThreadedTest extends BaseTest {
                 for (String failure : failures) {
                     debug(failure);
                 }
-                fail("Spun forever");
+                fail("Spun forever", e);
             }
         }
         debug("concurrent: END");
