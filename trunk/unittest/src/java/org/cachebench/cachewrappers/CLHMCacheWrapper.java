@@ -1,5 +1,7 @@
 package org.cachebench.cachewrappers;
 
+import static com.reardencommerce.kernel.collections.shared.evictable.ConcurrentLinkedHashMap.create;
+
 import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
@@ -18,8 +20,7 @@ import com.reardencommerce.kernel.collections.shared.evictable.ConcurrentLinkedH
 @SuppressWarnings("unchecked")
 public class CLHMCacheWrapper implements CacheWrapper
 {
-   private final Log logger = LogFactory.getLog(
-      "org.cachebench.cachewrappers.CLHMCacheWrapper");
+   private final Log logger = LogFactory.getLog("org.cachebench.cachewrappers.CLHMCacheWrapper");
 
    private int level;
    private EvictionPolicy policy;
@@ -32,16 +33,14 @@ public class CLHMCacheWrapper implements CacheWrapper
     */
    public void init(Map parameters) throws Exception
    {
-      InputStream stream = getClass().getClassLoader().getResourceAsStream(
-         (String) parameters.get("config"));
+      InputStream stream = getClass().getClassLoader().getResourceAsStream((String) parameters.get("config"));
       Properties props = new Properties();
 
       props.load(stream);
       stream.close();
 
       level = Integer.parseInt(props.getProperty("clhm.concurrencyLevel"));
-      policy = EvictionPolicy.valueOf(
-         props.getProperty("clhm.evictionPolicy"));
+      policy = EvictionPolicy.valueOf(props.getProperty("clhm.evictionPolicy"));
       capacity = Integer.parseInt(props.getProperty("clhm.maximumCapacity"));
    }
 
@@ -50,8 +49,7 @@ public class CLHMCacheWrapper implements CacheWrapper
     */
    public void setUp() throws Exception
    {
-      cache = new ConcurrentLinkedHashMap<Object, Object>(
-         policy, capacity, level);
+      cache = create(policy, capacity, level);
    }
 
    /**

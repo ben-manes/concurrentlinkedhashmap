@@ -1,5 +1,7 @@
 package com.reardencommerce.kernel.collections.shared.evictable;
 
+import static com.reardencommerce.kernel.collections.shared.evictable.ConcurrentLinkedHashMap.create;
+
 import java.io.Serializable;
 import java.util.Collection;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -19,8 +21,8 @@ public abstract class BaseTest extends Assert {
     protected final EvictionMonitor<Integer, Integer> guard = EvictionMonitor.newGuard();
     protected final EvictionPolicy defaultPolicy = EvictionPolicy.SECOND_CHANCE;
     protected Validator validator;
+    protected final int capacity;
     protected boolean debug;
-    protected int capacity;
 
     public BaseTest(int capacity) {
         this.capacity = capacity;
@@ -53,17 +55,8 @@ public abstract class BaseTest extends Assert {
         }
     }
 
-    protected <K, V> ConcurrentLinkedHashMap<K, V> create() {
-        return create(defaultPolicy);
-    }
     protected <K, V> ConcurrentLinkedHashMap<K, V> createGuarded() {
-        return create(defaultPolicy, EvictionMonitor.<K, V>newGuard());
-    }
-    protected <K, V> ConcurrentLinkedHashMap<K, V> create(EvictionPolicy policy) {
-        return new ConcurrentLinkedHashMap<K, V>(policy, capacity);
-    }
-    protected <K, V> ConcurrentLinkedHashMap<K, V> create(EvictionPolicy policy, EvictionListener<K, V> listener) {
-        return new ConcurrentLinkedHashMap<K, V>(policy, capacity, listener);
+        return create(defaultPolicy, capacity, EvictionMonitor.<K, V>newGuard());
     }
 
     /**
@@ -75,11 +68,12 @@ public abstract class BaseTest extends Assert {
     protected ConcurrentLinkedHashMap<Integer, Integer> createWarmedMap(EvictionListener<Integer, Integer> listener) {
         return createWarmedMap(defaultPolicy, capacity, listener);
     }
-    protected ConcurrentLinkedHashMap<Integer, Integer> createWarmedMap(EvictionPolicy policy, int size, EvictionListener<Integer, Integer> listener) {
-        return warm(new ConcurrentLinkedHashMap<Integer, Integer>(policy, size, listener), size);
+    protected ConcurrentLinkedHashMap<Integer, Integer> createWarmedMap(EvictionPolicy policy, int size,
+                                                                        EvictionListener<Integer, Integer> listener) {
+        return warm(create(policy, size, listener), size);
     }
     protected ConcurrentLinkedHashMap<Integer, Integer> createWarmedMap(EvictionPolicy policy, int size) {
-        return warm(new ConcurrentLinkedHashMap<Integer, Integer>(policy, size), size);
+        return warm(ConcurrentLinkedHashMap.<Integer, Integer>create(policy, size), size);
     }
 
     protected ConcurrentLinkedHashMap<Integer, Integer> warm(ConcurrentLinkedHashMap<Integer, Integer> cache, int size) {

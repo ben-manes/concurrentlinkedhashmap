@@ -138,7 +138,7 @@ public final class Validator extends Assert {
      */
     public String printFwd(ConcurrentLinkedHashMap<?, ?> map) {
         Map<Node<?, ?>, Object> seen = new IdentityHashMap<Node<?, ?>, Object>();
-        StringBuilder buffer = new StringBuilder();
+        StringBuilder buffer = new StringBuilder("\n");
         Node<?, ?> current = map.sentinel;
         do {
             if (seen.put(current, new Object()) != null) {
@@ -146,7 +146,23 @@ public final class Validator extends Assert {
                 break;
             }
             buffer.append(current).append("\n");
-            current = current.getNext();
+
+              // FIXME: debug
+              Node<?, ?> next = null;
+              for (int i=0; i<10000; i++) {
+                  next = current.getNext();
+                  if (next == null) {
+                      next = current.getAuxNext();
+                      if (next == null) {
+                          continue;
+                      }
+                  }
+                  break;
+              }
+              current = next;
+              // FIXME: debug
+
+            //current = current.getNext();
             if (current == null) {
                 buffer.append("Failure: Node is locked (next=null)");
                 break;
@@ -159,7 +175,7 @@ public final class Validator extends Assert {
      * A string representation of the map's list nodes in the list's current order.
      */
     public String printBwd(ConcurrentLinkedHashMap<?, ?> map) {
-        StringBuilder buffer = new StringBuilder();
+        StringBuilder buffer = new StringBuilder("\n");
         Node<?, ?> current = map.sentinel;
         do {
             buffer.append(current).append("\n");
