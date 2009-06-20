@@ -61,6 +61,134 @@ A traditional _static_ model is adopted by using an array of locks. This approac
 
 {{{
 /**
+ * A <tt>StripedLock</tt> provides mutual exclusion on an individual lock segment and high concurrency by allowing
+ * multiple segments to be operated on independently. A selection algorithm assigns a resource to a {@link Lock}
+ * instance so that shared access can be controlled and should provide a good spreading strategy to evenly distribute
+ * the lock contention across all segments.
+ * <p>
+ * The characteristics and usage pattern should follow the same guidelines when working with the {@link Lock} instances
+ * directly. The lock segment can be retrieved used indirectly through operations similar to those found in
+ * {@link Lock}. In most cases the following idiom should be used:
+ *
+ * <pre><tt>
+ *     Object o = ...;
+ *     StripedLock lock = ...;
+ *     lock.lock(o);
+ *     try {
+ *         // access the resource protected by this lock
+ *     } finally {
+ *         lock.unlock(o);
+ *     }
+ * </tt></pre>
+ * <p>
+ * Except where noted by an implementation, passing a <tt>null</tt> value for any parameter will result in a
+ * {@link NullPointerException} or {@link IllegalStateException} being thrown.
+ *
+ * @see    Lock
+ * @author <a href="mailto:ben.manes@reardencommerce.com">Ben Manes</a>
+ */
+public interface StripedLock {
+
+    /**
+     * Acquires the lock.
+     * <p>
+     * If the lock is not available then the current thread becomes disabled for thread scheduling
+     * purposes and lies dormant until the lock has been acquired.
+     *
+     * @param o The object to select the lock for.
+     * @see     Lock#lock()
+     **/
+    void lock(Object o);
+
+    /**
+     * Acquires the lock unless the current thread is {@link Thread#interrupt interrupted}.
+     * <p>
+     * Acquires the lock if it is available and returns immediately.
+     * <p>
+     * If the lock is not available then the current thread becomes disabled for thread scheduling
+     * purposes and lies dormant until one of two things happens:
+     *
+     * @param o                     The object to select the lock for.
+     * @throws InterruptedException If the current thread is interrupted while acquiring the lock
+     *                              (and interruption of lock acquisition is supported).
+     * @see                         Lock#lockInterruptibly()
+     * @see                         Thread#interrupt
+     **/
+    void lockInterruptibly(Object o) throws InterruptedException;
+
+    /**
+     * Acquires the lock only if it is free at the time of invocation.
+     * <p>
+     * Acquires the lock if it is available and returns immediately with the value <tt>true</tt>.
+     * If the lock is not available then this method will return immediately with the value <tt>false</tt>.
+     * <p>
+     * A typical usage idiom for this method would be:
+     * <pre>
+     *      Object o = ...;
+     *      StripedLock lock = ...;
+     *      if (lock.tryLock(o)) {
+     *          try {
+     *              // manipulate protected state
+     *          } finally {
+     *              lock.unlock(o);
+     *          }
+     *      } else {
+     *          // perform alternative actions
+     *      }
+     * </pre>
+     * This usage ensures that the lock is unlocked if it was acquired, and doesn't try to unlock if the
+     * lock was not acquired.
+     *
+     * @param o The object to select the lock for.
+     * @return  <tt>true</tt> if the lock was acquired and <tt>false</tt> otherwise.
+     * @see     Lock#tryLock()
+     **/
+    boolean tryLock(Object o);
+
+    /**
+     * Acquires the lock if it is free within the given waiting time and the current thread has not been
+     * {@link Thread#interrupt interrupted}.
+     * <p>
+     * If the lock is available this method returns immediately with the value <tt>true</tt>.
+     * If the lock is not available then the current thread becomes disabled for thread scheduling purposes
+     * and lies dormant until one of three things happens:
+     *
+     * @param time                  The maximum time to wait for the lock.
+     * @param unit                  The time unit of the <tt>time</tt> argument.
+     * @return                      <tt>true</tt> if the lock was acquired and <tt>false</tt> if the waiting
+     *                              time elapsed before the lock was acquired.
+     * @throws InterruptedException If the current thread is interrupted while acquiring the lock
+     *                              (and interruption of lock acquisition is supported).
+     * @see                         Lock#tryLock()
+     * @see                         Thread#interrupt
+     **/
+    boolean tryLock(Object o, long time, TimeUnit unit) throws InterruptedException;
+
+    /**
+     * Releases the lock.
+     *
+     * @param o The object to select the lock for.
+     * @see     Lock#unlock()
+     **/
+    void unlock(Object o);
+
+    /**
+     * Returns a new {@link Condition} instance that is bound to the selected <tt>Lock</tt> instance.
+     * <p>
+     * Before waiting on the condition the lock must be held by the current thread. A call to
+     * {@link Condition#await()} will atomically release the lock before waiting and
+     * re-acquire the lock before the wait returns.
+     *
+     * @param o                              The object to select the lock for.
+     * @return                               A new {@link Condition} instance for this <tt>Lock</tt> instance.
+     * @throws UnsupportedOperationException If this <tt>Lock</tt> implementation does not support conditions.
+     * @see                                  Lock#newCondition()
+     **/
+    Condition newCondition(Object o);
+}
+}}}
+{{{
+/**
  * A reentrant mutual exclusive {@link StripedLock} with a selection algorithm based on the object's identity
  * ({@link #hashCode()} and {@link #equals(Object)} operations).
  * <p>
@@ -515,7 +643,7 @@ public class IndexMap<K, V> extends AbstractMap<K, V> implements ConcurrentMap<K
     private final ConcurrentMap<K, Index<K>> indexes;
     private final Function<V, Index<K>> extractor;
     private final ConcurrentMap<K, V> store;
-    private final StripedLock lock;
+    protected final StripedLock lock;
 
     /**
      * An {@link IndexMap} backed by a {@link ConcurrentHashMap}.
@@ -555,7 +683,7 @@ public class IndexMap<K, V> extends AbstractMap<K, V> implements ConcurrentMap<K
      * @param indexes   The backing key index map to decorate.
      * @param extractor Extracts the keys that are associated with the given value.
      */
-    protected IndexMap(ConcurrentMap<K, V> store, ConcurrentMap<K, Index<K>> indexes, Function<V, Index<K>> extractor) {
+    IndexMap(ConcurrentMap<K, V> store, ConcurrentMap<K, Index<K>> indexes, Function<V, Index<K>> extractor) {
         this.extractor = notNull(extractor);
         this.indexes = notNull(indexes);
         this.store = notNull(store);
@@ -587,8 +715,7 @@ public class IndexMap<K, V> extends AbstractMap<K, V> implements ConcurrentMap<K
     }
 
     /**
-     * Retrieves the number of values in the map, rather than the number of key-value pairs. The size reflects the true
-     * size of the store and the number of keys can be retrieved inexpensively through the {@link #keySet()} method.
+     * Retrieves the number of values in the map. The number of keys can be retrieved through {@link #keySet()}.
      *
      * @return The number of values in the map.
      */
@@ -667,7 +794,7 @@ public class IndexMap<K, V> extends AbstractMap<K, V> implements ConcurrentMap<K
             }
             return old;
         } finally {
-            lock.unlock(index.getPrimary());
+            lock.unlock(primary);
         }
     }
 
@@ -702,7 +829,7 @@ public class IndexMap<K, V> extends AbstractMap<K, V> implements ConcurrentMap<K
         K primary = index.getPrimary();
         lock.lock(primary);
         try {
-            V old = store.putIfAbsent(index.getPrimary(), value);
+            V old = store.putIfAbsent(primary, value);
             if (old == null) {
                 addIndex(index);
             }
@@ -715,7 +842,8 @@ public class IndexMap<K, V> extends AbstractMap<K, V> implements ConcurrentMap<K
     /**
      * {@inheritDoc}
      * <p>
-     * The key should
+     * The key must be associated with the replacement value. If it is only specified on the value being replaced then
+     * the association validation will fail.
      */
     public V replace(K key, V value) {
         Index<K> index = checkIndex(key, value);
@@ -899,15 +1027,15 @@ public class IndexMap<K, V> extends AbstractMap<K, V> implements ConcurrentMap<K
      * new indexes added to the mapping.
      */
     protected void updateIndex(Index<K> oldIndex, Index<K> newIndex) {
+        // Adds the new keys, or updates old ones, to map to the new index
+        addIndex(newIndex);
+
         // Removes the stale keys that no longer map to the old index
         Set<K> removed = new HashSet<K>(oldIndex.getSecondaries());
         removed.removeAll(newIndex.getSecondaries());
         for (K key : removed) {
             indexes.remove(key);
         }
-
-        // Adds the new keys, or updates old ones, to map to the new index
-        addIndex(newIndex);
     }
 
     /**
@@ -973,7 +1101,7 @@ public class IndexMap<K, V> extends AbstractMap<K, V> implements ConcurrentMap<K
         /**
          * The index keys associated with a single value.
          *
-         * @param primary   The primary key to the value.
+         * @param primary     The primary key to the value.
          * @param secondaries The secondary keys to the value.
          */
         public Index(K primary, K... secondaries) {
@@ -983,8 +1111,8 @@ public class IndexMap<K, V> extends AbstractMap<K, V> implements ConcurrentMap<K
         /**
          * The index keys associated with a single value.
          *
-         * @param primary   The primary key to the value.
-         * @param secondary The secondary keys to the value.
+         * @param primary     The primary key to the value.
+         * @param secondaries The secondary keys to the value.
          */
         public Index(K primary, Set<K> secondaries) {
             this.primary = notNull(primary);
