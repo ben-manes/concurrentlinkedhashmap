@@ -10,10 +10,10 @@ A time-based eviction policy provides a useful alternative to a strictly bounded
 The common time-based policies are _time-to-live_ and _time-to-idle_. The time-to-live value indicates how long the entry can stay within the cache, regardless of its activity. The time-to-idle value indicates how long the entry can stay within the cache when inactive. A cache should strive to have a high active-content-ratio in addition to a high hit ratio, as otherwise it is wasting resources.
 
 {{{
-package com.reardencommerce.kernel.collections.shared.expirable2;
+package com.reardencommerce.kernel.collections.shared.expirable;
 
 import static com.reardencommerce.kernel.utilities.shared.Assertions.notNegative;
-import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
 import java.util.concurrent.TimeUnit;
 
@@ -42,20 +42,22 @@ public final class ExpirationPolicy {
      * Retrieves the maximum amount of time that the element can idle, where zero indicates
      * that this metric is ignored when determining whether to expire.
      *
-     * @return The duration of time that the entry can idle, in seconds.
+     * @param unit The unit of time.
+     * @return     The duration of time that the entry can idle, in seconds.
      */
     public long getTimeToIdle(TimeUnit unit) {
-        return unit.convert(timeToIdle, MILLISECONDS);
+        return unit.convert(timeToIdle, NANOSECONDS);
     }
 
     /**
      * Retrieves the maximum amount of time that the element can live, where zero indicates
      * that this metric is ignored when determining whether to expire.
      *
-     * @return The maximum lifetime of the entry, in seconds.
+     * @param unit The unit of time.
+     * @return     The maximum lifetime of the entry, in seconds.
      */
     public long getTimeToLive(TimeUnit unit) {
-        return unit.convert(timeToLive, MILLISECONDS);
+        return unit.convert(timeToLive, NANOSECONDS);
     }
 
     /**
@@ -82,7 +84,7 @@ public final class ExpirationPolicy {
          * @return         The builder.
          */
         public Builder timeToIdle(long duration, TimeUnit unit) {
-            this.timeToIdle = notNegative(unit.toMillis(duration));
+            this.timeToIdle = notNegative(unit.toNanos(duration));
             return this;
         }
 
@@ -94,7 +96,7 @@ public final class ExpirationPolicy {
          * @return         The builder.
          */
         public Builder timeToLive(long duration, TimeUnit unit) {
-            this.timeToLive = notNegative(unit.toMillis(duration));
+            this.timeToLive = notNegative(unit.toNanos(duration));
             return this;
         }
 
@@ -112,16 +114,16 @@ public final class ExpirationPolicy {
 
 === Expirable Entry ===
 
-To evaluate the entry, it must contain its creation time, last access time, and policy.
+To evaluate an entry it must contain its creation time, last access time, and policy.
 
 {{{
-package com.reardencommerce.kernel.collections.shared.expirable2;
+package com.reardencommerce.kernel.collections.shared.expirable;
 
 import static com.reardencommerce.kernel.utilities.shared.Assertions.greaterThan;
 import static com.reardencommerce.kernel.utilities.shared.Assertions.notNull;
 import static java.lang.String.format;
-import static java.lang.System.currentTimeMillis;
-import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.lang.System.nanoTime;
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
 import java.util.concurrent.TimeUnit;
 
@@ -145,7 +147,7 @@ public final class Expirable<K, V> {
      * @param policy The policy.
      */
     public Expirable(K key, V value, ExpirationPolicy policy) {
-        this(key, value, policy, currentTimeMillis(), MILLISECONDS);
+        this(key, value, policy, nanoTime(), NANOSECONDS);
     }
 
     /**
@@ -158,9 +160,9 @@ public final class Expirable<K, V> {
      * @param unit         The unit of time.
      */
     public Expirable(K key, V value, ExpirationPolicy policy, long creationTime, TimeUnit unit) {
-        this.creationTime = unit.toMillis(greaterThan(0, creationTime));
-        this.accessTime = currentTimeMillis();
+        this.creationTime = unit.toNanos(greaterThan(0, creationTime));
         this.policy = notNull(policy);
+        this.accessTime = nanoTime();
         this.value = notNull(value);
         this.key = notNull(key);
     }
@@ -199,7 +201,7 @@ public final class Expirable<K, V> {
      * @return     The creation time.
      */
     public long getCreationTime(TimeUnit unit) {
-        return unit.convert(creationTime, MILLISECONDS);
+        return unit.convert(creationTime, NANOSECONDS);
     }
 
     /**
@@ -209,7 +211,7 @@ public final class Expirable<K, V> {
      * @return     The last accessed time.
      */
     public long getAccessTime(TimeUnit unit) {
-        return unit.convert(accessTime, MILLISECONDS);
+        return unit.convert(accessTime, NANOSECONDS);
     }
 
     /**
@@ -218,7 +220,7 @@ public final class Expirable<K, V> {
      * @param accessTime The access time, in milliseconds.
      */
     public void onAccess() {
-        this.accessTime = currentTimeMillis();
+        accessTime = nanoTime();
     }
 
     /**
@@ -226,19 +228,21 @@ public final class Expirable<K, V> {
      */
     @Override
     public String toString() {
-        return format("key=%s, value=%s, creationTime=%dms, accessTime=%dms",
-                      getKey(), getValue(), getCreationTime(MILLISECONDS), getAccessTime(MILLISECONDS));
+        return format("key=%s, value=%s, creationTime=%dns, accessTime=%dns",
+                      getKey(), getValue(), getCreationTime(NANOSECONDS), getAccessTime(NANOSECONDS));
     }
 }
 }}}
 
 === Evaluation ===
 
-{{{
-package com.reardencommerce.kernel.collections.shared.expirable2;
+An entry is evaluated on access or on a schedule to determine if it has expired.
 
-import static java.lang.System.currentTimeMillis;
-import static java.util.concurrent.TimeUnit.MILLISECONDS;
+{{{
+package com.reardencommerce.kernel.collections.shared.expirable;
+
+import static java.lang.System.nanoTime;
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
 import com.google.common.base.Predicate;
 
@@ -257,10 +261,10 @@ public final class ExpirationPredicate<K, V> implements Predicate<Expirable<K, V
      */
     public boolean apply(Expirable<K, V> expirable) {
         ExpirationPolicy policy = expirable.getPolicy();
-        long currentTime = currentTimeMillis();
+        long currentTime = nanoTime();
         return !policy.isEternal() &&
-               (isPastTime(policy.getTimeToIdle(MILLISECONDS), expirable.getAccessTime(MILLISECONDS), currentTime) ||
-                isPastTime(policy.getTimeToLive(MILLISECONDS), expirable.getCreationTime(MILLISECONDS), currentTime));
+               (isPastTime(policy.getTimeToIdle(NANOSECONDS), expirable.getAccessTime(NANOSECONDS), currentTime) ||
+                isPastTime(policy.getTimeToLive(NANOSECONDS), expirable.getCreationTime(NANOSECONDS), currentTime));
     }
 
     /**
@@ -279,13 +283,15 @@ public final class ExpirationPredicate<K, V> implements Predicate<Expirable<K, V
 
 === Expirable Map ===
 
+As a decorator it conforms to the Map interface to allow composing with the SelfPopulatingMap and/or IndexMap, as well as with an evictable data store.
+
 {{{
-package com.reardencommerce.kernel.collections.shared.expirable2;
+package com.reardencommerce.kernel.collections.shared.expirable;
 
 import static com.reardencommerce.kernel.collections.shared.functions.Functions2.asMapEntryFunction;
 import static com.reardencommerce.kernel.collections.shared.listening.Listeners.nullListener2;
 import static com.reardencommerce.kernel.utilities.shared.Assertions.notNull;
-import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
 import java.lang.ref.WeakReference;
 import java.util.AbstractMap;
@@ -368,6 +374,8 @@ public final class ExpirableMap<K, V> extends AbstractMap<K, V> implements Concu
      */
     @Override
     public boolean containsKey(Object key) {
+        notNull(key);
+
         Expirable<K, V> expirable = delegate.get(key);
         if (expirable == null) {
             return false;
@@ -384,11 +392,12 @@ public final class ExpirableMap<K, V> extends AbstractMap<K, V> implements Concu
     @Override
     public boolean containsValue(Object value) {
         notNull(value);
+
         for (Expirable<K, V> expirable : delegate.values()) {
             if (expirable.getValue().equals(value)) {
                 if (hasExpired(expirable)) {
                     handleExpiration(expirable);
-                    return false;
+                    continue;
                 }
                 return true;
             }
@@ -401,6 +410,8 @@ public final class ExpirableMap<K, V> extends AbstractMap<K, V> implements Concu
      */
     @Override
     public V get(Object key) {
+        notNull(key);
+
         Expirable<K, V> expirable = delegate.get(key);
         if (expirable == null) {
             return null;
@@ -446,6 +457,7 @@ public final class ExpirableMap<K, V> extends AbstractMap<K, V> implements Concu
                 handleExpiration(old);
                 continue;
             } else {
+                expirable.onAccess();
                 scheduleTimeToIdle(expirable);
                 return old.getValue();
             }
@@ -493,6 +505,8 @@ public final class ExpirableMap<K, V> extends AbstractMap<K, V> implements Concu
      */
     @Override
     public V remove(Object key) {
+        notNull(key);
+
         Expirable<K, V> old = delegate.remove(key);
         if (old == null) {
             return null;
@@ -575,9 +589,9 @@ public final class ExpirableMap<K, V> extends AbstractMap<K, V> implements Concu
      * A {@link #replace(Object, Object, Object)} operation where the entry is expired based
      * on the supplied policy rather than the default policy for the map.
      *
-     * @param key key with which the specified value is associated.
-     * @param oldValue value expected to be associated with the specified key.
-     * @param newValue value to be associated with the specified key.
+     * @param key      The key with which the specified value is associated.
+     * @param oldValue The value expected to be associated with the specified key.
+     * @param newValue The value to be associated with the specified key.
      * @param policy   The expiration policy for the entry.
      * @return         If the value was replaced.
      */
@@ -606,26 +620,26 @@ public final class ExpirableMap<K, V> extends AbstractMap<K, V> implements Concu
     }
 
     /**
-     * Schedules a task to attempt to evict the element if it has expired based on its time-to-live policy.
-     *
-     * @param expirable The element.
-     */
-    private void scheduleTimeToIdle(Expirable<K, V> expirable) {
-        long timeToIdle = expirable.getPolicy().getTimeToIdle(MILLISECONDS);
-        if (timeToIdle != 0) {
-            es.schedule(new ExpirationTask<K, V>(this, expirable), timeToIdle, MILLISECONDS);
-        }
-    }
-
-    /**
      * Schedules a task to attempt to evict the element if it has expired based on its time-to-idle policy.
      *
      * @param expirable The element.
      */
+    private void scheduleTimeToIdle(Expirable<K, V> expirable) {
+        long timeToIdle = expirable.getPolicy().getTimeToIdle(NANOSECONDS);
+        if (timeToIdle != 0) {
+            es.schedule(new ExpirationTask<K, V>(this, expirable), timeToIdle, NANOSECONDS);
+        }
+    }
+
+    /**
+     * Schedules a task to attempt to evict the element if it has expired based on its time-to-live policy.
+     *
+     * @param expirable The element.
+     */
     private void scheduleTimeToLive(Expirable<K, V> expirable) {
-        long timeToLive = expirable.getPolicy().getTimeToLive(MILLISECONDS);
+        long timeToLive = expirable.getPolicy().getTimeToLive(NANOSECONDS);
         if (timeToLive != 0) {
-            es.schedule(new ExpirationTask<K, V>(this, expirable), timeToLive, MILLISECONDS);
+            es.schedule(new ExpirationTask<K, V>(this, expirable), timeToLive, NANOSECONDS);
         }
     }
 
@@ -795,8 +809,7 @@ public final class ExpirableMap<K, V> extends AbstractMap<K, V> implements Concu
         }
 
         /**
-         * An executor service to schedule a sweeping task to discard expired elements. This
-         * is supplied rather than handled internally to allow better thread reuse.
+         * An executor service to schedule a task to discard expired elements.
          *
          * @param es The executor service, to allow better thread re-use.
          * @return   The builder.
@@ -818,7 +831,7 @@ public final class ExpirableMap<K, V> extends AbstractMap<K, V> implements Concu
         /**
          * Creates an {@link ExpirableMap} backed by the delegate.
          *
-         * @return An {@link ExpirableMap} decorating the delegate.
+         * @return An {@link ExpirableMap}.
          */
         public ExpirableMap<K, V> build(ConcurrentMap<K, Expirable<K, V>> delegate) {
             notNull(es, "A scheduled executor service must be specified");
@@ -831,16 +844,16 @@ public final class ExpirableMap<K, V> extends AbstractMap<K, V> implements Concu
 === Unit Tests ===
 
 {{{
-package com.reardencommerce.kernel.collections.shared.expirable2;
+package com.reardencommerce.kernel.collections.shared.expirable;
 
-import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.assertTrue;
 
 import org.testng.annotations.Test;
 
-import com.reardencommerce.kernel.collections.shared.expirable2.ExpirationPolicy.Builder;
+import com.reardencommerce.kernel.collections.shared.expirable.ExpirationPolicy.Builder;
 
 /**
  * A unit test for the {@link ExpirationPolicy}.
@@ -851,42 +864,43 @@ public final class ExpirationPolicyTest {
 
     @Test
     public void timeToIdle() {
-        ExpirationPolicy policy = new Builder().timeToIdle(100, MILLISECONDS).build();
-        assertEquals(policy.getTimeToIdle(MILLISECONDS), 100);
-        assertEquals(policy.getTimeToLive(MILLISECONDS), 0);
+        ExpirationPolicy policy = new Builder().timeToIdle(100, NANOSECONDS).build();
+        assertEquals(policy.getTimeToIdle(NANOSECONDS), 100);
+        assertEquals(policy.getTimeToLive(NANOSECONDS), 0);
         assertFalse(policy.isEternal());
     }
 
     @Test
     public void timeToLive() {
-        ExpirationPolicy policy = new Builder().timeToLive(100, MILLISECONDS).build();
-        assertEquals(policy.getTimeToIdle(MILLISECONDS), 0);
-        assertEquals(policy.getTimeToLive(MILLISECONDS), 100);
+        ExpirationPolicy policy = new Builder().timeToLive(100, NANOSECONDS).build();
+        assertEquals(policy.getTimeToIdle(NANOSECONDS), 0);
+        assertEquals(policy.getTimeToLive(NANOSECONDS), 100);
         assertFalse(policy.isEternal());
     }
 
     @Test
     public void isEternal() {
         ExpirationPolicy policy = new Builder().build();
-        assertEquals(policy.getTimeToIdle(MILLISECONDS), 0);
-        assertEquals(policy.getTimeToLive(MILLISECONDS), 0);
+        assertEquals(policy.getTimeToIdle(NANOSECONDS), 0);
+        assertEquals(policy.getTimeToLive(NANOSECONDS), 0);
         assertTrue(policy.isEternal());
     }
 }
 }}}
 
 {{{
-package com.reardencommerce.kernel.collections.shared.expirable2;
+package com.reardencommerce.kernel.collections.shared.expirable;
 
-import static java.lang.System.currentTimeMillis;
-import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.lang.System.nanoTime;
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
+import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertSame;
 import static org.testng.Assert.assertTrue;
 
 import org.testng.annotations.Test;
 
-import com.reardencommerce.kernel.collections.shared.expirable2.ExpirationPolicy.Builder;
+import com.reardencommerce.kernel.collections.shared.expirable.ExpirationPolicy.Builder;
 
 /**
  * A unit test for {@link Expirable}.
@@ -896,15 +910,16 @@ import com.reardencommerce.kernel.collections.shared.expirable2.ExpirationPolicy
 public final class ExpirableTest {
     private final Integer KEY = 100;
     private final Integer VALUE = 200;
+    private final long DELTA = SECONDS.toNanos(1);
     private final ExpirationPolicy POLICY = new Builder().build();
 
     @Test
     public void createNow() {
         Expirable<Integer, Integer> expirable = new Expirable<Integer, Integer>(KEY, VALUE, POLICY);
-        assertTrue(expirable.getCreationTime(MILLISECONDS) + 1000 > currentTimeMillis());
-        assertTrue(expirable.getCreationTime(MILLISECONDS) < currentTimeMillis() + 1000);
-        assertTrue(expirable.getAccessTime(MILLISECONDS) + 1000 > currentTimeMillis());
-        assertTrue(expirable.getAccessTime(MILLISECONDS) < currentTimeMillis() + 1000);
+        assertTrue(expirable.getCreationTime(NANOSECONDS) + DELTA > nanoTime());
+        assertTrue(expirable.getCreationTime(NANOSECONDS) < nanoTime() + DELTA);
+        assertTrue(expirable.getAccessTime(NANOSECONDS) + DELTA > nanoTime());
+        assertTrue(expirable.getAccessTime(NANOSECONDS) < nanoTime() + DELTA);
         assertEquals(expirable.getKey(), KEY);
         assertEquals(expirable.getValue(), VALUE);
         assertSame(expirable.getPolicy(), POLICY);
@@ -913,29 +928,29 @@ public final class ExpirableTest {
 
     @Test
     public void createPrior() {
-        Expirable<Integer, Integer> expirable = new Expirable<Integer, Integer>(KEY, VALUE, POLICY, 500, MILLISECONDS);
+        Expirable<Integer, Integer> expirable = new Expirable<Integer, Integer>(KEY, VALUE, POLICY, 500, NANOSECONDS);
         assertEquals(expirable.getKey(), KEY);
         assertEquals(expirable.getValue(), VALUE);
         assertSame(expirable.getPolicy(), POLICY);
-        assertEquals(expirable.getCreationTime(MILLISECONDS), 500);
-        assertTrue(expirable.getAccessTime(MILLISECONDS) + 1000 > currentTimeMillis());
-        assertTrue(expirable.getAccessTime(MILLISECONDS) < currentTimeMillis() + 1000);
+        assertEquals(expirable.getCreationTime(NANOSECONDS), 500);
+        assertTrue(expirable.getAccessTime(NANOSECONDS) + DELTA > nanoTime());
+        assertTrue(expirable.getAccessTime(NANOSECONDS) < nanoTime() + DELTA);
         assertEquals(expirable.toString(), expirable.toString());
     }
 
     @Test
     public void onAccess() throws InterruptedException {
         Expirable<Integer, Integer> expirable = new Expirable<Integer, Integer>(KEY, VALUE, POLICY);
-        long lastAccessTime = expirable.getAccessTime(MILLISECONDS);
+        long lastAccessTime = expirable.getAccessTime(NANOSECONDS);
         Thread.sleep(100);
         expirable.onAccess();
-        assertTrue(expirable.getAccessTime(MILLISECONDS) > lastAccessTime);
+        assertTrue(expirable.getAccessTime(NANOSECONDS) > lastAccessTime);
     }
 }
 }}}
 
 {{{
-package com.reardencommerce.kernel.collections.shared.expirable2;
+package com.reardencommerce.kernel.collections.shared.expirable;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
@@ -944,7 +959,7 @@ import static org.testng.Assert.assertTrue;
 
 import org.testng.annotations.Test;
 
-import com.reardencommerce.kernel.collections.shared.expirable2.ExpirationPolicy.Builder;
+import com.reardencommerce.kernel.collections.shared.expirable.ExpirationPolicy.Builder;
 
 /**
  * A unit test for {@link ExpirationPredicate}.
@@ -995,7 +1010,7 @@ public final class ExpirationPredicateTest {
 }}}
 
 {{{
-package com.reardencommerce.kernel.collections.shared.expirable2;
+package com.reardencommerce.kernel.collections.shared.expirable;
 
 import static com.reardencommerce.kernel.collections.shared.Maps2.entry;
 import static com.reardencommerce.kernel.concurrent.shared.DaemonExecutors.daemonThreadFactory;
@@ -1017,8 +1032,9 @@ import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import com.google.common.base.Predicate;
+import com.google.common.base.Predicates;
 import com.google.common.collect.ImmutableMap;
-import com.reardencommerce.kernel.collections.shared.expirable2.ExpirableMap.Builder;
+import com.reardencommerce.kernel.collections.shared.expirable.ExpirableMap.Builder;
 import com.reardencommerce.kernel.collections.shared.listening.Listener2;
 
 /**
@@ -1028,10 +1044,11 @@ import com.reardencommerce.kernel.collections.shared.listening.Listener2;
  */
 public final class ExpirableMapTest {
     private final Integer KEY = 100;
+    private final Integer KEY2 = 101;
     private final Integer VALUE = 200;
-    private final Integer VALUE2 = 300;
-    private final long TIME_TO_IDLE = 100;
-    private final long TIME_TO_LIVE = 200;
+    private final Integer VALUE2 = 201;
+    private final long TIME_TO_IDLE = 300;
+    private final long TIME_TO_LIVE = 301;
     private final ScheduledThreadPoolExecutor es;
 
     private ExpirableMap<Integer, Integer> map;
@@ -1087,6 +1104,7 @@ public final class ExpirableMapTest {
 
     @Test
     public void containsKey() {
+        assertFalse(map.containsKey(KEY));
         assertNull(map.put(KEY, VALUE));
         assertTrue(map.containsKey(KEY));
         predicate.hasExpired = true;
@@ -1103,6 +1121,30 @@ public final class ExpirableMapTest {
         predicate.hasExpired = true;
         assertFalse(map.containsValue(VALUE));
         assertTrue(listener.notified);
+    }
+
+    @Test
+    public void containsValueWithDuplicates() {
+        assertNull(map.put(KEY, VALUE));
+        assertNull(map.put(KEY2, VALUE));
+        assertTrue(map.containsValue(VALUE));
+        predicate.delegate = new Predicate<Expirable<Integer, Integer>>() {
+            public boolean apply(Expirable<Integer, Integer> expirable) {
+                return KEY.equals(expirable.getKey());
+            }
+        };
+        assertTrue(map.containsValue(VALUE));
+        assertFalse(map.containsKey(KEY));
+        assertTrue(map.containsKey(KEY2));
+        assertTrue(listener.notified);
+
+        predicate.delegate = new Predicate<Expirable<Integer, Integer>>() {
+            public boolean apply(Expirable<Integer, Integer> expirable) {
+                return KEY2.equals(expirable.getKey());
+            }
+        };
+        assertFalse(map.containsValue(VALUE));
+        assertFalse(map.containsKey(KEY2));
     }
 
     @Test
@@ -1299,10 +1341,12 @@ public final class ExpirableMapTest {
     }
 
     private final class TestablePredicate implements Predicate<Expirable<Integer, Integer>> {
+        volatile Predicate<Expirable<Integer, Integer>> delegate = Predicates.alwaysFalse();
         volatile boolean hasExpired;
+
         public boolean apply(Expirable<Integer, Integer> expirable) {
             assertNotNull(expirable);
-            return hasExpired;
+            return hasExpired || delegate.apply(expirable);
         }
     }
 
@@ -1313,5 +1357,4 @@ public final class ExpirableMapTest {
         }
     }
 }
-}}}
 }}}
