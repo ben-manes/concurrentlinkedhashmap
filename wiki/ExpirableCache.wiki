@@ -283,7 +283,7 @@ public final class ExpirationPredicate<K, V> implements Predicate<Expirable<K, V
 
 === Expirable Map ===
 
-As a decorator it conforms to the Map interface to allow composing with the SelfPopulatingMap and/or IndexMap, as well as with an evictable data store.
+As a decorator it conforms to the Map interface to allow composing with the !SelfPopulatingMap and/or !IndexMap, as well as with an evictable data store.
 
 {{{
 package com.reardencommerce.kernel.collections.shared.expirable;
