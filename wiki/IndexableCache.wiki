@@ -68,7 +68,7 @@ import java.util.concurrent.locks.Lock;
 
 /**
  * A <tt>StripedLock</tt> provides mutual exclusion on an individual lock segment and high concurrency by allowing
- * multiple segments to be operated on independently. A selection algorithm assigns a resource to a {@link java.util.concurrent.locks.Lock}
+ * multiple segments to be operated on independently. A selection algorithm assigns a resource to a {@link Lock}
  * instance so that shared access can be controlled and should provide a good spreading strategy to evenly distribute
  * the lock contention across all segments.
  * <p>
