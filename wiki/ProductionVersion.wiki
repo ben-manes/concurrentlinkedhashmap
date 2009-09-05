@@ -531,13 +531,13 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> imple
         public void remove() {
             for (;;) {
                 if (isUnlinked()) {
-                    continue;        // await appending
+                    continue;        // await appendToTail()
                 }
 
                 lock.lock();
                 try {
                     if (isUnlinked()) {
-                        continue;    // await appending
+                        continue;    // await appendToTail()
                     }
                     prev.next = next;
                     next.prev = prev;
@@ -568,7 +568,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> imple
                 next.prev = prev;
 
                 // link
-                next = sentinel;      // ordered for isAtTail()
+                next = sentinel;      // ordered for isTail()
                 prev = sentinel.prev;
                 sentinel.prev = this;
                 prev.next = this;
@@ -657,18 +657,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> imple
         public int hashCode() {
             return ((key   == null) ? 0 : key.hashCode()) ^
                    ((value == null) ? 0 : value.hashCode());
-        }
-        @Override
-        public String toString() {
-            lock.lock();
-            try {
-                return String.format("key=%s - prev=%s ; next=%s", valueOf(key), valueOf(prev.key), valueOf(next.key));
-            } finally {
-                lock.unlock();
-            }
-        }
-        private String valueOf(K key) {
-            return (key == null) ? "sentinel" : key.toString();
         }
     }
 
