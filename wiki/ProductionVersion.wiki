@@ -469,6 +469,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> imple
         private static final long serialVersionUID = 1461281468985304519L;
         private static final AtomicReferenceFieldUpdater<Node, Object> valueUpdater =
             AtomicReferenceFieldUpdater.newUpdater(Node.class, Object.class, "value");
+        private static final Node UNLINKED = new Node(null);
 
         private final K key;
         private final Lock lock;
@@ -486,9 +487,9 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> imple
             this.sentinel = this;
             this.value = null;
             this.lock = lock;
+            this.prev = this;
+            this.next = this;
             this.key = null;
-            prev = this;
-            next = this;
         }
 
         /**
@@ -496,6 +497,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> imple
          */
         public Node(K key, V value, Node<K, V> sentinel, Lock lock) {
             this.sentinel = sentinel;
+            this.next = UNLINKED;
+            this.prev = UNLINKED;
             this.value = value;
             this.lock = lock;
             this.key = key;
@@ -507,10 +510,14 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> imple
         public void appendToTail() {
             lock.lock();
             try {
-                prev = sentinel.prev;
-                sentinel.prev = this;
-                prev.next = this;
+                // Allow moveToTail() to no-op or removal to spin-wait
                 next = sentinel;
+
+                // Read the tail on the stack to avoid unnecessary volatile reads
+                final Node<K, V> tail = sentinel.prev;
+                sentinel.prev = this;
+                tail.next = this;
+                prev = tail;
             } finally {
                 lock.unlock();
             }
@@ -518,34 +525,42 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> imple
 
         /**
          * Removes the node from the list.
+         * <p>
+         * If the node has not yet been appended to the tail it will wait for that operation to complete.
          */
         public void remove() {
-            if (isRemoved()) {
-                return;
-            }
-            lock.lock();
-            try {
-                if (isRemoved()) {
-                    return;
+            for (;;) {
+                if (isUnlinked()) {
+                    continue;        // await appending
                 }
-                prev.next = next;
-                next.prev = prev;
-                next = null;      // mark as inactive
-            } finally {
-                lock.unlock();
+
+                lock.lock();
+                try {
+                    if (isUnlinked()) {
+                        continue;    // await appending
+                    }
+                    prev.next = next;
+                    next.prev = prev;
+                    next = UNLINKED; // mark as unlinked
+                } finally {
+                    lock.unlock();
+                }
+                return;
             }
         }
 
         /**
-         * Moves the node to the tail of the list.
+         * Moves the node to the tail.
+         * <p>
+         * If the node has been unlinked or is already at the tail, no-ops.
          */
         public void moveToTail() {
-            if (isRemoved()) {
+            if (isTail() || isUnlinked()) {
                 return;
             }
             lock.lock();
             try {
-                if (isRemoved()) {
+                if (isTail() || isUnlinked()) {
                     return;
                 }
                 // unlink
@@ -553,22 +568,31 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> imple
                 next.prev = prev;
 
                 // link
+                next = sentinel;      // ordered for isAtTail()
                 prev = sentinel.prev;
                 sentinel.prev = this;
                 prev.next = this;
-                next = sentinel;
             } finally {
                 lock.unlock();
             }
         }
 
         /**
-         * Checks whether the node is still linked on the list chain.
+         * Checks whether the node is linked on the list chain.
          *
-         * @return Whether the node is still active.
+         * @return Whether the node has not yet been linked on the list.
          */
-        public boolean isRemoved() {
-            return (next == null);
+        public boolean isUnlinked() {
+            return (next == UNLINKED);
+        }
+
+        /**
+         * Checks whether the node is the last linked on the list chain.
+         *
+         * @return Whether the node is at the tail of the list.
+         */
+        public boolean isTail() {
+            return (next == sentinel);
         }
 
         /*
@@ -633,6 +657,18 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> imple
         public int hashCode() {
             return ((key   == null) ? 0 : key.hashCode()) ^
                    ((value == null) ? 0 : value.hashCode());
+        }
+        @Override
+        public String toString() {
+            lock.lock();
+            try {
+                return String.format("key=%s - prev=%s ; next=%s", valueOf(key), valueOf(prev.key), valueOf(next.key));
+            } finally {
+                lock.unlock();
+            }
+        }
+        private String valueOf(K key) {
+            return (key == null) ? "sentinel" : key.toString();
         }
     }
 
@@ -858,7 +894,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> imple
             return node.getKey();
         }
         public V getValue() {
-            if (node.isRemoved()) {
+            if (node.isUnlinked()) {
                 V value = map.get(getKey());
                 if (value != null) {
                     return value;
