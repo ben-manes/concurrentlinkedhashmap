@@ -3,7 +3,7 @@
 
 = Introduction =
 
-A [http://en.wikipedia.org/wiki/Bloom_filter | Bloom filter] can be used as a probabilistic cache to determine a containment relation before retrieving the value from an insertion-only data store. While false positives are possible, it can be used as a filter to reduce the number of unnecessary lookups. This is done in a space and time efficient manner so that the membership queries can be performed in-memory, while the retrieval may require an I/O operation.
+A [http://en.wikipedia.org/wiki/Bloom_filter| Bloom filter] can be used as a probabilistic cache to determine a containment relation before retrieving the value from an insertion-only data store. While false positives are possible, it can be used as a filter to reduce the number of unnecessary lookups. This is done in a space and time efficient manner so that the membership queries can be performed in-memory, while the retrieval may require an I/O operation.
 
 = Details =
 
@@ -14,6 +14,7 @@ import static java.lang.Math.abs;
 import static java.lang.Math.ceil;
 import static java.lang.Math.exp;
 import static java.lang.Math.log;
+import static java.lang.Math.max;
 import static java.lang.Math.pow;
 import static java.util.Arrays.copyOf;
 
@@ -45,7 +46,6 @@ import java.util.concurrent.locks.ReentrantLock;
  * representing sets by not storing the data items.
  *
  * @author <a href="mailto:ben.manes@gmail.com">Ben Manes</a>
- * @param  <E> the type of elements held in this collection
  */
 public final class BloomFilter<E> extends AbstractSet<E> {
     private final AtomicStampedReference<long[]> ref;
@@ -68,8 +68,8 @@ public final class BloomFilter<E> extends AbstractSet<E> {
         if ((capacity <= 0) || (probability <= 0) || (probability >= 1)) {
             throw new IllegalArgumentException();
         }
+        this.capacity = max(capacity, Long.SIZE);
         this.bits = bits(capacity, probability);
-        this.capacity = capacity;
         this.length = bits / Long.SIZE;
         this.lock = new ReentrantLock();
         this.hashes = numberOfHashes(capacity, bits);
@@ -113,7 +113,7 @@ public final class BloomFilter<E> extends AbstractSet<E> {
      */
     private static int bits(int capacity, float probability) {
         int optimal = (int) ceil(abs(capacity * log(probability) / pow(log(2), 2)));
-        return (int) pow(2, ceil(log(optimal) / log(2)));
+        return (int) max(pow(2, ceil(log(optimal) / log(2))), Long.SIZE);
     }
 
     /**
@@ -317,6 +317,20 @@ public final class BloomFilter<E> extends AbstractSet<E> {
     }
 
     /**
+     * Calculates the population count, the number of one-bits, in the words.
+     *
+     * @param words The consistent view of the data.
+     * @return      The number of one-bits in the two's complement binary representation.
+     */
+    private int toBitCount(long[] words) {
+        int population = 0;
+        for (long word : words) {
+            population += bitCount(word);
+        }
+        return population;
+    }
+
+    /**
      * Creates a pretty-printed binary string representation of the data.
      *
      * @param words The consistent view of the data.
@@ -337,20 +351,6 @@ public final class BloomFilter<E> extends AbstractSet<E> {
             builder.append('0');
         }
         return builder.toString();
-    }
-
-    /**
-     * Calculates the population count, the number of one-bits, in the words.
-     *
-     * @param words The consistent view of the data.
-     * @return      The number of one-bits in the two's complement binary representation.
-     */
-    private int toBitCount(long[] words) {
-        int population = 0;
-        for (long word : words) {
-            population += bitCount(word);
-        }
-        return population;
     }
 }
 }}}
