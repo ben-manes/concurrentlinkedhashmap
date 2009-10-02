@@ -164,10 +164,11 @@ public final class BloomFilter<E> extends AbstractSet<E> {
      */
     @Override
     public boolean contains(Object o) {
-        if (isEmpty()) {
+        int[] size = new int[1];
+        long[] words = ref.get(size);
+        if (size[0] == 0) {
             return false;
         }
-        long[] words = ref.getReference();
         int[] indexes = indexes(o);
         for (int index : indexes) {
             if (!getAt(index, words)) {
