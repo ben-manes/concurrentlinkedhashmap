@@ -236,7 +236,7 @@ public final class BloomFilter<E> extends AbstractSet<E> {
      * Calculates the index position for the object.
      *
      * @param o The object.
-     * @return  The index into the bit filter.
+     * @return  The index to the bit.
      */
     private int[] indexes(Object o) {
         // Double hashing allows calculating multiple index locations
