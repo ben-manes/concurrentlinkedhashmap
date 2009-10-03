@@ -105,15 +105,16 @@ public final class BloomFilter<E> extends AbstractSet<E> {
 
     /**
      * Calculates the required number of bits assuming an optimal number of hashing
-     * algorithms are available. The optimal value is normalized to a power of two.
+     * algorithms are available. The optimal value is normalized the closest word.
      *
      * @param capacity    The estimated number of elements to be inserted into the Bloom filter.
      * @param probability The desired false positive probability of a membership query.
-     * @return            The required number of storage bits, as a power of two.
+     * @return            The required number of storage bits.
      */
     private static int bits(int capacity, float probability) {
         int optimal = (int) ceil(abs(capacity * log(probability) / pow(log(2), 2)));
-        return (int) max(pow(2, ceil(log(optimal) / log(2))), Long.SIZE);
+        int offset = Long.SIZE - (optimal % Long.SIZE);
+        return (offset == 0) ? optimal : (optimal + offset);
     }
 
     /**
