@@ -3,7 +3,7 @@
 
 = Introduction =
 
-A [http://en.wikipedia.org/wiki/Bloom_filter| Bloom filter] can be used as a probabilistic cache to determine a containment relation before retrieving the value from an insertion-only data store. While false positives are possible, it can be used as a filter to reduce the number of unnecessary lookups. This is done in a space and time efficient manner so that the membership queries can be performed in-memory, while the retrieval may require an I/O operation.
+A [http://en.wikipedia.org/wiki/Bloom_filter Bloom filter] can be used as a probabilistic cache to determine a containment relation before retrieving the value from an insertion-only data store. While false positives are possible, it can be used as a filter to reduce the number of unnecessary lookups. This is done in a space and time efficient manner so that the membership queries can be performed in-memory, while the retrieval may require an I/O operation.
 
 = Details =
 
@@ -105,7 +105,7 @@ public final class BloomFilter<E> extends AbstractSet<E> {
 
     /**
      * Calculates the required number of bits assuming an optimal number of hashing
-     * algorithms are available. The optimal value is normalized the closest word.
+     * algorithms are available. The optimal value is normalized to the closest word.
      *
      * @param capacity    The estimated number of elements to be inserted into the Bloom filter.
      * @param probability The desired false positive probability of a membership query.
