@@ -299,15 +299,6 @@ public class SelfPopulatingMap<K, V> extends ForwardingConcurrentMap<K, V> {
     }
 
     /**
-     * This method is invoked upon the successful execution of the {@link Future}. The value may be <tt>null<tt>
-     * if nothing could be computed. This method will not be called on a failure condition.
-     *
-     * @param key    The key.
-     * @param future The future holding the value.
-     */
-    protected void afterLoad(K key, Future<V> future) { }
-
-    /**
      * A factory for creating a single entry.
      */
     public interface EntryFactory<K, V> {
@@ -385,7 +376,6 @@ public class SelfPopulatingMap<K, V> extends ForwardingConcurrentMap<K, V> {
             }
             try {
                 V value = fromFuture(future);
-                afterLoad(key, future);
                 if (value == null) {
                     store.remove(key, future);
                 }
@@ -448,33 +438,23 @@ public class SelfPopulatingMap<K, V> extends ForwardingConcurrentMap<K, V> {
 
             // For any key not found, adds a proxy for retrieval once the the bulk operation
             // has completed. Also composes a map of all keys to their value holder.
-            Map<K, FutureTask<V>> proxies = new HashMap<K, FutureTask<V>>(keys.size());
+            List<FutureTask<V>> proxies = new ArrayList<FutureTask<V>>(keys.size());
             Map<K, Future<V>> futures = new HashMap<K, Future<V>>(keys.size());
             for (K key : keys) {
                 FutureTask<V> proxy = new FutureTask<V>(new Proxy(key, task));
                 Future<V> future = putIfAbsent(key, proxy);
                 if (future == null) {
                     future = proxy;
+                    proxies.add(proxy);
                     creationKeys.add(key);
-                    proxies.put(key, proxy);
                 }
                 futures.put(key, future);
             }
 
             // Executes the bulk operation and runs the proxies so that they are warmed with their value
             task.run();
-            for (FutureTask<V> proxy : proxies.values()) {
+            for (FutureTask<V> proxy : proxies) {
                 proxy.run();
-            }
-
-            // Extracts the values from the holders and, if successful, perform the post-processing step
-            for (Entry<K, FutureTask<V>> entry : proxies.entrySet()) {
-                try {
-                    entry.getValue().get(); // checks for failure
-                    afterLoad(entry.getKey(), entry.getValue());
-                } catch (Exception e) {
-                    // ignored
-                }
             }
             return fromFutures(futures);
         }
