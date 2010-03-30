@@ -73,15 +73,18 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   /** The backing data store holding the key-value associations. */
   final ConcurrentMap<K, Node<K, V>> data;
 
-  /** Mirrors the lock striping on CHM for ordering write operations. */
+  /**
+   * These fields mirrors the lock striping on ConcurrentHashMap to order
+   * the write operations. This allows the write queue to be consistent.
+   */
   final int segments;
   final int segmentMask;
   final int segmentShift;
   final Lock[] segmentLock;
 
-  /** The eviction support to bound the map by a maximum capacity. */
+  /** These fields provide support to bound the map by a maximum capacity. */
+  @GuardedBy("evictionLock")
   volatile int length;
-
   @GuardedBy("evictionLock")
   final Node<K, V> sentinel;
 
@@ -486,7 +489,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     try {
       previous = data.putIfAbsent(node.key, node);
       if (previous == null) {
-        writeQueue.offer(task);
+        writeQueue.add(task);
       }
     } finally {
       lock.unlock();
@@ -514,7 +517,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       node = data.remove(key);
       if (node != null) {
         value = node.value;
-        writeQueue.offer(new RemovalTask(node));
+        writeQueue.add(new RemovalTask(node));
       }
     } finally {
       lock.unlock();
@@ -540,7 +543,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     try {
       node = data.get(key);
       if ((node != null) && node.value.equals(value)) {
-        writeQueue.offer(new RemovalTask(node));
+        writeQueue.add(new RemovalTask(node));
         data.remove(key);
         removed = true;
       }
