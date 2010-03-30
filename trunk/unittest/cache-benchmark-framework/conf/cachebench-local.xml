@@ -9,7 +9,7 @@
 	numThreads - the number of executor threads to use to perform the required number of operations.  
 -->
 <cachebench sampleSize="500000" gcBetweenTestsEnabled="true" sleepBetweenTests="1000" emptyCacheBetweenTests="true"
-            useTransactions="false" numThreads="25">
+            useTransactions="false" numThreads="250">
 
 
     <!--

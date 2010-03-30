@@ -1,6 +1,6 @@
-package org.cachebench.cachewrappers;
+// Copyright 2010 Google Inc. All Rights Reserved.
 
-import com.reardencommerce.kernel.collections.shared.evictable.ConcurrentLinkedHashMap;
+package org.cachebench.cachewrappers;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -8,19 +8,18 @@ import org.cachebench.CacheWrapper;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * @author Adam Zell
+ * @author bmanes@google.com (Ben Manes)
  */
-@SuppressWarnings("unchecked")
-public class CLHMCacheWrapper implements CacheWrapper {
+public class CHMCacheWrapper implements CacheWrapper {
 
-  private final Log logger = LogFactory.getLog("org.cachebench.cachewrappers.CLHMCacheWrapper");
+  private final Log logger = LogFactory.getLog("org.cachebench.cachewrappers.LHMCacheWrapper");
 
-  private int level;
   private int capacity;
 
-  private ConcurrentLinkedHashMap<Object, Object> cache;
+  private Map<Object, Object> cache;
 
   /**
    * {@inheritDoc}
@@ -33,18 +32,14 @@ public class CLHMCacheWrapper implements CacheWrapper {
 //    props.load(stream);
 //    stream.close();
 //
-//    level = Integer.parseInt(props.getProperty("clhm.concurrencyLevel"));
 //    capacity = Integer.parseInt(props.getProperty("clhm.maximumCapacity"));
-    level = 16;
+
     capacity = 5000;
   }
 
   @Override
   public void setUp() throws Exception {
-    cache = ConcurrentLinkedHashMap.<Object, Object>builder()
-        .maximumCapacity(capacity)
-        .concurrencyLevel(level)
-        .build();
+    cache = new ConcurrentHashMap<Object, Object>(capacity);
   }
 
   @Override
@@ -73,7 +68,7 @@ public class CLHMCacheWrapper implements CacheWrapper {
 
   @Override
   public String getInfo() {
-    return "size/capacity: " + cache.size() + "/" + cache.capacity();
+    return "size/capacity: " + cache.size() + "/" + capacity;
   }
 
   @Override

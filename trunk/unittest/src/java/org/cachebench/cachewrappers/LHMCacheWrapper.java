@@ -1,26 +1,26 @@
-package org.cachebench.cachewrappers;
+// Copyright 2010 Google Inc. All Rights Reserved.
 
-import com.reardencommerce.kernel.collections.shared.evictable.ConcurrentLinkedHashMap;
+package org.cachebench.cachewrappers;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.cachebench.CacheWrapper;
 
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
- * @author Adam Zell
+ * @author bmanes@google.com (Ben Manes)
  */
-@SuppressWarnings("unchecked")
-public class CLHMCacheWrapper implements CacheWrapper {
+public class LHMCacheWrapper implements CacheWrapper {
 
-  private final Log logger = LogFactory.getLog("org.cachebench.cachewrappers.CLHMCacheWrapper");
+  private final Log logger = LogFactory.getLog("org.cachebench.cachewrappers.LHMCacheWrapper");
 
-  private int level;
   private int capacity;
 
-  private ConcurrentLinkedHashMap<Object, Object> cache;
+  private Map<Object, Object> cache;
 
   /**
    * {@inheritDoc}
@@ -33,18 +33,22 @@ public class CLHMCacheWrapper implements CacheWrapper {
 //    props.load(stream);
 //    stream.close();
 //
-//    level = Integer.parseInt(props.getProperty("clhm.concurrencyLevel"));
 //    capacity = Integer.parseInt(props.getProperty("clhm.maximumCapacity"));
-    level = 16;
+
     capacity = 5000;
   }
 
   @Override
   public void setUp() throws Exception {
-    cache = ConcurrentLinkedHashMap.<Object, Object>builder()
-        .maximumCapacity(capacity)
-        .concurrencyLevel(level)
-        .build();
+    cache = Collections.synchronizedMap(new LinkedHashMap<Object, Object>(capacity, 0.75f, true) {
+      private static final long serialVersionUID = 1L;
+      
+      @Override
+      protected boolean removeEldestEntry(Map.Entry<Object, Object> eldest) {
+        return size() > capacity;
+      }
+    });
+
   }
 
   @Override
@@ -73,7 +77,7 @@ public class CLHMCacheWrapper implements CacheWrapper {
 
   @Override
   public String getInfo() {
-    return "size/capacity: " + cache.size() + "/" + cache.capacity();
+    return "size/capacity: " + cache.size() + "/" + capacity;
   }
 
   @Override

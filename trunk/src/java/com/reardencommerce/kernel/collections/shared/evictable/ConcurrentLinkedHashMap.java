@@ -15,946 +15,1023 @@
  */
 package com.reardencommerce.kernel.collections.shared.evictable;
 
-import java.io.Serializable;
+import static java.lang.annotation.ElementType.FIELD;
+import static java.lang.annotation.ElementType.METHOD;
+import java.lang.annotation.Retention;
+import static java.lang.annotation.RetentionPolicy.CLASS;
+import java.lang.annotation.Target;
 import java.util.AbstractCollection;
 import java.util.AbstractMap;
+import java.util.AbstractQueue;
 import java.util.AbstractSet;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
+import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
- * A {@link ConcurrentMap} with a doubly-linked list running through its entries.
+ * A {@link ConcurrentMap} with a doubly-linked list running through its
+ * entries.
  * <p>
- * This class provides the same semantics as a {@link ConcurrentHashMap} in terms of
- * iterators, acceptable keys, and concurrency characteristics, but perform slightly
- * worse due to the added expense of maintaining the linked list. It differs from
- * {@link java.util.LinkedHashMap} in that it does not provide predictable iteration
- * order.
+ * This class provides the same semantics as a {@link ConcurrentHashMap} in
+ * terms of iterators, acceptable keys, and concurrency characteristics, but
+ * perform slightly worse due to the added expense of maintaining the linked
+ * list. It differs from {@link java.util.LinkedHashMap} in that it does not
+ * provide predictable iteration order.
  * <p>
- * This map is intended to be used for caches and provides the following eviction policies:
- * <ul>
- *   <li> First-in, First-out: Also known as insertion order. This policy has excellent
- *        concurrency characteristics and an adequate hit rate.
- *   <li> Second-chance: An enhanced FIFO policy that marks entries that have been retrieved
- *        and saves them from being evicted until the next pass. This enhances the FIFO policy
- *        by making it aware of "hot" entries, which increases its hit rate to be equal to an
- *        LRU's under normal workloads. In the worst case, where all entries have been saved,
- *        this policy degrades to a FIFO.
- *   <li> Least Recently Used: An eviction policy based on the observation that entries that
- *        have been used recently will likely be used again soon. This policy provides a good
- *        approximation of an optimal algorithm, but suffers by being expensive to maintain.
- *        The cost of reordering entries on the list during every access operation reduces
- *        the concurrency and performance characteristics of this policy.
- * </ul>
+ * This map is intended to be used for caches and provides a <i>least recently
+ * used</i> eviction policy. This policy is based on the observation that
+ * entries that have been used recently will likely be used again soon. It
+ * provides a good approximation of the optimal algorithm.
  *
- * @author <a href="mailto:ben.manes@reardencommerce.com">Ben Manes</a>
- * @see    http://code.google.com/p/concurrentlinkedhashmap/
+ * @author <a href="mailto:ben.manes@gmail.com">Ben Manes</a>
+ * @see <tt>http://code.google.com/p/concurrentlinkedhashmap/</tt>
  */
-public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V> implements ConcurrentMap<K, V>, Serializable {
-    private static final EvictionListener<?, ?> nullListener = new EvictionListener<Object, Object>() {
-        public void onEviction(Object key, Object value) {}
-    };
-    private static final long serialVersionUID = 8350170357874293408L;
-    final ConcurrentMap<K, Node<K, V>> data;
-    final EvictionListener<K, V> listener;
-    final AtomicInteger capacity;
-    final EvictionPolicy policy;
-    final AtomicInteger length;
+public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
+    implements ConcurrentMap<K, V> {
+  /**
+   * Number of cache reorder operations that can be buffered per segment before
+   * the cache's ordering information is updated. This is used to avoid lock
+   * contention by recording a memento on reads and delaying a lock acquisition
+   * until the threshold is crossed or a mutation occurs.
+   */
+  static final int REORDER_THRESHOLD = 64;
+
+  /** The maximum number of segments to allow. */
+  static final int MAX_SEGMENTS = 1 << 16; // slightly conservative
+
+  /** A queue that discards all entries. */
+  static final Queue nullQueue = new DiscardingQueue();
+
+  /** The backing data store holding the key-value associations. */
+  final ConcurrentMap<K, Node<K, V>> data;
+
+  /** Mirrors the lock striping on CHM for ordering write operations. */
+  final int segments;
+  final int segmentMask;
+  final int segmentShift;
+  final Lock[] segmentLock;
+
+  /** The eviction support to bound the map by a maximum capacity. */
+  volatile int length;
+
+  @GuardedBy("evictionLock")
+  final Node<K, V> sentinel;
+
+  volatile int capacity;
+  final Lock evictionLock;
+  final Queue<Runnable> writeQueue;
+  final Queue<Node<K, V>>[] reorderQueue;
+  final AtomicInteger[] reorderQueueLength;
+
+  /** A listener is notified when an entry is evicted. */
+  final Queue<Node<K, V>> listenerQueue;
+  final EvictionListener<K, V> listener;
+
+  /**
+   * Creates an instance based on the builder's configuration.
+   */
+  @SuppressWarnings("unchecked")
+  private ConcurrentLinkedHashMap(Builder<K, V> builder) {
+    // The shift and mask used by ConcurrentHashMap to select the segment that
+    // a key is associated with. This avoids lock contention by ensuring that
+    // lock selected by this decorator parallels the one used by the data store
+    // so that concurrent writes for different segments do not contend.
+    int concurrencyLevel = (builder.concurrencyLevel > MAX_SEGMENTS)
+        ? MAX_SEGMENTS : builder.concurrencyLevel;
+    int sshift = 0;
+    int ssize = 1;
+    while (ssize < concurrencyLevel) {
+        ++sshift;
+        ssize <<= 1;
+    }
+    segmentShift = 32 - sshift;
+    segmentMask = ssize - 1;
+    segments = ssize;
+    segmentLock = new Lock[segments];
+
+    // The data store and its maximum capacity
+    data = new ConcurrentHashMap<K, Node<K, V>>(builder.maximumCapacity, 0.75f, concurrencyLevel);
+    capacity = builder.maximumCapacity;
+
+    // The eviction support
+    sentinel = new Node<K, V>();
+    evictionLock = new ReentrantLock();
+    writeQueue = new ConcurrentLinkedQueue<Runnable>();
+    reorderQueueLength = new AtomicInteger[segments];
+    reorderQueue = (Queue<Node<K, V>>[]) new Queue[segments];
+    for (int i=0; i<segments; i++) {
+      segmentLock[i] = new ReentrantLock();
+      reorderQueueLength[i] = new AtomicInteger();
+      reorderQueue[i] = new ConcurrentLinkedQueue<Node<K, V>>();
+    }
+
+    // The notification listener and event queue
+    listener = builder.listener;
+    listenerQueue = (listener == Builder.nullListener)
+        ? (Queue<Node<K, V>>) nullQueue
+        : new ConcurrentLinkedQueue<Node<K, V>>();
+  }
+
+  /**
+   * Creates a builder for constructing the map, such as:
+   * <p>
+   * {@code
+   *   Builder<K, V> builder = ConcurrentLinkedHashMap.builder();
+   *   // configure builder
+   *   ConcurrentMap<K, V> map = builder.build();
+   * }
+   */
+  public static <K, V> Builder<K, V> builder() {
+    return new Builder<K, V>();
+  }
+
+  /**
+   * Asserts that the object is not null.
+   */
+  private static void checkNotNull(Object o, String message) {
+    if (o == null) {
+      throw new NullPointerException(message);
+    }
+  }
+
+  /* ---------------- Eviction support -------------- */
+
+  /**
+   * Retrieves the maximum capacity of the map.
+   *
+   * @return The maximum capacity.
+   */
+  public int capacity() {
+    return capacity;
+  }
+
+  /**
+   * Sets the maximum capacity of the map and eagerly evicts entries until it
+   * shrinks to the appropriate size.
+   *
+   * @param capacity the maximum capacity of the map
+   * @throws IllegalArgumentException if the capacity is negative
+   */
+  public void setCapacity(int capacity) {
+    if (capacity < 0) {
+      throw new IllegalArgumentException();
+    }
+    this.capacity = capacity;
+
+    evictionLock.lock();
+    try {
+      drainWriteQueue();
+      while (isOverflow()) {
+        evict();
+      }
+    } finally {
+      evictionLock.unlock();
+    }
+  }
+
+  /**
+   * Determines whether the map has exceeded its capacity.
+   *
+   * @return if the map has overflowed and an entry should be evicted.
+   */
+  private boolean isOverflow() {
+    return size() > capacity();
+  }
+
+  /**
+   * Evicts an entry from the map if it exceeds the maximum capacity.
+   */
+  @GuardedBy("evictionLock")
+  private void evict() {
+    while (isOverflow()) {
+      Node<K, V> node = sentinel.next;
+      // Attempt to remove the node if it's still available
+      if (data.remove(node.key, node)) {
+        listenerQueue.add(node);
+        node.remove();
+        length--;
+        return;
+      }
+    }
+  }
+
+  /**
+   * Determines the segment that the key is associated to. To avoid lock
+   * contention this should always parallel the segment selected by
+   * {@link ConcurrentHashMap} so that concurrent writes for different
+   * segments do not contend.
+   */
+  int segmentFor(Object key) {
+    int hash = hash(key.hashCode());
+    return (hash >>> segmentShift) & segmentMask;
+  }
+
+  /**
+   * Applies a supplemental hash function to a given hashCode, which
+   * defends against poor quality hash functions.  This is critical
+   * because ConcurrentHashMap uses power-of-two length hash tables,
+   * that otherwise encounter collisions for hashCodes that do not
+   * differ in lower or upper bits.
+   */
+  private static int hash(int h) {
+    // Spread bits to regularize both segment and index locations,
+    // using variant of single-word Wang/Jenkins hash.
+    h += (h <<  15) ^ 0xffffcd7d;
+    h ^= (h >>> 10);
+    h += (h <<   3);
+    h ^= (h >>>  6);
+    h += (h <<   2) + (h << 14);
+    return h ^ (h >>> 16);
+  }
+
+  /**
+   * Adds the entry to the reorder queue for a future update to the page
+   * replacement algorithm.
+   *
+   * @param node the entry that was read
+   */
+  private void appendToReorderQueue(Node<K, V> node) {
+    int segment = node.segment;
+    reorderQueue[segment].add(node);
+    reorderQueueLength[segment].incrementAndGet();
+  }
+
+  /**
+   * Attempts to acquire the eviction lock and apply pending updates to the
+   * eviction algorithm. This is attempted only if there is a pending write
+   * or the segment's reorder buffer has exceeded the threshold.
+   */
+  private void attemptToDrainEvictionQueues(int segment) {
+    if (writeQueue.isEmpty() && (reorderQueueLength[segment].get() <= REORDER_THRESHOLD)) {
+      return;
+    }
+    if (evictionLock.tryLock()) {
+      try {
+        drainReorderQueue(segment);
+        drainWriteQueue();
+      } finally {
+        evictionLock.unlock();
+      }
+    }
+  }
+
+  /**
+   * Applies the pending updates to the list.
+   */
+  @GuardedBy("evictionLock")
+  void drainWriteQueue() {
+    Runnable task;
+    while ((task = writeQueue.poll()) != null) {
+      task.run();
+    }
+  }
+
+  /**
+   * Applies the pending reorderings to the list.
+   */
+  @GuardedBy("evictionLock")
+  void drainReorderQueue(int segment) {
+    Queue<Node<K, V>> queue = reorderQueue[segment];
+    Node<K, V> node;
+    int delta = 0;
+
+    while ((node = queue.poll()) != null) {
+      // skip the node if appended to queue during its removal
+      if (node.isLinked()) {
+        node.moveToTail();
+        delta--;
+      }
+    }
+    reorderQueueLength[segment].addAndGet(delta);
+  }
+
+  /**
+   * Performs the post-processing of eviction events.
+   */
+  private void processEvents(int segment) {
+    attemptToDrainEvictionQueues(segment);
+    notifyListeners();
+  }
+
+  /**
+   * Notifies the listeners that the entry was evicted.
+   */
+  private void notifyListeners() {
+    Node<K, V> node;
+    while ((node = listenerQueue.poll()) != null) {
+      listener.onEviction(node.key, node.value);
+    }
+  }
+
+  /**
+   * Adds a node to the list and evicts an entry on overflow.
+   */
+  private final class AddTask implements Runnable {
+    private final Node<K, V> node;
+
+    AddTask(Node<K, V> node) {
+      this.node = node;
+    }
+
+    @Override
+    @GuardedBy("evictionLock")
+    public void run() {
+      node.appendToTail();
+      length++;
+      evict();
+    }
+  }
+
+  /**
+   * Removes a node from the list.
+   */
+  private final class RemovalTask implements Runnable {
+    private final Node<K, V> node;
+
+    RemovalTask(Node<K, V> node) {
+      this.node = node;
+    }
+
+    @Override
+    @GuardedBy("evictionLock")
+    public void run() {
+      node.remove();
+      length--;
+    }
+  }
+
+  /* ---------------- Concurrent Map support -------------- */
+
+  @Override
+  public int size() {
+    return length;
+  }
+
+  @Override
+  public void clear() {
+    if (isEmpty()) {
+      return;
+    }
+    for (K key : data.keySet()) {
+      remove(key);
+    }
+  }
+
+  @Override
+  public boolean containsKey(Object key) {
+    checkNotNull(key, "null key");
+    processEvents(segmentFor(key));
+
+    return data.containsKey(key);
+  }
+
+  @Override
+  public boolean containsValue(Object value) {
+    checkNotNull(value, "value");
+
+    for (Node<K, V> node : data.values()) {
+      if (node.value.equals(value)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  @Override
+  public V get(Object key) {
+    checkNotNull(key, "null key");
+
+    int segment;
+    V value = null;
+    Node<K, V> node = data.get(key);
+    if (node == null) {
+      segment = segmentFor(key);
+    } else {
+      appendToReorderQueue(node);
+      segment = node.segment;
+      value = node.value;
+    }
+    processEvents(segment);
+    return value;
+  }
+
+  @Override
+  public V put(K key, V value) {
+    checkNotNull(key, "null key");
+    checkNotNull(value, "null value");
+
+    int segment = segmentFor(key);
+    Node<K, V> old = putIfAbsent(new Node<K, V>(key, value, segment, sentinel));
+    V previous = (old == null) ? null : old.getAndSetValue(value);
+    processEvents(segment);
+    return previous;
+  }
+
+  @Override
+  public V putIfAbsent(K key, V value) {
+    checkNotNull(key, "null key");
+    checkNotNull(value, "null value");
+
+    int segment = segmentFor(key);
+    Node<K, V> old = putIfAbsent(new Node<K, V>(key, value, segment, sentinel));
+    V previous = (old == null) ? null : old.value;
+    processEvents(segment);
+    return previous;
+  }
+
+  /**
+   * Adds a node to the list and data store if it does not already exist.
+   *
+   * @param node an unlinked node to add
+   * @return the previous value in the data store
+   */
+  private Node<K, V> putIfAbsent(Node<K, V> node) {
+    Lock lock = segmentLock[node.segment];
+    Runnable task = new AddTask(node);
+    Node<K, V> previous;
+
+    // maintain per-segment write ordering
+    lock.lock();
+    try {
+      previous = data.putIfAbsent(node.key, node);
+      if (previous == null) {
+        writeQueue.offer(task);
+      }
+    } finally {
+      lock.unlock();
+    }
+
+    // perform outside of lock
+    if (previous != null) {
+      appendToReorderQueue(previous);
+    }
+    return previous;
+  }
+
+  @Override
+  public V remove(Object key) {
+    checkNotNull(key, "null key");
+
+    V value = null;
+    Node<K, V> node;
+    int segment = segmentFor(key);
+    Lock lock = segmentLock[segment];
+
+    // maintain per-segment write ordering
+    lock.lock();
+    try {
+      node = data.remove(key);
+      if (node != null) {
+        value = node.value;
+        writeQueue.offer(new RemovalTask(node));
+      }
+    } finally {
+      lock.unlock();
+    }
+
+    // perform outside of lock
+    processEvents(segment);
+    return value;
+  }
+
+  @Override
+  public boolean remove(Object key, Object value) {
+    checkNotNull(key, "null key");
+    checkNotNull(value, "null value");
+
+    Node<K, V> node;
+    boolean removed = false;
+    int segment = segmentFor(key);
+    Lock lock = segmentLock[segment];
+
+    // maintain per-segment write ordering
+    lock.lock();
+    try {
+      node = data.get(key);
+      if ((node != null) && node.value.equals(value)) {
+        writeQueue.offer(new RemovalTask(node));
+        data.remove(key);
+        removed = true;
+      }
+    } finally {
+      lock.unlock();
+    }
+
+    // perform outside of lock
+    processEvents(segment);
+    return removed;
+  }
+
+  @Override
+  public V replace(K key, V value) {
+    checkNotNull(key, "null key");
+    checkNotNull(value, "null value");
+
+    int segment;
+    V previous = null;
+    Node<K, V> node = data.get(key);
+    if (node == null) {
+      segment = segmentFor(key);
+    } else {
+      previous = node.getAndSetValue(value);
+      appendToReorderQueue(node);
+      segment = node.segment;
+    }
+    processEvents(segment);
+    return previous;
+  }
+
+  @Override
+  public boolean replace(K key, V oldValue, V newValue) {
+    checkNotNull(key, "null key");
+    checkNotNull(oldValue, "null oldValue");
+    checkNotNull(newValue, "null newValue");
+
+    int segment;
+    boolean replaced = false;
+    Node<K, V> node = data.get(key);
+    if (node == null) {
+      segment = segmentFor(key);
+    } else {
+      replaced = node.casValue(oldValue, newValue);
+      appendToReorderQueue(node);
+      segment = node.segment;
+    }
+    processEvents(segment);
+    return replaced;
+  }
+
+  @Override
+  public Set<K> keySet() {
+    return new KeySet();
+  }
+
+  @Override
+  public Collection<V> values() {
+    return new Values();
+  }
+
+  @Override
+  public Set<Entry<K, V>> entrySet() {
+    return new EntrySet();
+  }
+
+  /**
+   * A listener registered for notification when an entry is evicted.
+   */
+  public interface EvictionListener<K, V> {
+
+    /**
+     * A call-back notification that the entry was evicted.
+     *
+     * @param key the evicted key
+     * @param value the evicted value
+     */
+    void onEviction(K key, V value);
+  }
+
+  /**
+   * A node on the double-linked list. This list cross-cuts the data store.
+   */
+  @SuppressWarnings("unchecked")
+  static final class Node<K, V> {
+    private static final AtomicReferenceFieldUpdater<Node, Object> valueUpdater =
+        AtomicReferenceFieldUpdater.newUpdater(Node.class, Object.class, "value");
+
     final Node<K, V> sentinel;
+    Node<K, V> prev;
+    Node<K, V> next;
+
+    final K key;
+    volatile V value;
+    final int segment;
 
     /**
-     * Creates a map with the specified eviction policy, maximum capacity, and at the default concurrency level.
-     *
-     * @param policy          The eviction policy to apply when the size exceeds the maximum capacity.
-     * @param maximumCapacity The maximum capacity to coerces to. The size may exceed it temporarily.
+     * Creates a new sentinel node.
      */
-    @SuppressWarnings("unchecked")
-    public static <K, V> ConcurrentLinkedHashMap<K, V> create(EvictionPolicy policy, int maximumCapacity) {
-        return create(policy, maximumCapacity, 16, (EvictionListener<K, V>) nullListener);
+    public Node() {
+      this.sentinel = this;
+      this.segment = -1;
+      this.value = null;
+      this.key = null;
+      this.prev = this;
+      this.next = this;
     }
 
     /**
-     * Creates a map with the specified eviction policy, maximum capacity, eviction listener, and at the
-     * default concurrency level.
-     *
-     * @param policy          The eviction policy to apply when the size exceeds the maximum capacity.
-     * @param maximumCapacity The maximum capacity to coerces to. The size may exceed it temporarily.
-     * @param listener        The listener registered for notification when an entry is evicted.
+     * Creates a new, unlinked node.
      */
-    public static <K, V> ConcurrentLinkedHashMap<K, V> create(EvictionPolicy policy, int maximumCapacity,
-                                                              EvictionListener<K, V> listener) {
-        return create(policy, maximumCapacity, 16, listener);
+    public Node(K key, V value, int segment, Node<K, V> sentinel) {
+      this.sentinel = sentinel;
+      this.segment = segment;
+      this.value = value;
+      this.key = key;
+      this.prev = null;
+      this.next = null;
     }
 
     /**
-     * Creates a map with the specified eviction policy, maximum capacity, and concurrency level.
-     *
-     * @param policy           The eviction policy to apply when the size exceeds the maximum capacity.
-     * @param maximumCapacity  The maximum capacity to coerces to. The size may exceed it temporarily.
-     * @param concurrencyLevel The estimated number of concurrently updating threads. The implementation
-     *                         performs internal sizing to try to accommodate this many threads.
+     * Atomically retrieves and updates the value.
      */
-    @SuppressWarnings("unchecked")
-    public static <K, V> ConcurrentLinkedHashMap<K, V> create(EvictionPolicy policy, int maximumCapacity,
-                                                              int concurrencyLevel) {
-        return create(policy, maximumCapacity,  concurrencyLevel, (EvictionListener<K, V>) nullListener);
+    public V getAndSetValue(V value) {
+      return (V) valueUpdater.getAndSet(this, value);
     }
 
     /**
-     * Creates a map with the specified eviction policy, maximum capacity, eviction listener, and concurrency level.
-     *
-     * @param policy           The eviction policy to apply when the size exceeds the maximum capacity.
-     * @param maximumCapacity  The maximum capacity to coerces to. The size may exceed it temporarily.
-     * @param concurrencyLevel The estimated number of concurrently updating threads. The implementation
-     *                         performs internal sizing to try to accommodate this many threads.
-     * @param listener         The listener registered for notification when an entry is evicted.
+     * Atomically updates the value if its equal to the expected value.
      */
-    public static <K, V> ConcurrentLinkedHashMap<K, V> create(EvictionPolicy policy, int maximumCapacity,
-                                                              int concurrencyLevel, EvictionListener<K, V> listener) {
-        return new ConcurrentLinkedHashMap<K, V>(policy, maximumCapacity, concurrencyLevel, listener);
+    public boolean casValue(V expect, V update) {
+      return valueUpdater.compareAndSet(this, expect, update);
     }
 
     /**
-     * Creates a map with the specified eviction policy, maximum capacity, eviction listener, and concurrency level.
-     *
-     * @param policy           The eviction policy to apply when the size exceeds the maximum capacity.
-     * @param maximumCapacity  The maximum capacity to coerces to. The size may exceed it temporarily.
-     * @param concurrencyLevel The estimated number of concurrently updating threads. The implementation
-     *                         performs internal sizing to try to accommodate this many threads.
-     * @param listener         The listener registered for notification when an entry is evicted.
+     * Removes the node from the list.
      */
-    private ConcurrentLinkedHashMap(EvictionPolicy policy, int maximumCapacity,
-                                    int concurrencyLevel, EvictionListener<K, V> listener) {
-        if ((policy == null) || (maximumCapacity < 0) || (concurrencyLevel <= 0) || (listener == null)) {
-            throw new IllegalArgumentException();
-        }
-        this.data = new ConcurrentHashMap<K, Node<K, V>>(maximumCapacity, 0.75f, concurrencyLevel);
-        this.capacity = new AtomicInteger(maximumCapacity);
-        this.length = new AtomicInteger();
-        this.sentinel = new Node<K, V>();
-        this.listener = listener;
-        this.policy = policy;
+    public void remove() {
+      prev.next = next;
+      next.prev = prev;
+      prev = next = null;
     }
 
     /**
-     * Determines whether the map has exceeded its capacity.
-     *
-     * @return Whether the map has overflowed and an entry should be evicted.
+     * Appends the node to the tail of the list.
      */
-    private boolean isOverflow() {
-        return size() > capacity();
+    public void appendToTail() {
+      prev = sentinel.prev;
+      next = sentinel;
+      sentinel.prev.next = this;
+      sentinel.prev = this;
     }
 
     /**
-     * Sets the maximum capacity of the map and eagerly evicts entries until it shrinks to the appropriate size.
-     *
-     * @param capacity The maximum capacity of the map.
+     * Moves the node to the tail of the list.
      */
-    public void setCapacity(int capacity) {
-        if (capacity < 0) {
-            throw new IllegalArgumentException();
-        }
-        this.capacity.set(capacity);
-        while (evict()) { }
+    public void moveToTail() {
+      if (next != sentinel) {
+        prev.next = next;
+        next.prev = prev;
+        appendToTail();
+      }
     }
 
     /**
-     * Retrieves the maximum capacity of the map.
-     *
-     * @return The maximum capacity.
+     * Whether the node is linked on the list.
      */
-    public int capacity() {
-        return capacity.get();
+    public boolean isLinked() {
+      return (next != null);
     }
 
-    /**
-     * {@inheritDoc}
-     */
+    @Override
+    public String toString() {
+      return key + "=" + value;
+    }
+  }
+
+  /**
+   * An adapter to safely externalize the keys.
+   */
+  private final class KeySet extends AbstractSet<K> {
+    private final ConcurrentLinkedHashMap<K, V> map = ConcurrentLinkedHashMap.this;
+
     @Override
     public int size() {
-        int size = length.get();
-        return (size >= 0) ? size : 0;
+      return map.size();
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public void clear() {
-        for (K key : keySet()) {
-            remove(key);
-        }
+      map.clear();
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
-    public boolean containsKey(Object key) {
-        return data.containsKey(key);
+    public Iterator<K> iterator() {
+      return new KeyIterator();
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
-    public boolean containsValue(Object value) {
-        if (value == null) {
-            throw new IllegalArgumentException();
-        }
-        return data.containsValue(new Node<Object, Object>(null, value, null));
+    public boolean contains(Object obj) {
+      return containsKey(obj);
     }
 
-    /**
-     * Evicts a single entry if the map exceeds the maximum capacity.
-     */
-    private boolean evict() {
-        while (isOverflow()) {
-            Node<K, V> node = sentinel.getNext();
-            if (node == sentinel) {
-                return false;
-            } else if (policy.onEvict(this, node)) {
-                // Attempt to remove the node if it's still available
-                if (data.remove(node.getKey(), new Identity(node))) {
-                    length.decrementAndGet();
-                    node.remove();
-                    listener.onEviction(node.getKey(), node.getValue());
-                    return true;
-                }
-            }
-        }
+    @Override
+    public boolean remove(Object obj) {
+      return (map.remove(obj) != null);
+    }
+
+    @Override
+    public Object[] toArray() {
+      return map.data.keySet().toArray();
+    }
+
+    @Override
+    public <T> T[] toArray(T[] array) {
+      return map.data.keySet().toArray(array);
+    }
+  }
+
+  /**
+   * An adapter to safely externalize the keys.
+   */
+  private final class KeyIterator implements Iterator<K> {
+    private final EntryIterator iterator = new EntryIterator(data.values().iterator());
+
+    @Override
+    public boolean hasNext() {
+      return iterator.hasNext();
+    }
+
+    @Override
+    public K next() {
+      return iterator.next().getKey();
+    }
+
+    @Override
+    public void remove() {
+      iterator.remove();
+    }
+  }
+
+  /**
+   * An adapter to represent the data store's values in the external type.
+   */
+  private final class Values extends AbstractCollection<V> {
+
+    @Override
+    public int size() {
+      return ConcurrentLinkedHashMap.this.size();
+    }
+
+    @Override
+    public void clear() {
+      ConcurrentLinkedHashMap.this.clear();
+    }
+
+    @Override
+    public Iterator<V> iterator() {
+      return new ValueIterator();
+    }
+
+    @Override
+    public boolean contains(Object o) {
+      return containsValue(o);
+    }
+  }
+
+  /**
+   * An adapter to represent the data store's values in the external type.
+   */
+  private final class ValueIterator implements Iterator<V> {
+    private final EntryIterator iterator = new EntryIterator(data.values().iterator());
+
+    @Override
+    public boolean hasNext() {
+      return iterator.hasNext();
+    }
+
+    @Override
+    public V next() {
+      return iterator.next().getValue();
+    }
+
+    @Override
+    public void remove() {
+      iterator.remove();
+    }
+  }
+
+  /**
+   * An adapter to represent the data store's entry set in the external type.
+   */
+  private final class EntrySet extends AbstractSet<Entry<K, V>> {
+    private final ConcurrentLinkedHashMap<K, V> map = ConcurrentLinkedHashMap.this;
+
+    @Override
+    public int size() {
+      return map.size();
+    }
+
+    @Override
+    public void clear() {
+      map.clear();
+    }
+
+    @Override
+    public Iterator<Entry<K, V>> iterator() {
+      return new EntryIterator(map.data.values().iterator());
+    }
+
+    @Override
+    public boolean contains(Object obj) {
+      if (!(obj instanceof Entry)) {
         return false;
+      }
+      Entry<?, ?> entry = (Entry<?, ?>) obj;
+      Node<K, V> node = map.data.get(entry.getKey());
+      return (node != null) && (node.value.equals(entry.getValue()));
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
-    public V get(Object key) {
-        Node<K, V> node = data.get(key);
-        if (node != null) {
-            policy.onAccess(this, node);
-            return node.getValue();
-        }
-        return null;
+    public boolean add(Entry<K, V> entry) {
+      return (map.putIfAbsent(entry.getKey(), entry.getValue()) == null);
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
-    public V put(K key, V value) {
-        if (value == null) {
-            throw new IllegalArgumentException();
-        }
-        Node<K, V> old = putIfAbsent(new Node<K, V>(key, value, sentinel));
-        return (old == null) ? null : old.getAndSetValue(value);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    public V putIfAbsent(K key, V value) {
-        if (value == null) {
-            throw new IllegalArgumentException();
-        }
-        Node<K, V> old = putIfAbsent(new Node<K, V>(key, value, sentinel));
-        return (old == null) ? null : old.getValue();
-    }
-
-    /**
-     * Adds a node to the list and data store if it does not already exist.
-     *
-     * @param node An unlinked node to add.
-     * @return     The previous value in the data store.
-     */
-    private Node<K, V> putIfAbsent(Node<K, V> node) {
-        Node<K, V> old = data.putIfAbsent(node.getKey(), node);
-        if (old == null) {
-            length.incrementAndGet();
-            node.appendToTail();
-            evict();
-        } else {
-            policy.onAccess(this, old);
-        }
-        return old;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public V remove(Object key) {
-        Node<K, V> node = data.remove(key);
-        if (node == null) {
-            return null;
-        }
-        length.decrementAndGet();
-        node.remove();
-        return node.getValue();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    public boolean remove(Object key, Object value) {
-        Node<K, V> node = data.get(key);
-        if ((node != null) && node.value.equals(value) && data.remove(key, new Identity(node))) {
-            length.decrementAndGet();
-            node.remove();
-            return true;
-        }
+    public boolean remove(Object obj) {
+      if (!(obj instanceof Entry)) {
         return false;
+      }
+      Entry<?, ?> entry = (Entry<?, ?>) obj;
+      return map.remove(entry.getKey(), entry.getValue());
+    }
+  }
+
+  /**
+   * An adapter to represent the data store's entry iterator in the external
+   * type.
+   */
+  private final class EntryIterator implements Iterator<Entry<K, V>> {
+    private final Iterator<Node<K, V>> iterator;
+    private Entry<K, V> current;
+
+    public EntryIterator(Iterator<Node<K, V>> iterator) {
+      this.iterator = iterator;
     }
 
-    /**
-     * {@inheritDoc}
-     */
-    public V replace(K key, V value) {
-        if (value == null) {
-            throw new IllegalArgumentException();
-        }
-        Node<K, V> node = data.get(key);
-        return (node == null) ? null : node.getAndSetValue(value);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    public boolean replace(K key, V oldValue, V newValue) {
-        if (newValue == null) {
-            throw new IllegalArgumentException();
-        }
-        Node<K, V> node = data.get(key);
-        return (node == null) ? false : node.casValue(oldValue, newValue);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
     @Override
-    public Set<K> keySet() {
-        return new KeySet();
+    public boolean hasNext() {
+      return iterator.hasNext();
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
-    public Collection<V> values() {
-        return new Values();
+    public Entry<K, V> next() {
+      current = new WriteThroughEntry(iterator.next());
+      return current;
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
-    public Set<Entry<K, V>> entrySet() {
-        return new EntrySet();
+    public void remove() {
+      if (current == null) {
+        throw new IllegalStateException();
+      }
+      ConcurrentLinkedHashMap.this.remove(current.getKey(), current.getValue());
+      current = null;
+    }
+  }
+
+  /**
+   * An entry that is tied to the map instance to allow updates through the
+   * entry or the map to be visible.
+   */
+  private final class WriteThroughEntry implements Entry<K, V> {
+    private final Node<K, V> node;
+
+    public WriteThroughEntry(Node<K, V> node) {
+      this.node = node;
     }
 
-    /**
-     * A listener registered for notification when an entry is evicted.
-     */
-    public interface EvictionListener<K, V> {
-
-        /**
-         * A call-back notification that the entry was evicted.
-         *
-         * @param key   The evicted key.
-         * @param value The evicted value.
-         */
-        void onEviction(K key, V value);
+    @Override
+    public K getKey() {
+      return node.key;
     }
 
-    /**
-     * The replacement policy to apply to determine which entry to discard when the capacity has been reached.
-     */
-    public enum EvictionPolicy {
+    @Override
+    public V getValue() {
+      return node.value;
+    }
 
-        /**
-         * Evicts entries based on insertion order.
-         */
-        FIFO() {
-            @Override
-            <K, V> void onAccess(ConcurrentLinkedHashMap<K, V> map, Node<K, V> node) {
-                // do nothing
-            }
-            @Override
-            <K, V> boolean onEvict(ConcurrentLinkedHashMap<K, V> map, Node<K, V> node) {
-                return true;
-            }
-        },
+    @Override
+    public V setValue(V value) {
+      return replace(getKey(), value);
+    }
 
-        /**
-         * Evicts entries based on insertion order, but gives an entry a "second chance" if it has been requested recently.
-         */
-        SECOND_CHANCE() {
-            @Override
-            <K, V> void onAccess(ConcurrentLinkedHashMap<K, V> map, Node<K, V> node) {
-                node.setMarked(true);
-            }
-            @Override
-            <K, V> boolean onEvict(ConcurrentLinkedHashMap<K, V> map, Node<K, V> node) {
-                if (node.isMarked()) {
-                    if (node.tryRemove()) {
-                        node.appendToTail();
-                        node.setMarked(false);
-                    }
-                    return false;
-                }
-                return true;
-            }
-        },
+    @Override
+    public boolean equals(Object obj) {
+      if (obj == this) {
+        return true;
+      } else if (!(obj instanceof Entry)) {
+        return false;
+      }
+      Entry<?, ?> entry = (Entry<?, ?>) obj;
+      return eq(getKey(), entry.getKey()) && eq(getValue(), entry.getValue());
+    }
 
-        /**
-         * Evicts entries based on how recently they are used, with the least recent evicted first.
-         */
-        LRU() {
-            @Override
-            <K, V> void onAccess(ConcurrentLinkedHashMap<K, V> map, Node<K, V> node) {
-                if (node.tryRemove()) {
-                    node.appendToTail();
-                }
-            }
-            @Override
-            <K, V> boolean onEvict(ConcurrentLinkedHashMap<K, V> map, Node<K, V> node) {
-                return true;
-            }
+    @Override
+    public int hashCode() {
+      K key = getKey();
+      V value = getValue();
+      return ((key == null) ? 0 : key.hashCode()) ^
+             ((value == null) ? 0 : value.hashCode());
+    }
+
+    @Override
+    public String toString() {
+      return getKey() + "=" + getValue();
+    }
+
+    private boolean eq(Object o1, Object o2) {
+      return (o1 == o2) || ((o1 != null) && o1.equals(o2));
+    }
+  }
+
+  private static final class DiscardingQueue<E> extends AbstractQueue<E> {
+    public boolean offer(E e) {
+      return true;
+    }
+    public E poll() {
+      return null;
+    }
+    public E peek() {
+      return null;
+    }
+    public int size() {
+      throw new UnsupportedOperationException();
+    }
+    public Iterator<E> iterator() {
+      throw new UnsupportedOperationException();
+    }
+  }
+
+  /**
+   * The field or method to which this annotation is applied can only be
+   * accessed when holding a particular lock, which may be a built-in
+   * (synchronization) lock, or may be an explicit {@link Lock}.
+   *
+   * @see <tt>http://www.jcip.net</tt>
+   */
+  @Retention(CLASS)
+  @Target({FIELD, METHOD})
+  private @interface GuardedBy {
+      String value();
+  }
+
+  /**
+   * A builder that creates {@link ConcurrentLinkedHashMap} instances.
+   */
+  @SuppressWarnings("unchecked")
+  public static final class Builder<K, V> {
+    private static final EvictionListener<?, ?> nullListener =
+        new EvictionListener<Object, Object>() {
+          @Override
+          public void onEviction(Object key, Object value) {}
         };
+    private int maximumCapacity;
+    private int concurrencyLevel = 16;
+    private EvictionListener<K, V> listener;
 
-        /**
-         * Performs any operations required by the policy after a node was successfully retrieved.
-         */
-        abstract <K, V> void onAccess(ConcurrentLinkedHashMap<K, V> map, Node<K, V> node);
-
-        /**
-         * Determines whether to evict the node at the head of the list. If false, the node is offered to the tail.
-         */
-        abstract <K, V> boolean onEvict(ConcurrentLinkedHashMap<K, V> map, Node<K, V> node);
+    public Builder() {
+      maximumCapacity = -1;
+      concurrencyLevel = 16;
+      listener = (EvictionListener<K, V>) nullListener;
     }
 
     /**
-     * A node on the double-linked list. This list cross-cuts the data store.
+     * Specifies the maximum capacity to coerces to. The size may exceed it
+     * temporarily.
      */
-    @SuppressWarnings("unchecked")
-    static final class Node<K, V> implements Serializable {
-        private static final long serialVersionUID = 1461281468985304519L;
-        private static final AtomicReferenceFieldUpdater<Node, Object> valueUpdater =
-            AtomicReferenceFieldUpdater.newUpdater(Node.class, Object.class, "value");
-        private static final AtomicReferenceFieldUpdater<Node, Node> prevUpdater =
-            AtomicReferenceFieldUpdater.newUpdater(Node.class, Node.class, "prev");
-        private static final AtomicReferenceFieldUpdater<Node, Node> nextUpdater =
-            AtomicReferenceFieldUpdater.newUpdater(Node.class, Node.class, "next");
-
-        private final K key;
-        private final Node<K, V> sentinel;
-
-        private volatile V value;
-        private volatile boolean marked;
-        private volatile Node<K, V> prev;
-        private volatile Node<K, V> next;
-        private volatile Node<K, V> auxNext;
-
-        /**
-         * Creates a new sentinel node.
-         */
-        public Node() {
-            this.sentinel = this;
-            this.value = null;
-            this.key = null;
-            setPrev(this);
-            setNext(this);
-            auxNext = this;
-        }
-
-        /**
-         * Creates a new, unlinked node.
-         */
-        public Node(K key, V value, Node<K, V> sentinel) {
-            this.sentinel = sentinel;
-            this.value = value;
-            this.key = key;
-            setPrev(null);
-            setNext(null);
-            auxNext = sentinel;
-        }
-
-        /**
-         * Removes the node from the list.
-         */
-        public void remove() {
-            while (!tryRemove()) { /* retry */ }
-        }
-
-        /**
-         * Attempts to remove the node from the list.
-         *
-         * @return Whether the node was removed.
-         */
-        public boolean tryRemove() {
-            // Try to lock the node by shifting the "next" field to "null"
-            // If successful, the previous value was captured in "auxiliary"
-            final Node<K, V> auxiliary = getNext();
-            if (auxNext == null) {
-                auxNext = auxiliary;
-            }
-            if ((auxiliary != null) && casNext(auxiliary, null)) {
-                // FIXME: debug
-                auxNext = auxiliary;
-                // FIXME: debug
-
-                // swing the previous node's "next" to our "next"
-                while (!getPrev().casNext(this, auxiliary)) { /* spin */ }
-
-                // swing the next node's "prev" to our "prev"
-                while (!auxiliary.casPrev(this, getPrev())) { /* spin */ }
-
-                // successfully remove the node
-                return true;
-            }
-            // failed to remove the node
-            return false;
-        }
-
-        /**
-         * Appends the node to the tail of the list.
-         */
-        public void appendToTail() {
-            // Initialize in the "locked" state
-            setNext(null);
-
-            // Link the tail to the new node
-            do {
-              setPrev(sentinel.getPrev());
-            } while (!getPrev().casNext(sentinel, this));
-
-            // Link the sentinel to the new tail
-            while (!sentinel.casPrev(getPrev(), this)) {
-                if (sentinel.getPrev() == this) {
-                    break; // helped out
-                }
-            }
-
-            // FIXME: debug
-            auxNext = sentinel;
-            // FIXME: debug
-
-            // Unlock the new tail
-            setNext(sentinel);
-        }
-
-        /*
-         * Key operators
-         */
-        public K getKey() {
-            return key;
-        }
-
-        /*
-         * Value operators
-         */
-        public V getValue() {
-            return (V) valueUpdater.get(this);
-        }
-        public V getAndSetValue(V value) {
-            return (V) valueUpdater.getAndSet(this, value);
-        }
-        public boolean casValue(V expect, V update) {
-            return valueUpdater.compareAndSet(this, expect, update);
-        }
-
-        /*
-         * Previous node operators
-         */
-        public Node<K, V> getPrev() {
-            return prevUpdater.get(this);
-        }
-        public void setPrev(Node<K, V> newValue) {
-            prevUpdater.set(this, newValue);
-        }
-        public boolean casPrev(Node<K, V> expect, Node<K, V> update) {
-            return prevUpdater.compareAndSet(this, expect, update);
-        }
-
-        /*
-         * Next node operators
-         */
-        public Node<K, V> getNext() {
-            return nextUpdater.get(this);
-        }
-        public void setNext(Node<K, V> newValue) {
-            nextUpdater.set(this, newValue);
-        }
-        public boolean casNext(Node<K, V> expect, Node<K, V> update) {
-            return nextUpdater.compareAndSet(this, expect, update);
-        }
-
-        // FIXME: debug
-        public Node<K, V> getAuxNext() {
-            return auxNext;
-        }
-
-        /*
-         * Access frequency operators
-         */
-        public boolean isMarked() {
-            return marked;
-        }
-        public void setMarked(boolean marked) {
-            this.marked = marked;
-        }
-
-        /**
-         * Only ensures that the values are equal, as the key may be <tt>null</tt> for look-ups.
-         */
-        @Override
-        public boolean equals(Object obj) {
-            if (obj == this) {
-                return true;
-            } else if (!(obj instanceof Node)) {
-                return false;
-            }
-            V value = getValue();
-            Node<?, ?> node = (Node<?, ?>) obj;
-            return (value == null) ? (node.getValue() == null) : value.equals(node.getValue());
-        }
-        @Override
-        public int hashCode() {
-            return ((key   == null) ? 0 : key.hashCode()) ^
-                   ((value == null) ? 0 : value.hashCode());
-        }
-        @Override
-        public String toString() {
-            if (this == sentinel) {
-                return String.format("Sentinel[prev=%s, next=%s]", key(getPrev()), key(getNext()));
-            } else {
-                return String.format("Node[key=%s, value=%s, marked=%b, prev=%s, next=%s, auxNext=%s]",
-                        getKey(), getValue(), isMarked(), key(getPrev()), key(getNext()), key(getAuxNext()));
-            }
-        }
-        private String key(Node<K, V> node) {
-            if (node == null) {
-                return "null";
-            } else if (node == sentinel) {
-                return "SENTINEL";
-            }
-            return String.valueOf(node.getKey());
-        }
+    public Builder<K, V> maximumCapacity(int maximumCapacity) {
+      this.maximumCapacity = maximumCapacity;
+      return this;
     }
 
     /**
-     * Allows {@link #equals(Object)} to compare using object identity.
+     * Specifies the estimated number of concurrently updating threads. The
+     * implementation performs internal sizing to try to accommodate this many
+     * threads (default <tt>16</tt>).
      */
-    private static final class Identity {
-        private final Object delegate;
-
-        public Identity(Object delegate) {
-            this.delegate = delegate;
-        }
-        @Override
-        public boolean equals(Object o) {
-            return (o == delegate);
-        }
+    public Builder<K, V> concurrencyLevel(int concurrencyLevel) {
+      this.concurrencyLevel = concurrencyLevel;
+      return this;
     }
 
     /**
-     * An adapter to safely externalize the keys.
+     * Specifies an optional listener registered for notification when an entry
+     * is evicted.
      */
-    private final class KeySet extends AbstractSet<K> {
-        private final ConcurrentLinkedHashMap<K, V> map = ConcurrentLinkedHashMap.this;
-
-        @Override
-        public int size() {
-            return map.size();
-        }
-        @Override
-        public void clear() {
-            map.clear();
-        }
-        @Override
-        public Iterator<K> iterator() {
-            return new KeyIterator();
-        }
-        @Override
-        public boolean contains(Object obj) {
-            return map.containsKey(obj);
-        }
-        @Override
-        public boolean remove(Object obj) {
-            return (map.remove(obj) != null);
-        }
-        @Override
-        public Object[] toArray() {
-            return map.data.keySet().toArray();
-        }
-        @Override
-        public <T> T[] toArray(T[] array) {
-            return map.data.keySet().toArray(array);
-        }
+    public Builder<K, V> listener(EvictionListener<K, V> listener) {
+      this.listener = listener;
+      return this;
     }
 
     /**
-     * An adapter to safely externalize the keys.
+     * Creates a new {@link ConcurrentLinkedHashMap} instance.
+     *
+     * @throws IllegalArgumentException if the maximum capacity is less than
+     *     zero, the concurrency level is not positive, or the listener is
+     *    <tt>null</tt> if specified.
      */
-    private final class KeyIterator implements Iterator<K> {
-        private final EntryIterator iterator = new EntryIterator(ConcurrentLinkedHashMap.this.data.values().iterator());
-
-        public boolean hasNext() {
-            return iterator.hasNext();
-        }
-        public K next() {
-            return iterator.next().getKey();
-        }
-        public void remove() {
-            iterator.remove();
-        }
+    public ConcurrentLinkedHashMap<K, V> build() {
+      if ((maximumCapacity < 0) || (concurrencyLevel <= 0) || (listener == null)) {
+        throw new IllegalArgumentException();
+      }
+      return new ConcurrentLinkedHashMap<K, V>(this);
     }
-
-    /**
-     * An adapter to represent the data store's values in the external type.
-     */
-    private final class Values extends AbstractCollection<V> {
-        private final ConcurrentLinkedHashMap<K, V> map = ConcurrentLinkedHashMap.this;
-
-        @Override
-        public int size() {
-            return map.size();
-        }
-        @Override
-        public void clear() {
-            map.clear();
-        }
-        @Override
-        public Iterator<V> iterator() {
-            return new ValueIterator();
-        }
-        @Override
-        public boolean contains(Object o) {
-            return map.containsValue(o);
-        }
-        @Override
-        public Object[] toArray() {
-            Collection<V> values = new ArrayList<V>(size());
-            for (V value : this) {
-                values.add(value);
-            }
-            return values.toArray();
-        }
-        @Override
-        public <T> T[] toArray(T[] array) {
-            Collection<V> values = new ArrayList<V>(size());
-            for (V value : this) {
-                values.add(value);
-            }
-            return values.toArray(array);
-        }
-    }
-
-    /**
-     * An adapter to represent the data store's values in the external type.
-     */
-    private final class ValueIterator implements Iterator<V> {
-        private final EntryIterator iterator = new EntryIterator(ConcurrentLinkedHashMap.this.data.values().iterator());
-
-        public boolean hasNext() {
-            return iterator.hasNext();
-        }
-        public V next() {
-            return iterator.next().getValue();
-        }
-        public void remove() {
-            iterator.remove();
-        }
-    }
-
-    /**
-     * An adapter to represent the data store's entry set in the external type.
-     */
-    private final class EntrySet extends AbstractSet<Entry<K, V>> {
-        private final ConcurrentLinkedHashMap<K, V> map = ConcurrentLinkedHashMap.this;
-
-        @Override
-        public int size() {
-            return map.size();
-        }
-        @Override
-        public void clear() {
-            map.clear();
-        }
-        @Override
-        public Iterator<Entry<K, V>> iterator() {
-            return new EntryIterator(map.data.values().iterator());
-        }
-        @Override
-        public boolean contains(Object obj) {
-            if (!(obj instanceof Entry)) {
-                return false;
-            }
-            Entry<?, ?> entry = (Entry<?, ?>) obj;
-            Node<K, V> node = map.data.get(entry.getKey());
-            return (node != null) && (node.value.equals(entry.getValue()));
-        }
-        @Override
-        public boolean add(Entry<K, V> entry) {
-            return (map.putIfAbsent(entry.getKey(), entry.getValue()) == null);
-        }
-        @Override
-        public boolean remove(Object obj) {
-            if (!(obj instanceof Entry)) {
-                return false;
-            }
-            Entry<?, ?> entry = (Entry<?, ?>) obj;
-            return map.remove(entry.getKey(), entry.getValue());
-        }
-        @Override
-        public Object[] toArray() {
-            Collection<Entry<K, V>> entries = new ArrayList<Entry<K, V>>(size());
-            for (Entry<K, V> entry : this) {
-                entries.add(new SimpleEntry<K, V>(entry));
-            }
-            return entries.toArray();
-        }
-        @Override
-        public <T> T[] toArray(T[] array) {
-            Collection<Entry<K, V>> entries = new ArrayList<Entry<K, V>>(size());
-            for (Entry<K, V> entry : this) {
-                entries.add(new SimpleEntry<K, V>(entry));
-            }
-            return entries.toArray(array);
-        }
-    }
-
-    /**
-     * An adapter to represent the data store's entry iterator in the external type.
-     */
-    private final class EntryIterator implements Iterator<Entry<K, V>> {
-        private final Iterator<Node<K, V>> iterator;
-        private Entry<K, V> current;
-
-        public EntryIterator(Iterator<Node<K, V>> iterator) {
-            this.iterator = iterator;
-        }
-        public boolean hasNext() {
-            return iterator.hasNext();
-        }
-        public Entry<K, V> next() {
-            current = new NodeEntry(iterator.next());
-            return current;
-        }
-        public void remove() {
-            if (current == null) {
-                throw new IllegalStateException();
-            }
-            ConcurrentLinkedHashMap.this.remove(current.getKey(), current.getValue());
-            current = null;
-        }
-    }
-
-    /**
-     * An entry that is tied to the map instance to allow updates through the entry or the map to be visible.
-     */
-    private final class NodeEntry implements Entry<K, V> {
-        private final ConcurrentLinkedHashMap<K, V> map = ConcurrentLinkedHashMap.this;
-        private final Node<K, V> node;
-
-        public NodeEntry(Node<K, V> node) {
-            this.node = node;
-        }
-        public K getKey() {
-            return node.getKey();
-        }
-        public V getValue() {
-            if (node.getNext() == null) {
-                V value = map.get(getKey());
-                if (value != null) {
-                    return value;
-                }
-            }
-            return node.getValue();
-        }
-        public V setValue(V value) {
-            return map.replace(getKey(), value);
-        }
-        @Override
-        public boolean equals(Object obj) {
-            if (obj == this) {
-                return true;
-            } else if (!(obj instanceof Entry)) {
-                return false;
-            }
-            Entry<?, ?> entry = (Entry<?, ?>) obj;
-            return eq(getKey(), entry.getKey()) && eq(getValue(), entry.getValue());
-        }
-        @Override
-        public int hashCode() {
-            K key = getKey();
-            V value = getValue();
-            return ((key   == null) ? 0 :   key.hashCode()) ^
-                   ((value == null) ? 0 : value.hashCode());
-        }
-        @Override
-        public String toString() {
-            return getKey() + "=" + getValue();
-        }
-        private boolean eq(Object o1, Object o2) {
-            return (o1 == null) ? (o2 == null) : o1.equals(o2);
-        }
-    }
-
-    /**
-     * This duplicates {@link java.util.AbstractMap.SimpleEntry} until the class is made accessible (public in JDK-6).
-     */
-    private static class SimpleEntry<K, V> implements Entry<K, V> {
-        private final K key;
-        private V value;
-
-        public SimpleEntry(K key, V value) {
-            this.key   = key;
-            this.value = value;
-        }
-        public SimpleEntry(Entry<K, V> e) {
-            this.key   = e.getKey();
-            this.value = e.getValue();
-        }
-        public K getKey() {
-            return key;
-        }
-        public V getValue() {
-            return value;
-        }
-        public V setValue(V value) {
-            V oldValue = this.value;
-            this.value = value;
-            return oldValue;
-        }
-        @Override
-        public boolean equals(Object obj) {
-            if (obj == this) {
-                return true;
-            } else if (!(obj instanceof Entry)) {
-                return false;
-            }
-            Entry<?, ?> entry = (Entry<?, ?>) obj;
-            return eq(key, entry.getKey()) && eq(value, entry.getValue());
-        }
-        @Override
-        public int hashCode() {
-            return ((key   == null) ? 0 :   key.hashCode()) ^
-                   ((value == null) ? 0 : value.hashCode());
-        }
-        @Override
-        public String toString() {
-            return key + "=" + value;
-        }
-        private static boolean eq(Object o1, Object o2) {
-            return (o1 == null) ? (o2 == null) : o1.equals(o2);
-        }
-    }
+  }
 }

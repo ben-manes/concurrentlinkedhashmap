@@ -1,120 +1,149 @@
 package com.reardencommerce.kernel.collections.shared.evictable;
 
-import static com.reardencommerce.kernel.collections.shared.evictable.ConcurrentLinkedHashMap.create;
+import com.reardencommerce.kernel.collections.shared.evictable.ConcurrentLinkedHashMap.EvictionListener;
+
+import org.testng.Assert;
+import org.testng.annotations.BeforeClass;
 
 import java.io.Serializable;
 import java.util.Collection;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
-import org.testng.Assert;
-import org.testng.annotations.BeforeClass;
-
-import com.reardencommerce.kernel.collections.shared.evictable.ConcurrentLinkedHashMap.EvictionListener;
-import com.reardencommerce.kernel.collections.shared.evictable.ConcurrentLinkedHashMap.EvictionPolicy;
-
 /**
  * Base utilities for testing purposes.
  *
- * @author <a href="mailto:ben.manes@reardencommerce.com">Ben Manes</a>
+ * @author <a href="mailto:ben.manes@gmail.com">Ben Manes</a>
  */
 public abstract class BaseTest extends Assert {
-    protected final EvictionMonitor<Integer, Integer> guard = EvictionMonitor.newGuard();
-    protected final EvictionPolicy defaultPolicy = EvictionPolicy.SECOND_CHANCE;
-    protected Validator validator;
-    protected final int capacity;
-    protected boolean debug;
 
-    public BaseTest(int capacity) {
-        this.capacity = capacity;
+  protected final EvictionMonitor<Integer, Integer> guard = EvictionMonitor.newGuard();
+  protected Validator validator;
+  protected final int capacity;
+  protected boolean debug;
+
+  public BaseTest(int capacity) {
+    this.capacity = capacity;
+  }
+
+  /**
+   * Initializes the test with runtime properties.
+   */
+  @BeforeClass(alwaysRun = true)
+  public void before() {
+    validator = new Validator(Boolean.valueOf(System.getProperty("test.exhaustive")));
+    debug = Boolean.valueOf(System.getProperty("test.debugMode"));
+    info("\n%s:\n", getClass().getSimpleName());
+  }
+
+  /**
+   * Logs a statement.
+   */
+  protected void info(String message, Object... args) {
+    System.out.printf(message, args);
+    System.out.println();
+  }
+
+  /**
+   * Logs a statement, if debugging is enabled.
+   */
+  protected void debug(String message, Object... args) {
+    if (debug) {
+      info(message, args);
+    }
+  }
+
+  protected <K, V> ConcurrentLinkedHashMap<K, V> create() {
+    return create(capacity);
+  }
+
+  protected <K, V> ConcurrentLinkedHashMap<K, V> create(int size) {
+    return ConcurrentLinkedHashMap.<K, V>builder()
+        .maximumCapacity(size)
+        .build();
+  }
+
+  protected <K, V> ConcurrentLinkedHashMap<K, V> createGuarded() {
+    return create(EvictionMonitor.<K, V>newGuard());
+  }
+
+  protected <K, V> ConcurrentLinkedHashMap<K, V> create(EvictionListener<K, V> listener) {
+    return create(capacity, listener);
+  }
+
+  protected <K, V> ConcurrentLinkedHashMap<K, V> create(int size, EvictionListener<K, V> listener) {
+    return ConcurrentLinkedHashMap.<K, V>builder()
+        .maximumCapacity(size)
+        .listener(listener)
+        .build();
+  }
+
+  /**
+   * Creates a map warmed to the specified maximum capacity.
+   */
+  protected ConcurrentLinkedHashMap<Integer, Integer> createWarmedMap() {
+    return createWarmedMap(capacity);
+  }
+
+  protected ConcurrentLinkedHashMap<Integer, Integer> createWarmedMap(
+      EvictionListener<Integer, Integer> listener) {
+    return createWarmedMap(capacity, listener);
+  }
+
+  protected ConcurrentLinkedHashMap<Integer, Integer> createWarmedMap(int size,
+                                                                      EvictionListener<Integer, Integer> listener) {
+    return warm(create(size, listener), size);
+  }
+
+  protected ConcurrentLinkedHashMap<Integer, Integer> createWarmedMap(int size) {
+    return warm(this.<Integer, Integer>create(size), size);
+  }
+
+  protected ConcurrentLinkedHashMap<Integer, Integer> warm(
+      ConcurrentLinkedHashMap<Integer, Integer> cache, int size) {
+    for (Integer i = 0; i < size; i++) {
+      assertNull(cache.put(i, i));
+      assertEquals(cache.data.get(i).value, i);
+    }
+    assertEquals(cache.size(), size, "Not warmed to max size");
+    return cache;
+  }
+
+  protected static final class EvictionMonitor<K, V>
+      implements EvictionListener<K, V>, Serializable {
+
+    private static final long serialVersionUID = 1L;
+    final Collection<Entry> evicted;
+    final boolean isAllowed;
+
+    private EvictionMonitor(boolean isAllowed) {
+      this.isAllowed = isAllowed;
+      this.evicted = new ConcurrentLinkedQueue<Entry>();
     }
 
-    /**
-     * Initializes the test with runtime properties.
-     */
-    @BeforeClass(alwaysRun=true)
-    public void before() {
-        validator = new Validator(Boolean.valueOf(System.getProperty("test.exhaustive")));
-        debug = Boolean.valueOf(System.getProperty("test.debugMode"));
-        info("\n%s:\n", getClass().getSimpleName());
+    public static <K, V> EvictionMonitor<K, V> newMonitor() {
+      return new EvictionMonitor<K, V>(true);
     }
 
-    /**
-     * Logs a statement.
-     */
-    protected void info(String message, Object... args) {
-        System.out.printf(message, args);
-        System.out.println();
+    public static <K, V> EvictionMonitor<K, V> newGuard() {
+      return new EvictionMonitor<K, V>(false);
     }
 
-    /**
-     * Logs a statement, if debugging is enabled.
-     */
-    protected void debug(String message, Object... args) {
-        if (debug) {
-            info(message, args);
-        }
+    public void onEviction(K key, V value) {
+      if (!isAllowed) {
+        throw new IllegalStateException("Eviction should not have occured");
+      }
+      evicted.add(new Entry(key, value));
     }
 
-    protected <K, V> ConcurrentLinkedHashMap<K, V> createGuarded() {
-        return create(defaultPolicy, capacity, EvictionMonitor.<K, V>newGuard());
-    }
+    final class Entry {
 
-    /**
-     * Creates a map warmed to the specified maximum capacity.
-     */
-    protected ConcurrentLinkedHashMap<Integer, Integer> createWarmedMap() {
-        return createWarmedMap(defaultPolicy, capacity);
-    }
-    protected ConcurrentLinkedHashMap<Integer, Integer> createWarmedMap(EvictionListener<Integer, Integer> listener) {
-        return createWarmedMap(defaultPolicy, capacity, listener);
-    }
-    protected ConcurrentLinkedHashMap<Integer, Integer> createWarmedMap(EvictionPolicy policy, int size,
-                                                                        EvictionListener<Integer, Integer> listener) {
-        return warm(create(policy, size, listener), size);
-    }
-    protected ConcurrentLinkedHashMap<Integer, Integer> createWarmedMap(EvictionPolicy policy, int size) {
-        return warm(ConcurrentLinkedHashMap.<Integer, Integer>create(policy, size), size);
-    }
+      K key;
+      V value;
 
-    protected ConcurrentLinkedHashMap<Integer, Integer> warm(ConcurrentLinkedHashMap<Integer, Integer> cache, int size) {
-        for (Integer i=0; i<size; i++) {
-            assertNull(cache.put(i, i));
-            assertEquals(cache.data.get(i).getValue(), i);
-        }
-        validator.allNodesMarked(cache, false);
-        assertEquals(cache.size(), size, "Not warmed to max size");
-        return cache;
+      public Entry(K key, V value) {
+        this.key = key;
+        this.value = value;
+      }
     }
-
-    protected static final class EvictionMonitor<K, V> implements EvictionListener<K, V>, Serializable {
-        private static final long serialVersionUID = 1L;
-        final Collection<Entry> evicted;
-        final boolean isAllowed;
-
-        private EvictionMonitor(boolean isAllowed) {
-            this.isAllowed = isAllowed;
-            this.evicted = new ConcurrentLinkedQueue<Entry>();
-        }
-        public static <K, V> EvictionMonitor<K, V> newMonitor() {
-            return new EvictionMonitor<K, V>(true);
-        }
-        public static <K, V> EvictionMonitor<K, V> newGuard() {
-            return new EvictionMonitor<K, V>(false);
-        }
-        public void onEviction(K key, V value) {
-            if (!isAllowed) {
-                throw new IllegalStateException("Eviction should not have occured");
-            }
-            evicted.add(new Entry(key, value));
-        }
-        final class Entry {
-            K key;
-            V value;
-
-            public Entry(K key, V value) {
-                this.key = key;
-                this.value = value;
-            }
-        }
-    }
+  }
 }
