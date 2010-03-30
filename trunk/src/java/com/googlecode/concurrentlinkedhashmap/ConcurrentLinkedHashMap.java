@@ -210,7 +210,9 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   }
 
   /**
-   * Evicts an entry from the map if it exceeds the maximum capacity.
+   * Tries to evicts an entry from the map if it exceeds the maximum capacity.
+   * If the eviction fails due to a the victim having been removed, this will
+   * cancel out the addition that caused the overflow.
    */
   @GuardedBy("evictionLock")
   private void evict() {
