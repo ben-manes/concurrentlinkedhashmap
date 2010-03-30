@@ -1,4 +1,4 @@
-package com.reardencommerce.kernel.collections.shared.evictable.caches;
+package com.googlecode.concurrentlinkedhashmap.caches;
 
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;

@@ -1,6 +1,7 @@
-package com.reardencommerce.kernel.collections.shared.evictable;
+package com.googlecode.concurrentlinkedhashmap;
 
-import static com.reardencommerce.kernel.concurrent.shared.ConcurrentTestHarness.timeTasks;
+import static com.googlecode.concurrentlinkedhashmap.ConcurrentTestHarness.timeTasks;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap;
 
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
@@ -23,7 +24,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * The concurrent tests for the {@link ConcurrentLinkedHashMap}.
+ * The concurrent tests for the {@link com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap}.
  *
  * @author <a href="mailto:ben.manes@reardencommerce.com">Ben Manes</a>
  */

@@ -1,6 +1,6 @@
 package org.cachebench.cachewrappers;
 
-import com.reardencommerce.kernel.collections.shared.evictable.ConcurrentLinkedHashMap;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
