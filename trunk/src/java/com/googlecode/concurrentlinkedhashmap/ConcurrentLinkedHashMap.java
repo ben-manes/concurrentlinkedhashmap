@@ -87,6 +87,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
   /** These fields provide support to bound the map by a maximum capacity. */
   @GuardedBy("evictionLock")
+  // must write under lock
   volatile int length;
   @GuardedBy("evictionLock")
   final Node<K, V> sentinel;
@@ -414,14 +415,14 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
   @Override
   public void clear() {
-    attemptToDrainWriteQueues();
-    if (isEmpty()) {
+    if ((length == 0) && writeQueue.isEmpty()) {
       return;
     }
 
     List<Node<K, V>> nodes;
     evictionLock.lock();
     try {
+      drainWriteQueue();
       nodes = new ArrayList<Node<K, V>>(length);
       length = 0;
 
