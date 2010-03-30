@@ -1,5 +1,5 @@
 /*
- * Copyright 2009 Benjamin Manes
+ * Copyright 2010 Benjamin Manes
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -257,20 +257,25 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * replacement algorithm.
    *
    * @param node the entry that was read
+   * @return the size of the queue
    */
-  private void appendToReorderQueue(Node<K, V> node) {
+  private int appendToReorderQueue(Node<K, V> node) {
     int segment = node.segment;
     reorderQueue[segment].add(node);
-    reorderQueueLength[segment].incrementAndGet();
+    return reorderQueueLength[segment].incrementAndGet();
   }
 
   /**
    * Attempts to acquire the eviction lock and apply pending updates to the
    * eviction algorithm. This is attempted only if there is a pending write
    * or the segment's reorder buffer has exceeded the threshold.
+   *
+   * @param segment the segment's reorder queue to drain
+   * @param delayReorder whether to wait until the threshold is crossed
+   *     before attempting to drain the eviction queues
    */
-  private void attemptToDrainEvictionQueues(int segment) {
-    if (writeQueue.isEmpty() && (reorderQueueLength[segment].get() <= REORDER_THRESHOLD)) {
+  private void attemptToDrainEvictionQueues(int segment, boolean delayReorder) {
+    if (writeQueue.isEmpty() && delayReorder) {
       return;
     }
     if (evictionLock.tryLock()) {
@@ -296,6 +301,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
   /**
    * Applies the pending reorderings to the list.
+   *
+   * @param segment the segment's reorder queue to drain
    */
   @GuardedBy("evictionLock")
   void drainReorderQueue(int segment) {
@@ -315,9 +322,13 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
   /**
    * Performs the post-processing of eviction events.
+   *
+   * @param segment the segment's reorder queue to drain
+   * @param delayReorder whether to wait until the threshold is crossed
+   *     before attempting to drain the eviction queues
    */
-  private void processEvents(int segment) {
-    attemptToDrainEvictionQueues(segment);
+  private void processEvents(int segment, boolean delayReorder) {
+    attemptToDrainEvictionQueues(segment, delayReorder);
     notifyListeners();
   }
 
@@ -388,7 +399,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   @Override
   public boolean containsKey(Object key) {
     checkNotNull(key, "null key");
-    processEvents(segmentFor(key));
+    processEvents(segmentFor(key), true);
 
     return data.containsKey(key);
   }
@@ -411,15 +422,17 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
     int segment;
     V value = null;
+    boolean delayReorder = true;
     Node<K, V> node = data.get(key);
     if (node == null) {
       segment = segmentFor(key);
     } else {
-      appendToReorderQueue(node);
+      int buffered = appendToReorderQueue(node);
+      delayReorder = (buffered <= REORDER_THRESHOLD);
       segment = node.segment;
       value = node.value;
     }
-    processEvents(segment);
+    processEvents(segment, delayReorder);
     return value;
   }
 
@@ -428,11 +441,16 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     checkNotNull(key, "null key");
     checkNotNull(value, "null value");
 
+    V oldValue = null;
+    boolean delayReorder = true;
     int segment = segmentFor(key);
-    Node<K, V> old = putIfAbsent(new Node<K, V>(key, value, segment, sentinel));
-    V previous = (old == null) ? null : old.getAndSetValue(value);
-    processEvents(segment);
-    return previous;
+    Node<K, V> previous = putIfAbsent(new Node<K, V>(key, value, segment, sentinel));
+    if (previous != null) {
+      delayReorder = false;
+      oldValue = previous.getAndSetValue(value);
+    }
+    processEvents(segment, delayReorder);
+    return oldValue;
   }
 
   @Override
@@ -440,11 +458,16 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     checkNotNull(key, "null key");
     checkNotNull(value, "null value");
 
+    V oldValue = null;
+    boolean delayReorder = true;
     int segment = segmentFor(key);
-    Node<K, V> old = putIfAbsent(new Node<K, V>(key, value, segment, sentinel));
-    V previous = (old == null) ? null : old.value;
-    processEvents(segment);
-    return previous;
+    Node<K, V> previous = putIfAbsent(new Node<K, V>(key, value, segment, sentinel));
+    if (previous != null) {
+      delayReorder = false;
+      oldValue = previous.value;
+    }
+    processEvents(segment, delayReorder);
+    return oldValue;
   }
 
   /**
@@ -498,7 +521,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     }
 
     // perform outside of lock
-    processEvents(segment);
+    processEvents(segment, true);
     return value;
   }
 
@@ -526,7 +549,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     }
 
     // perform outside of lock
-    processEvents(segment);
+    processEvents(segment, true);
     return removed;
   }
 
@@ -537,15 +560,17 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
     int segment;
     V previous = null;
+    boolean delayReorder = false;
     Node<K, V> node = data.get(key);
     if (node == null) {
       segment = segmentFor(key);
     } else {
       previous = node.getAndSetValue(value);
-      appendToReorderQueue(node);
+      int buffered = appendToReorderQueue(node);
+      delayReorder = (buffered <= REORDER_THRESHOLD);
       segment = node.segment;
     }
-    processEvents(segment);
+    processEvents(segment, delayReorder);
     return previous;
   }
 
@@ -557,15 +582,17 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
     int segment;
     boolean replaced = false;
+    boolean delayReorder = false;
     Node<K, V> node = data.get(key);
     if (node == null) {
       segment = segmentFor(key);
     } else {
       replaced = node.casValue(oldValue, newValue);
-      appendToReorderQueue(node);
+      int buffered = appendToReorderQueue(node);
+      delayReorder = (buffered <= REORDER_THRESHOLD);
       segment = node.segment;
     }
-    processEvents(segment);
+    processEvents(segment, delayReorder);
     return replaced;
   }
 
