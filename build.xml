@@ -62,6 +62,7 @@
          srcDir="@{srcdir}"
          destDir="@{destdir}"
          cache="@{destdir}"
+         classpath="${api.build.dir}"
         />
 
         <javac
@@ -75,6 +76,7 @@
          source="${javac.source}"
          target="${javac.target}"
          verbose="${javac.verbose}"
+         includeAntRuntime="false"
         >
           <compilerarg value="-Xlint:all,-path" compiler="modern"/>
         </javac>
