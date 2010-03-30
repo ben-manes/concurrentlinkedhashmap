@@ -214,14 +214,13 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    */
   @GuardedBy("evictionLock")
   private void evict() {
-    while (isOverflow()) {
+    if (isOverflow()) {
       Node<K, V> node = sentinel.next;
       // Attempt to remove the node if it's still available
       if (data.remove(node.key, node)) {
         listenerQueue.add(node);
         node.remove();
         length--;
-        return;
       }
     }
   }
