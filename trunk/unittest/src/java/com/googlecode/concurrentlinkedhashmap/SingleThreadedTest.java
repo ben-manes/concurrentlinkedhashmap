@@ -1,7 +1,6 @@
 package com.googlecode.concurrentlinkedhashmap;
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Node;
-import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap;
 
 import org.testng.annotations.Test;
 
@@ -215,6 +214,17 @@ public final class SingleThreadedTest extends BaseTest {
     } catch (Exception e) {
       assertEquals(cache.capacity(), newMaxCapacity);
     }
+  }
+
+  @Test(groups = "development")
+  public void alwaysDiscard() {
+    debug(" * alwaysDiscard: START");
+    EvictionMonitor monitor = EvictionMonitor.newMonitor();
+    ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap(0, monitor);
+    for (int i=0; i<100; i++) {
+      assertNull(cache.put(i, i));
+    }
+    assertEquals(monitor.evicted.size(), 100);
   }
 
   @Test(groups = "development")

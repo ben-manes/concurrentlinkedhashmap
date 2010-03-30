@@ -2,7 +2,6 @@ package com.googlecode.concurrentlinkedhashmap;
 
 import com.googlecode.concurrentlinkedhashmap.caches.Cache;
 import com.googlecode.concurrentlinkedhashmap.distribution.Distribution;
-import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap;
 
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
@@ -36,7 +35,7 @@ public final class EfficiencyTest extends BaseTest {
   /**
    * Compares the hit rate of different cache implementations.
    */
-  @Test(enabled=false,groups = "efficiency")
+  @Test(groups = "efficiency")
   public void efficency() {
     List<Long> workingSet = createWorkingSet(distribution, size);
     debug("WorkingSet:\n%s", workingSet);

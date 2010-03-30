@@ -24,8 +24,11 @@ import java.util.AbstractCollection;
 import java.util.AbstractMap;
 import java.util.AbstractQueue;
 import java.util.AbstractSet;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -170,7 +173,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   /**
    * Retrieves the maximum capacity of the map.
    *
-   * @return The maximum capacity.
+   * @return The maximum capacity
    */
   public int capacity() {
     return capacity;
@@ -203,27 +206,29 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   /**
    * Determines whether the map has exceeded its capacity.
    *
-   * @return if the map has overflowed and an entry should be evicted.
+   * @return if the map has overflowed and an entry should be evicted
    */
   private boolean isOverflow() {
-    return size() > capacity();
+    return length > capacity;
   }
 
   /**
    * Tries to evicts an entry from the map if it exceeds the maximum capacity.
-   * If the eviction fails due to a the victim having been removed, this will
-   * cancel out the addition that caused the overflow.
+   * If the eviction fails due to a concurrent removal of the victim, that
+   * removal cancels out the addition that triggered the eviction. The victim
+   * is eagerly unlinked before the removal task so that if their is a pending
+   * prior addition a new victim can be chosen.
    */
   @GuardedBy("evictionLock")
   private void evict() {
     if (isOverflow()) {
       Node<K, V> node = sentinel.next;
-      // Attempt to remove the node if it's still available
+      // Notify the listener if the entry was evicted
       if (data.remove(node.key, node)) {
         listenerQueue.add(node);
-        node.remove();
-        length--;
       }
+      node.remove();
+      length--;
     }
   }
 
@@ -275,16 +280,30 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * or the segment's reorder buffer has exceeded the threshold.
    *
    * @param segment the segment's reorder queue to drain
-   * @param delayReorder whether to wait until the threshold is crossed
-   *     before attempting to drain the eviction queues
+   * @param onlyIfWrites attempts the drain the eviction queues only if there
+   *     are pending writes
    */
-  private void attemptToDrainEvictionQueues(int segment, boolean delayReorder) {
-    if (writeQueue.isEmpty() && delayReorder) {
+  private void attemptToDrainEvictionQueues(int segment, boolean onlyIfWrites) {
+    if (writeQueue.isEmpty() && onlyIfWrites) {
       return;
     }
     if (evictionLock.tryLock()) {
       try {
         drainReorderQueue(segment);
+        drainWriteQueue();
+      } finally {
+        evictionLock.unlock();
+      }
+    }
+  }
+
+  /**
+   * Attempts to acquire the eviction lock and apply pending write updates to
+   * the eviction algorithm.
+   */
+  private void attemptToDrainWriteQueues() {
+    if (!writeQueue.isEmpty() && evictionLock.tryLock()) {
+      try {
         drainWriteQueue();
       } finally {
         evictionLock.unlock();
@@ -328,11 +347,11 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * Performs the post-processing of eviction events.
    *
    * @param segment the segment's reorder queue to drain
-   * @param delayReorder whether to wait until the threshold is crossed
-   *     before attempting to drain the eviction queues
+   * @param onlyIfWrites attempts the drain the eviction queues only if there
+   *     are pending writes
    */
-  private void processEvents(int segment, boolean delayReorder) {
-    attemptToDrainEvictionQueues(segment, delayReorder);
+  private void processEvents(int segment, boolean onlyIfWrites) {
+    attemptToDrainEvictionQueues(segment, onlyIfWrites);
     notifyListeners();
   }
 
@@ -378,8 +397,10 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     @Override
     @GuardedBy("evictionLock")
     public void run() {
-      node.remove();
-      length--;
+      if (node.isLinked()) {
+        node.remove();
+        length--;
+      }
     }
   }
 
@@ -387,16 +408,38 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
   @Override
   public int size() {
+    attemptToDrainWriteQueues();
     return length;
   }
 
   @Override
   public void clear() {
+    attemptToDrainWriteQueues();
     if (isEmpty()) {
       return;
     }
-    for (K key : data.keySet()) {
-      remove(key);
+
+    List<Node<K, V>> nodes;
+    evictionLock.lock();
+    try {
+      nodes = new ArrayList<Node<K, V>>(length);
+      length = 0;
+
+      Node<K, V> node = sentinel.next;
+      while (node != sentinel) {
+        nodes.add(node);
+        node.prev.next = null;
+        node.prev = null;
+        node = node.next;
+      }
+      sentinel.next = sentinel;
+      sentinel.prev = sentinel;
+    } finally {
+      evictionLock.unlock();
+    }
+
+    for (Node<K, V> node : nodes) {
+      data.remove(node.key, node);
     }
   }
 
@@ -411,6 +454,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   @Override
   public boolean containsValue(Object value) {
     checkNotNull(value, "value");
+    attemptToDrainWriteQueues();
 
     for (Node<K, V> node : data.values()) {
       if (node.value.equals(value)) {
@@ -973,20 +1017,29 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   }
 
   private static final class DiscardingQueue<E> extends AbstractQueue<E> {
+    @Override
+    public boolean add(E e) {
+      return true;
+    }
+    @Override
     public boolean offer(E e) {
       return true;
     }
+    @Override
     public E poll() {
       return null;
     }
+    @Override
     public E peek() {
       return null;
     }
+    @Override
     public int size() {
-      throw new UnsupportedOperationException();
+      return 0;
     }
+    @Override
     public Iterator<E> iterator() {
-      throw new UnsupportedOperationException();
+      return Collections.<E>emptyList().iterator();
     }
   }
 
@@ -1056,7 +1109,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
      *
      * @throws IllegalArgumentException if the maximum capacity is less than
      *     zero, the concurrency level is not positive, or the listener is
-     *    <tt>null</tt> if specified.
+     *     <tt>null</tt> if specified
      */
     public ConcurrentLinkedHashMap<K, V> build() {
       if ((maximumCapacity < 0) || (concurrencyLevel <= 0) || (listener == null)) {
