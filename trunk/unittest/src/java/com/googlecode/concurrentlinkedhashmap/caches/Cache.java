@@ -1,6 +1,6 @@
-package com.reardencommerce.kernel.collections.shared.evictable.caches;
+package com.googlecode.concurrentlinkedhashmap.caches;
 
-import com.reardencommerce.kernel.collections.shared.evictable.ConcurrentLinkedHashMap;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap;
 
 import static java.util.Collections.synchronizedMap;
 import java.util.Map;

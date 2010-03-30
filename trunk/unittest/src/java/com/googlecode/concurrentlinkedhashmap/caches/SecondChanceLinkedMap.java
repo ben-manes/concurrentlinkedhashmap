@@ -1,4 +1,4 @@
-package com.reardencommerce.kernel.collections.shared.evictable.caches;
+package com.googlecode.concurrentlinkedhashmap.caches;
 
 import java.util.ArrayList;
 import java.util.Collection;

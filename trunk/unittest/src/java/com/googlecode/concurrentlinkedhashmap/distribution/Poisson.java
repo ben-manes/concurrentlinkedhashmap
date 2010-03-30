@@ -1,4 +1,4 @@
-package com.reardencommerce.kernel.collections.shared.evictable.distribution;
+package com.googlecode.concurrentlinkedhashmap.distribution;
 
 import java.util.concurrent.Callable;
 
@@ -6,20 +6,20 @@ import org.apache.commons.math.random.RandomData;
 import org.apache.commons.math.random.RandomDataImpl;
 
 /**
- * Creates an exponential distribution.
+ * Creates a Poisson distribution.
  *
  * @author <a href="mailto:ben.manes@reardencommerce.com">Ben Manes</a>
  */
-final class Exponential implements Callable<Double> {
+final class Poisson implements Callable<Double> {
     private final RandomData random = new RandomDataImpl();
     private final double mean;
 
     /**
-     * An exponential distribution.
+     * A Poisson distribution.
      *
      * @param mean The mean value of the distribution.
      */
-    public Exponential(double mean) {
+    public Poisson(double mean) {
         this.mean = mean;
     }
 
@@ -27,6 +27,6 @@ final class Exponential implements Callable<Double> {
      * Random value with expected mean value.
      */
     public Double call() {
-        return random.nextExponential(mean);
+        return (double) random.nextPoisson(mean);
     }
 }

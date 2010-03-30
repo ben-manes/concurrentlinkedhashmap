@@ -1,7 +1,8 @@
-package com.reardencommerce.kernel.collections.shared.evictable;
+package com.googlecode.concurrentlinkedhashmap;
 
-import com.reardencommerce.kernel.collections.shared.evictable.caches.Cache;
-import com.reardencommerce.kernel.collections.shared.evictable.distribution.Distribution;
+import com.googlecode.concurrentlinkedhashmap.caches.Cache;
+import com.googlecode.concurrentlinkedhashmap.distribution.Distribution;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap;
 
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
