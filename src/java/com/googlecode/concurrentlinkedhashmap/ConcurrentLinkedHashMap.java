@@ -61,7 +61,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   /**
    * Number of cache reorder operations that can be buffered per segment before
    * the cache's ordering information is updated. This is used to avoid lock
-   * contention by recording a memento on reads and delaying a lock acquisition
+   * contention by recording a memento of reads and delaying a lock acquisition
    * until the threshold is crossed or a mutation occurs.
    */
   static final int REORDER_THRESHOLD = 64;
@@ -173,7 +173,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   /**
    * Retrieves the maximum capacity of the map.
    *
-   * @return The maximum capacity
+   * @return the maximum capacity
    */
   public int capacity() {
     return capacity;
@@ -413,9 +413,15 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   /* ---------------- Concurrent Map support -------------- */
 
   @Override
+  public boolean isEmpty() {
+    attemptToDrainWriteQueues();
+    return writeQueue.isEmpty() ? (length == 0) : data.isEmpty();
+  }
+
+  @Override
   public int size() {
     attemptToDrainWriteQueues();
-    return length;
+    return writeQueue.isEmpty() ? length : data.size();
   }
 
   @Override
@@ -467,9 +473,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     checkNotNull(value, "value");
     attemptToDrainWriteQueues();
 
-    if (length == 0) {
-      return false;
-    }
     for (Node<K, V> node : data.values()) {
       if (node.value.equals(value)) {
         return true;
@@ -509,9 +512,9 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     checkNotNull(value, "null value");
 
     // A #put() is either an the addition or update of an entry. Rather than
-    // replacing the existing node on an update / linking / unlinking, the
-    // prior node's value can be updated and the node is reordered. This allows
-    // the emulation of a #put() through the #putIfAbsent() call.
+    // replacing the existing node on an update, which requires linking and
+    // unlinking, the prior node's value is updated and the node reordered.
+    // This allows the emulation of a #put() through the #putIfAbsent() call.
     int segment = segmentFor(key);
     V oldValue = put(new Node<K, V>(key, value, segment, sentinel), true);
     boolean delayReorder = (oldValue == null);
@@ -1164,7 +1167,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
      *
      * @throws IllegalArgumentException if the maximum capacity is less than
      *     zero, the concurrency level is not positive, or if a <tt>null</tt>
-     *     listener is specified 
+     *     listener is specified
      */
     public ConcurrentLinkedHashMap<K, V> build() {
       if ((maximumCapacity < 0) || (concurrencyLevel <= 0) || (listener == null)) {
