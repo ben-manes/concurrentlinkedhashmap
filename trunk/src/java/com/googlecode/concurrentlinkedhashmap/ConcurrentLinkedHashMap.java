@@ -219,7 +219,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * is eagerly unlinked before the removal task so that if their is a pending
    * prior addition a new victim can be chosen.
    *
-   * @return if an eviction was performed.
+   * @return if an eviction was performed
    */
   @GuardedBy("evictionLock")
   private boolean evict() {
@@ -229,8 +229,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       if (data.remove(node.key, node)) {
         listenerQueue.add(node);
       }
-      node.remove();
       length--;
+      node.remove();
       return true;
     }
     return false;
@@ -362,7 +362,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   }
 
   /**
-   * Notifies the listeners that the entry was evicted.
+   * Notifies the listener of entries that were evicted.
    */
   private void notifyListeners() {
     Node<K, V> node;
@@ -424,10 +424,10 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       return;
     }
 
-    // The alternative is to iterate through the keys and calling #remove(),
-    // which unnecessarily adds lock contention on the eviction locks and
-    // write queue. Instead the nodes in the list is copied, the list cleared,
-    // and the nodes conditionally removed. The prev/next are null'ed out to
+    // The alternative is to iterate through the keys and call #remove(), which
+    // unnecessarily adds lock contention on the eviction lock and the write
+    // queue. Instead the nodes in the list is copied, the list cleared, and
+    // the nodes conditionally removed. The prev/next are null'ed out to
     // reduce GC pressure.
     List<Node<K, V>> nodes;
     evictionLock.lock();
@@ -727,8 +727,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     /**
      * A call-back notification that the entry was evicted.
      *
-     * @param key the evicted key
-     * @param value the evicted value
+     * @param key the entry's key
+     * @param value the entry's value
      */
     void onEviction(K key, V value);
   }
@@ -1163,8 +1163,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
      * Creates a new {@link ConcurrentLinkedHashMap} instance.
      *
      * @throws IllegalArgumentException if the maximum capacity is less than
-     *     zero, the concurrency level is not positive, or the listener is
-     *     <tt>null</tt> if specified
+     *     zero, the concurrency level is not positive, or if a <tt>null</tt>
+     *     listener is specified 
      */
     public ConcurrentLinkedHashMap<K, V> build() {
       if ((maximumCapacity < 0) || (concurrencyLevel <= 0) || (listener == null)) {
