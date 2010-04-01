@@ -1,6 +1,6 @@
 package com.googlecode.concurrentlinkedhashmap.caches;
 
-import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 
 import static java.util.Collections.synchronizedMap;
 import java.util.Map;
@@ -15,7 +15,7 @@ public enum Cache {
     CONCURRENT_LRU() { /** A concurrent linked hashmap, using LRU eviction */
         @Override
         public <K, V> Map<K, V>  create(int capacity, int max, int nThreads) {
-            return ConcurrentLinkedHashMap.<K, V>builder()
+            return new Builder<K, V>()
                 .maximumCapacity(capacity)
                 .concurrencyLevel(nThreads)
                 .build();

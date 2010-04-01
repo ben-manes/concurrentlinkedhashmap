@@ -2,6 +2,7 @@ package com.googlecode.concurrentlinkedhashmap;
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Node;
 
+import org.apache.commons.lang.SerializationUtils;
 import org.testng.annotations.Test;
 
 import static java.lang.String.format;
@@ -404,6 +405,21 @@ public final class SingleThreadedTest extends BaseTest {
     assertEquals(cache, expected);
     assertEquals(cache.hashCode(), expected.hashCode());
     assertEquals(cache.toString(), expected.toString());
+  }
+
+  /**
+   * Tests serialization.
+   */
+  @Test(groups="development")
+  public void serialize() {
+    debug(" * serialize: START");
+    ConcurrentLinkedHashMap<Integer, Integer> expected = createWarmedMap();
+    ConcurrentLinkedHashMap actual = (ConcurrentLinkedHashMap) SerializationUtils.clone(expected);
+    assertEquals(actual, expected);
+    assertEquals(actual.concurrencyLevel, expected.concurrencyLevel);
+    assertEquals(actual.listener, expected.listener);
+    assertEquals(actual.capacity, expected.capacity);
+    validator.state((ConcurrentLinkedHashMap<Integer, Integer>) actual);
   }
 
   @Test(groups = "development")

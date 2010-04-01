@@ -1,7 +1,7 @@
 package com.googlecode.concurrentlinkedhashmap;
 
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentTestHarness.timeTasks;
-import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap;
 
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
@@ -63,7 +63,7 @@ public final class MultiThreadedTest extends BaseTest {
         new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS,
                                new LinkedBlockingQueue<Runnable>());
     final ConcurrentLinkedHashMap<Integer, Integer> cache =
-        ConcurrentLinkedHashMap.<Integer, Integer>builder()
+        new Builder<Integer, Integer>()
             .maximumCapacity(capacity)
             .concurrencyLevel(nThreads)
             .build();
