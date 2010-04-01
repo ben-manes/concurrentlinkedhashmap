@@ -1,5 +1,6 @@
 package com.googlecode.concurrentlinkedhashmap;
 
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.EvictionListener;
 
 import org.testng.Assert;
@@ -57,7 +58,7 @@ public abstract class BaseTest extends Assert {
   }
 
   protected <K, V> ConcurrentLinkedHashMap<K, V> create(int size) {
-    return ConcurrentLinkedHashMap.<K, V>builder()
+    return new Builder<K, V>()
         .maximumCapacity(size)
         .build();
   }
@@ -71,7 +72,7 @@ public abstract class BaseTest extends Assert {
   }
 
   protected <K, V> ConcurrentLinkedHashMap<K, V> create(int size, EvictionListener<K, V> listener) {
-    return ConcurrentLinkedHashMap.<K, V>builder()
+    return new Builder<K, V>()
         .maximumCapacity(size)
         .listener(listener)
         .build();

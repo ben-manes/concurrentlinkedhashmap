@@ -1,6 +1,7 @@
 package org.cachebench.cachewrappers;
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -41,7 +42,7 @@ public class CLHMCacheWrapper implements CacheWrapper {
 
   @Override
   public void setUp() throws Exception {
-    cache = ConcurrentLinkedHashMap.<Object, Object>builder()
+    cache = new Builder<Object, Object>()
         .maximumCapacity(capacity)
         .concurrencyLevel(level)
         .build();
