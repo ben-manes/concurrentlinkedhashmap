@@ -58,6 +58,27 @@ import java.util.concurrent.locks.ReentrantLock;
  */
 public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     implements ConcurrentMap<K, V> {
+
+  // This class performs a best-effort bounding of a ConcurrentHashMap using a
+  // page-replacement algorithm to determine which entries to evict when the
+  // capacity is exceeded. The map supports non-blocking reads and concurrent
+  // writes across different segments.
+  //
+  // The page replacement algorithm's data structures are kept casually
+  // consistent with the map. The ordering of writes to a segment is
+  // sequentially consistent, but the ordering of writes between different
+  // segments is not. An update to the map and recording of reads may not be
+  // immediately reflected on the algorithm's data structures. These structures
+  // are guarded by a lock and operations are applied in batches to avoid lock
+  // contention. The penalty of applying the batches are spread across threads
+  // so that the amortized cost is slightly higher than performing just the
+  // ConcurrentHashMap operation.
+  //
+  // This implementation uses a global write queue and per-segment read queues
+  // to record a memento of the the additions, removals, and accesses that were
+  // performed on the map. The write queue is drained at the first opportunity
+  // and a read queues is drained when it exceeds its capacity threshold.
+
   /**
    * Number of cache reorder operations that can be buffered per segment before
    * the cache's ordering information is updated. This is used to avoid lock
@@ -431,9 +452,9 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     }
 
     // The alternative is to iterate through the keys and call #remove(), which
-    // unnecessarily adds lock contention on the eviction lock and the write
-    // queue. Instead the nodes in the list is copied, the list cleared, and
-    // the nodes conditionally removed. The prev/next are null'ed out to
+    // unnecessarily adds contention on the eviction lock and the write queue.
+    // Instead the nodes in the list is copied, the list cleared, and the nodes
+    // conditionally removed. The prev and next fields are null'ed out to
     // reduce GC pressure.
     List<Node<K, V>> nodes;
     evictionLock.lock();
@@ -486,10 +507,10 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     checkNotNull(key, "null key");
 
     // As read are the common case they should be performed lock-free to avoid
-    // contention. If the entry was found then the reorder is scheduled on the
-    // queue to be applied sometime in the future. The draining of the queues
-    // should be delayed until either the reorder threshold has been exceeded
-    // or if there is a pending write.
+    // blocking on a lock. If the entry was found then the reorder is scheduled
+    // on the queue to be applied sometime in the future. The draining of the
+    // queues should be delayed until either the reorder threshold has been
+    // exceeded or if there is a pending write.
     int segment;
     V value = null;
     boolean delayReorder = true;
