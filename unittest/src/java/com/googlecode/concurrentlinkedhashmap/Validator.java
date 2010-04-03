@@ -1,7 +1,6 @@
 package com.googlecode.concurrentlinkedhashmap;
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Node;
-import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap;
 
 import org.testng.Assert;
 
@@ -99,7 +98,7 @@ public final class Validator extends Assert {
    */
   public void sentinelNode(ConcurrentLinkedHashMap<?, ?> map) {
     assertNull(map.sentinel.key);
-    assertNull(map.sentinel.value);
+    assertNull(map.sentinel.weightedValue);
     assertFalse(map.data.containsValue(map.sentinel));
   }
 
@@ -110,10 +109,10 @@ public final class Validator extends Assert {
    */
   public void dataNode(ConcurrentLinkedHashMap<?, ?> map, Node<?, ?> node) {
     assertNotNull(node.key);
-    assertNotNull(node.value);
+    assertNotNull(node.weightedValue);
     assertTrue(map.containsKey(node.key));
-    assertTrue(map.containsValue(node.value), format("Could not find value: %s", node.value));
-    assertEquals(map.data.get(node.key).value, node.value);
+    assertTrue(map.containsValue(node.weightedValue), format("Could not find value: %s", node.weightedValue));
+    assertEquals(map.data.get(node.key).weightedValue, node.weightedValue);
     assertSame(map.data.get(node.key), node);
     assertNotNull(node.prev);
     assertNotNull(node.next);
@@ -183,7 +182,7 @@ public final class Validator extends Assert {
   public int dequeLength(ConcurrentLinkedHashMap<?, ?> map) {
     map.evictionLock.lock();
     try {
-      return map.length;
+      return map.weightedSize;
     } finally {
       map.evictionLock.unlock();
     }

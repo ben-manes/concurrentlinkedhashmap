@@ -1,7 +1,6 @@
 package com.googlecode.concurrentlinkedhashmap;
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
-import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.EvictionListener;
 
 import org.testng.Assert;
 import org.testng.annotations.BeforeClass;
@@ -103,7 +102,7 @@ public abstract class BaseTest extends Assert {
       ConcurrentLinkedHashMap<Integer, Integer> cache, int size) {
     for (Integer i = 0; i < size; i++) {
       assertNull(cache.put(i, i));
-      assertEquals(cache.data.get(i).value, i);
+      assertEquals(cache.data.get(i).weightedValue.value, i);
     }
     assertEquals(cache.size(), size, "Not warmed to max size");
     return cache;
