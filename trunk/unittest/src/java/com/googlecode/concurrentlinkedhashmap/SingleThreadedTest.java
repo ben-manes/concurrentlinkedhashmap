@@ -71,7 +71,7 @@ public final class SingleThreadedTest extends BaseTest {
     for (Integer i = 0; i < capacity; i++) {
       assertNull(cache.putIfAbsent(i, i));
       assertEquals(cache.putIfAbsent(i, -1), i);
-      assertEquals(cache.data.get(i).value, i);
+      assertEquals(cache.data.get(i).weightedValue.value, i);
     }
     assertEquals(cache.size(), capacity, "Not warmed to max size");
     validator.state(cache);
@@ -122,7 +122,7 @@ public final class SingleThreadedTest extends BaseTest {
 
     // PutIfAbsent
     assertNotSame(cache.sentinel.prev, tailNode); // due to get()
-    cache.putIfAbsent(tailNode.key, tailNode.value);
+    cache.putIfAbsent(tailNode.key, tailNode.weightedValue.value);
     validator.drainEvictionQueues(cache);
 
     assertEquals(validator.dequeLength(cache), length);
@@ -165,7 +165,7 @@ public final class SingleThreadedTest extends BaseTest {
     for (Integer i = 0; i < capacity; i++) {
       assertNotNull(cache.replace(i, dummy));
       assertFalse(cache.replace(i, i, i));
-      assertEquals(cache.data.get(i).value, dummy);
+      assertEquals(cache.data.get(i).weightedValue.value, dummy);
       assertTrue(cache.replace(i, dummy, i));
       assertEquals(cache.remove(i), i);
       assertNull(cache.replace(i, i));
@@ -307,7 +307,7 @@ public final class SingleThreadedTest extends BaseTest {
     // values iterator
     Iterator<Integer> iterator = values.iterator();
     for (Node<Integer, Integer> node : cache.data.values()) {
-      assertEquals(iterator.next(), node.value);
+      assertEquals(iterator.next(), node.weightedValue.value);
     }
     assertFalse(iterator.hasNext());
 
@@ -322,7 +322,7 @@ public final class SingleThreadedTest extends BaseTest {
     // toArray
     List<Integer> list = new ArrayList<Integer>();
     for (Node<Integer, Integer> node : cache.data.values()) {
-      list.add(node.value);
+      list.add(node.weightedValue.value);
     }
     assertTrue(Arrays.equals(values.toArray(), list.toArray()));
     assertTrue(Arrays.equals(values.toArray(new Integer[cache.size()]),
