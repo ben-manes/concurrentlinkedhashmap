@@ -419,6 +419,7 @@ public final class SingleThreadedTest extends BaseTest {
     assertEquals(actual.concurrencyLevel, expected.concurrencyLevel);
     assertEquals(actual.listener, expected.listener);
     assertEquals(actual.capacity, expected.capacity);
+    assertEquals(actual.weigher, expected.weigher);
     validator.state((ConcurrentLinkedHashMap<Integer, Integer>) actual);
   }
 

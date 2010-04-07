@@ -115,6 +115,9 @@ public final class Weighers {
 
     @Override
     public int weightOf(Iterable values) {
+      if (values instanceof Collection) {
+        return ((Collection) values).size();
+      }
       int size = 0;
       for (Object value : values) {
         size++;
