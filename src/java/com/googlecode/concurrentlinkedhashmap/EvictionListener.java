@@ -23,10 +23,10 @@ package com.googlecode.concurrentlinkedhashmap;
  * <p>
  * The listener is invoked by {@link ConcurrentLinkedHashMap} on a caller's
  * thread and will not block other threads from operating on the map. An
- * implementation should be aware that the caller's thread does not expect
+ * implementation should be aware that the caller's thread will not expect
  * long execution times or failures as a side effect of the listener being
  * notified. Execution safety and a fast turn around time can be achieved by
- * performing the handling asynchronously, such as by delegating tasks to an
+ * performing the operation asynchronously, such as by submitting a task to an
  * {@link java.util.concurrent.ExecutorService}.
  *
  * @author bmanes@gmail.com (Ben Manes)
