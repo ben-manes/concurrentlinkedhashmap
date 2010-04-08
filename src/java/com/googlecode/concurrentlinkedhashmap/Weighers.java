@@ -16,7 +16,9 @@
 package com.googlecode.concurrentlinkedhashmap;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * A common set of {@link Weigher} implementations.
@@ -53,7 +55,7 @@ public final class Weighers {
   }
 
   /**
-   * A weigher where the value is an {@link Iterable} and its weight is the
+   * A weigher where the value is a {@link Iterable} and its weight is the
    * number of elements. This weigher only should be used when the alternative
    * {@link #collection()} weigher cannot be, as evaluation takes O(n) time. A
    * map bounded with this weigher will evict when the total number of elements
@@ -67,7 +69,7 @@ public final class Weighers {
   }
 
   /**
-   * A weigher where the value is an {@link Collection} and its weight is the
+   * A weigher where the value is a {@link Collection} and its weight is the
    * number of elements. A map bounded with this weigher will evict when the
    * total number of elements exceeds the capacity rather than the number of
    * key-value pairs in the map.
@@ -77,6 +79,32 @@ public final class Weighers {
   public static <E> Weigher<Collection<E>> collection() {
     Weigher<?> weigher = CollectionWeigher.INSTANCE;
     return (Weigher<Collection<E>>) weigher;
+  }
+
+  /**
+   * A weigher where the value is a {@link List} and its weight is the number
+   * of elements. A map bounded with this weigher will evict when the total
+   * number of elements exceeds the capacity rather than the number of
+   * key-value pairs in the map.
+   *
+   * @return A weigher where each element takes one unit of capacity.
+   */
+  public static <E> Weigher<List<E>> list() {
+    Weigher<?> weigher = ListWeigher.INSTANCE;
+    return (Weigher<List<E>>) weigher;
+  }
+
+  /**
+   * A weigher where the value is a {@link Set} and its weight is the number
+   * of elements. A map bounded with this weigher will evict when the total
+   * number of elements exceeds the capacity rather than the number of
+   * key-value pairs in the map.
+   *
+   * @return A weigher where each element takes one unit of capacity.
+   */
+  public static <E> Weigher<Set<E>> set() {
+    Weigher<?> weigher = SetWeigher.INSTANCE;
+    return (Weigher<Set<E>>) weigher;
   }
 
   /**
@@ -131,6 +159,24 @@ public final class Weighers {
 
     @Override
     public int weightOf(Collection values) {
+      return values.size();
+    }
+  }
+
+  private enum ListWeigher implements Weigher<List> {
+    INSTANCE;
+
+    @Override
+    public int weightOf(List values) {
+      return values.size();
+    }
+  }
+
+  private enum SetWeigher implements Weigher<Set> {
+    INSTANCE;
+
+    @Override
+    public int weightOf(Set values) {
       return values.size();
     }
   }

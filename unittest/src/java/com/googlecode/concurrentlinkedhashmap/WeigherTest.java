@@ -12,6 +12,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.HashSet;
 
 /**
  * A unit-test for the weigher algorithms and that the map keeps track of the
@@ -51,9 +52,25 @@ public final class WeigherTest extends BaseTest {
   @Test(groups = "development")
   public void collection() {
     debug(" * collection: START");
-    assertEquals(Weighers.collection().weightOf(Arrays.asList()), 0);
+    assertEquals(Weighers.collection().weightOf(Collections.emptyList()), 0);
     assertEquals(Weighers.<Integer>collection().weightOf(Arrays.asList(1)), 1);
     assertEquals(Weighers.<Integer>collection().weightOf(Arrays.asList(1, 2, 3)), 3);
+  }
+
+  @Test(groups = "development")
+  public void list() {
+    debug(" * list: START");
+    assertEquals(Weighers.collection().weightOf(Collections.emptyList()), 0);
+    assertEquals(Weighers.<Integer>collection().weightOf(Arrays.asList(1)), 1);
+    assertEquals(Weighers.<Integer>collection().weightOf(Arrays.asList(1, 2, 3)), 3);
+  }
+
+  @Test(groups = "development")
+  public void set() {
+    debug(" * set: START");
+    assertEquals(Weighers.set().weightOf(Collections.emptySet()), 0);
+    assertEquals(Weighers.<Integer>set().weightOf(Collections.singleton(1)), 1);
+    assertEquals(Weighers.<Integer>set().weightOf(new HashSet<Integer>(Arrays.asList(1, 2, 3))), 3);
   }
 
   @Test(groups = "development")
