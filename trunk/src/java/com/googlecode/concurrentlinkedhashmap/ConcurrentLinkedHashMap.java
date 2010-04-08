@@ -68,10 +68,10 @@ import java.util.concurrent.locks.ReentrantLock;
  * <p>
  * The <tt>concurrency level</tt> determines the number of threads that can
  * concurrently modify the table. Using a significantly higher or lower value
- * than needed can waste space or lead to thread contention, but a value within
- * an order of magnitude does not usually have a noticeable impact. Because
- * placement in hash tables is essentially random, the actual concurrency will
- * vary.
+ * than needed can waste space or lead to thread contention, but an estimate
+ * within an order of magnitude of the ideal value does not usually have a
+ * noticeable impact. Because placement in hash tables is essentially random,
+ * the actual concurrency will vary.
  * <p>
  * This class and its views and iterators implement all of the
  * <em>optional</em> methods of the {@link Map} and {@link Iterator}
@@ -809,7 +809,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   }
 
   /**
-   * The weighted value.
+   * A value and its weight.
    */
   static final class WeightedValue<V> {
     final int weight;
@@ -1218,7 +1218,14 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   /* ---------------- Builder -------------- */
 
   /**
-   * A builder that creates {@link ConcurrentLinkedHashMap} instances.
+   * A builder that creates {@link ConcurrentLinkedHashMap} instances and can
+   * be used in the following manner:
+   * {@code
+   *   ConcurrentMap<User, Set<Group>> groups = new Builder<User, Set<Group>>()
+   *       .weigher(Weighers.<Group>set())
+   *       .maximumWeightedCapacity(5000)
+   *       .build();
+   * }
    */
   @SuppressWarnings("unchecked")
   public static final class Builder<K, V> {
