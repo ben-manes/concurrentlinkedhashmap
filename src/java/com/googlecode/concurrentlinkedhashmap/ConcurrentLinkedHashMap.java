@@ -39,21 +39,50 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
- * A {@link ConcurrentMap} with a doubly-linked list running through its
- * entries.
+ * A hash table supporting full concurrency of retrievals, adjustable expected
+ * concurrency for updates, and a maximum capacity to bound the map by. This
+ * implementation differs from {@link ConcurrentHashMap} in that it maintains a
+ * page replacement algorithm that is used to evict an entry when the map has
+ * exceeded its capacity. Unlike the <tt>Java Collections Framework</tt>, this
+ * map does not have a publicly visible constructor and instances are created
+ * through a {@link Builder}.
  * <p>
- * This class provides the same semantics as a {@link ConcurrentHashMap} in
- * terms of iterators, acceptable keys, and concurrency characteristics, but
- * perform slightly worse due to the added expense of maintaining the linked
- * list. It differs from {@link java.util.LinkedHashMap} in that it does not
- * provide predictable iteration order.
+ * An entry is evicted from the map when the <tt>weighted capacity</tt> exceeds
+ * the <tt>maximum weighted capacity</tt> threshold. A {@link Weigher} instance
+ * determines how many units of capacity that a value consumes. The default
+ * singleton weigher algorithm assigns each value a weight of <tt>1</tt> to
+ * bound the map by the number of key-value pairs. A map that holds collections
+ * may weigh values by the number of elements in the collection and bound the
+ * map by the total number of elements it contains. A change to a value that
+ * modifies its weight requires that an update operation is performed on the
+ * map.
  * <p>
- * This map is intended to be used for caches and provides a <i>least recently
- * used</i> eviction policy. This policy is based on the observation that
- * entries that have been used recently will likely be used again soon. It
- * provides a good approximation of the optimal algorithm.
+ * A {@link EvictionListener} may be supplied for notification when an entry is
+ * evicted from the map. This listener is invoked on a caller's thread and will
+ * not block other threads from operating on the map. An implementation should
+ * be aware that the caller's thread will not expect long execution times or
+ * failures as a side effect of the listener being notified. Execution safety
+ * and a fast turn around time can be achieved by performing the operation
+ * asynchronously, such as by submitting a task to an
+ * {@link java.util.concurrent.ExecutorService}.
+ * <p>
+ * The <tt>concurrency level</tt> determines the number of threads that can
+ * concurrently modify the table. Using a significantly higher or lower value
+ * than needed can waste space or lead to thread contention, but a value within
+ * an order of magnitude does not usually have a noticeable impact. Because
+ * placement in hash tables is essentially random, the actual concurrency will
+ * vary.
+ * <p>
+ * This class and its views and iterators implement all of the
+ * <em>optional</em> methods of the {@link Map} and {@link Iterator}
+ * interfaces.
+ * <p>
+ * Like {@link java.util.Hashtable} but unlike {@link HashMap}, this class
+ * does <em>not</em> allow <tt>null</tt> to be used as a key or value.
  *
  * @author bmanes@gmail.com (Ben Manes)
+ * @param <K> the type of keys maintained by this map
+ * @param <V> the type of mapped values
  * @see <tt>http://code.google.com/p/concurrentlinkedhashmap/</tt>
  */
 @ThreadSafe
@@ -148,8 +177,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     segmentLock = new Lock[segments];
 
     // The data store and its maximum capacity
-    data = new ConcurrentHashMap<K, Node<K, V>>(builder.maximumCapacity, 0.75f, concurrencyLevel);
-    capacity = builder.maximumCapacity;
+    data = new ConcurrentHashMap<K, Node<K, V>>(builder.initialCapacity, 0.75f, concurrencyLevel);
+    capacity = builder.maximumWeightedCapacity;
 
     // The eviction support
     weigher = builder.weigher;
@@ -183,19 +212,19 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   /* ---------------- Eviction Support -------------- */
 
   /**
-   * Retrieves the maximum capacity of the map.
+   * Retrieves the maximum weighted capacity of the map.
    *
-   * @return the maximum capacity
+   * @return the maximum weighted capacity
    */
   public int capacity() {
     return capacity;
   }
 
   /**
-   * Sets the maximum capacity of the map and eagerly evicts entries until it
-   * shrinks to the appropriate size.
+   * Sets the maximum weighted capacity of the map and eagerly evicts entries
+   * until it shrinks to the appropriate size.
    *
-   * @param capacity the maximum capacity of the map
+   * @param capacity the maximum weighted capacity of the map
    * @throws IllegalArgumentException if the capacity is negative
    */
   public void setCapacity(int capacity) {
@@ -207,9 +236,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     evictionLock.lock();
     try {
       drainWriteQueue();
-      while (evict()) {
-        // repeat
-      }
+      evict();
     } finally {
       evictionLock.unlock();
     }
@@ -225,13 +252,11 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   }
 
   /**
-   * Evicts a single entry if the map exceeds its maximum capacity and appends
-   * the entry to the listener queue for processing.
-   *
-   * @return if an entry was removed
+   * Evicts entries from the map while it exceeds the maximum weighted capacity
+   * and appends evicted entries to the listener queue for processing.
    */
   @GuardedBy("evictionLock")
-  private boolean evict() {
+  private void evict() {
     // Attempts to evicts an entry from the map if it exceeds the maximum
     // capacity. If the eviction fails due to a concurrent removal of the
     // victim, that removal cancels out the addition that triggered this
@@ -239,7 +264,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     // that if are other pending prior additions then a new victim will be
     // chosen for removal.
 
-    if (isOverflow()) {
+    while (isOverflow()) {
       Node<K, V> node = sentinel.next;
       // Notify the listener if the entry was evicted
       if (data.remove(node.key, node)) {
@@ -247,9 +272,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       }
       weightedSize -= node.weightedValue.weight;
       node.remove();
-      return true;
     }
-    return false;
   }
 
   /**
@@ -586,6 +609,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     Node<K, V> prior;
     V oldValue = null;
     int weightedDifference = 0;
+    boolean delayReorder = true;
     int segment = segmentFor(key);
     Lock lock = segmentLock[segment];
     int weight = weigher.weightOf(value);
@@ -617,9 +641,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
         writeQueue.add(new UpdateTask(weightedDifference));
       }
       appendToReorderQueue(prior);
+      delayReorder = false;
     }
-
-    boolean delayReorder = (oldValue == null);
     processEvents(segment, delayReorder);
     return oldValue;
   }
@@ -1133,7 +1156,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   /**
    * A listener that ignores all notifications.
    */
-  private enum DiscardingListener implements EvictionListener {
+  enum DiscardingListener implements EvictionListener {
     INSTANCE;
 
     @Override
@@ -1181,7 +1204,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     private Object readResolve() {
       ConcurrentLinkedHashMap<K, V> map = new Builder<K, V>()
           .concurrencyLevel(concurrencyLevel)
-          .maximumCapacity(capacity)
+          .maximumWeightedCapacity(capacity)
           .listener(listener)
           .weigher(weigher)
           .build();
@@ -1199,26 +1222,54 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    */
   @SuppressWarnings("unchecked")
   public static final class Builder<K, V> {
-    private EvictionListener<K, V> listener;
-    private int concurrencyLevel;
-    private int maximumCapacity;
-    private Weigher<V> weigher;
+    static final int DEFAULT_INITIAL_CAPACITY = 16;
+    static final int DEFAULT_CONCURRENCY_LEVEL = 16;
+
+    EvictionListener<K, V> listener;
+    int maximumWeightedCapacity;
+    int concurrencyLevel;
+    int initialCapacity;
+    Weigher<V> weigher;
 
     public Builder() {
-      maximumCapacity = -1;
-      concurrencyLevel = 16;
+      maximumWeightedCapacity = -1;
       weigher = Weighers.singleton();
+      initialCapacity = DEFAULT_INITIAL_CAPACITY;
+      concurrencyLevel = DEFAULT_CONCURRENCY_LEVEL;
       listener = (EvictionListener<K, V>) DiscardingListener.INSTANCE;
     }
 
     /**
-     * Specifies the maximum weighted capacity to coerces to. The size may
+     * Specifies the initial capacity of the hash table (default <tt>16</tt>).
+     * This is the number of key-value pairs that the hash table can hold
+     * before a resize operation is required.
+     *
+     * @param initialCapacity the initial capacity used to size the hash table
+     *     to accommodate this many entries.
+     * @throws IllegalArgumentException if the initialCapacity is negative
+     */
+    public Builder<K, V> initialCapacity(int initialCapacity) {
+      if (initialCapacity < 0) {
+        throw new IllegalArgumentException();
+      }
+      this.initialCapacity = initialCapacity;
+      return this;
+    }
+
+    /**
+     * Specifies the maximum weighted capacity to coerces the map to and may
      * exceed it temporarily.
      *
-     * @param maximumCapacity the weighted threshold to bound the map by
+     * @param maximumWeightedCapacity the weighted threshold to bound the map
+     *     by
+     * @throws IllegalArgumentException if the maximumWeightedCapacity is
+     *     negative
      */
-    public Builder<K, V> maximumCapacity(int maximumCapacity) {
-      this.maximumCapacity = maximumCapacity;
+    public Builder<K, V> maximumWeightedCapacity(int maximumWeightedCapacity) {
+      if (maximumWeightedCapacity < 0) {
+        throw new IllegalArgumentException();
+      }
+      this.maximumWeightedCapacity = maximumWeightedCapacity;
       return this;
     }
 
@@ -1229,8 +1280,13 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
      *
      * @param concurrencyLevel the estimated number of concurrently updating
      *     threads
+     * @throws IllegalArgumentException if the concurrencyLevel is less than or
+     *     equal to zero
      */
     public Builder<K, V> concurrencyLevel(int concurrencyLevel) {
+      if (concurrencyLevel <= 0) {
+        throw new IllegalArgumentException();
+      }
       this.concurrencyLevel = concurrencyLevel;
       return this;
     }
@@ -1240,8 +1296,12 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
      * an entry is evicted.
      *
      * @param listener the object to forward evicted entries to
+     * @throws IllegalArgumentException if the listener is null
      */
     public Builder<K, V> listener(EvictionListener<K, V> listener) {
+      if (listener == null) {
+        throw new IllegalArgumentException();
+      }
       this.listener = listener;
       return this;
     }
@@ -1254,6 +1314,9 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
      * @param weigher the algorithm to determine a value's weight
      */
     public Builder<K, V> weigher(Weigher<V> weigher) {
+      if (weigher == null) {
+        throw new IllegalArgumentException();
+      }
       this.weigher = weigher;
       return this;
     }
@@ -1261,15 +1324,11 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     /**
      * Creates a new {@link ConcurrentLinkedHashMap} instance.
      *
-     * @throws IllegalArgumentException if the maximum capacity is less than
-     *     zero, the concurrency level is not positive, or if a null instance
-     *     is specified for the listener or value weigher
+     * @throws IllegalArgumentException if the maximum weighted capacity was
+     *     not set
      */
     public ConcurrentLinkedHashMap<K, V> build() {
-      if ((maximumCapacity < 0) || (concurrencyLevel <= 0) ||
-          (listener == null) || (weigher == null)) {
-        throw new IllegalArgumentException();
-      }
+      maximumWeightedCapacity(maximumWeightedCapacity);
       return new ConcurrentLinkedHashMap<K, V>(this);
     }
   }

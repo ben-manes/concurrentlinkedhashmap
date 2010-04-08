@@ -13,9 +13,9 @@ import java.util.Map;
 import java.util.concurrent.Callable;
 
 /**
- * The efficiency tests for the {@link ConcurrentLinkedHashMap}.
+ * A unit-test and benchmark for evaluating the cache's hit rate.
  *
- * @author <a href="mailto:ben.manes@reardencommerce.com">Ben Manes</a>
+ * @author bmanes@gmail.com (Ben Manes)
  */
 public final class EfficiencyTest extends BaseTest {
   private Distribution distribution;
@@ -30,6 +30,24 @@ public final class EfficiencyTest extends BaseTest {
     size = Integer.valueOf(System.getProperty("efficiency.workingSetSize"));
     distribution =
         Distribution.valueOf(System.getProperty("efficiency.distribution").toUpperCase());
+  }
+
+  @Test(groups = "development")
+  public void lruEfficiency() {
+    debug(" * Lru-efficency: START");
+    ConcurrentLinkedHashMap<Long, Long> actual = create(capacity);
+    Map<Long, Long> expected = Cache.SYNC_LRU.create(capacity, capacity, 1);
+
+    List<Long> workingSet = createWorkingSet(Distribution.EXPONENTIAL, 10 * capacity);
+    float hitExpected = determineEfficiency(expected, workingSet);
+    float hitActual = determineEfficiency(actual, workingSet);
+    assertTrue(hitExpected > 0);
+    assertTrue(hitActual > 0);
+    validator.state(actual);
+
+    float expectedRate = 100 * hitActual/workingSet.size();
+    float actualRate =  100 * hitActual/workingSet.size();
+    debug("hit rate: expected=%s, actual=%s", expectedRate, actualRate);
   }
 
   /**
@@ -52,24 +70,13 @@ public final class EfficiencyTest extends BaseTest {
   }
 
   /**
-   * Tests that entries are evicted in LRU order using a complex working set.
-   */
-  @Test(groups = "development")
-  public void LruEfficency() {
-    debug(" * Lru-efficency: START");
-    ConcurrentLinkedHashMap<Long, Long> actual = create(capacity);
-    Map<Long, Long> expected = Cache.SYNC_LRU.create(capacity, capacity, 1);
-    doEfficencyTest(actual, expected);
-  }
-
-  /**
    * Creates a random working set based on the distribution.
    *
    * @param distribution The distribution type to use.
    * @param size         The size of the working set.
    * @return A random working set.
    */
-  public List<Long> createWorkingSet(Distribution distribution, int size) {
+  private List<Long> createWorkingSet(Distribution distribution, int size) {
     Callable<Double> algorithm = distribution.getAlgorithm();
     List<Long> workingSet = new ArrayList<Long>(size);
     for (int i = 0; i < size; i++) {
@@ -89,7 +96,7 @@ public final class EfficiencyTest extends BaseTest {
    * @param workingSet The request working set.
    * @return The hit-rate.
    */
-  public int determineEfficiency(Map<Long, Long> cache, List<Long> workingSet) {
+  private int determineEfficiency(Map<Long, Long> cache, List<Long> workingSet) {
     int hits = 0;
     for (Long key : workingSet) {
       if (cache.get(key) == null) {
@@ -99,23 +106,5 @@ public final class EfficiencyTest extends BaseTest {
       }
     }
     return hits;
-  }
-
-  /**
-   * Executes a complex eviction test. As it is not performed concurrently, the CLHM should behave
-   * like an true LRU due to the buffer being drained.
-   */
-  private void doEfficencyTest(ConcurrentLinkedHashMap<Long, Long> actual,
-                               Map<Long, Long> expected) {
-    List<Long> workingSet = createWorkingSet(Distribution.EXPONENTIAL, 10 * capacity);
-    float hitExpected = determineEfficiency(expected, workingSet);
-    float hitActual = determineEfficiency(actual, workingSet);
-    assertTrue(hitExpected > 0);
-    assertTrue(hitActual > 0);
-    validator.state(actual);
-
-    float expectedRate = 100 * hitActual/workingSet.size();
-    float actualRate =  100 * hitActual/workingSet.size();
-    info("hit rate: expected=%s, actual=%s", expectedRate, actualRate);
   }
 }

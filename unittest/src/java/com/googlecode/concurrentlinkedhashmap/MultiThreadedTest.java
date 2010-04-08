@@ -24,12 +24,12 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * The concurrent tests for the {@link com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap}.
+ * A unit-test to assert basic concurrency characteristics by validating the
+ * internal state after load.
  *
- * @author <a href="mailto:ben.manes@reardencommerce.com">Ben Manes</a>
+ * @author bmanes@gmail.com (Ben Manes)
  */
 public final class MultiThreadedTest extends BaseTest {
-
   private Queue<String> failures;
   private List<Integer> keys;
   private int timeout = 180;
@@ -64,7 +64,7 @@ public final class MultiThreadedTest extends BaseTest {
                                new LinkedBlockingQueue<Runnable>());
     final ConcurrentLinkedHashMap<Integer, Integer> cache =
         new Builder<Integer, Integer>()
-            .maximumCapacity(capacity)
+            .maximumWeightedCapacity(capacity)
             .concurrencyLevel(nThreads)
             .build();
     Future<Long> future = es.submit(new Callable<Long>() {
@@ -74,7 +74,8 @@ public final class MultiThreadedTest extends BaseTest {
       }
     });
     try {
-      debug("\nExecuted in %d seconds", future.get(timeout, TimeUnit.SECONDS));
+      long timeNS = future.get(timeout, TimeUnit.SECONDS);
+      debug("\nExecuted in %d second(s)", TimeUnit.NANOSECONDS.toSeconds(timeNS));
       validator.state(cache);
     } catch (ExecutionException e) {
       fail("Exception during test: " + e.toString(), e);
@@ -107,8 +108,8 @@ public final class MultiThreadedTest extends BaseTest {
   /**
    * Based on the passed in working set, creates N shuffled variants.
    *
-   * @param samples    The number of variants to create.
-   * @param workingSet The base working set to build from.
+   * @param samples the number of variants to create
+   * @param workingSet the base working set to build from
    */
   private <T> List<List<T>> shuffle(int samples, Collection<T> workingSet) {
     List<List<T>> sets = new ArrayList<List<T>>(samples);
@@ -124,7 +125,7 @@ public final class MultiThreadedTest extends BaseTest {
    * Executes operations against the cache to simulate random load.
    */
   private final class Thrasher implements Runnable {
-    private static final int OPERATIONS = 18;
+    private static final int OPERATIONS = 19;
 
     private final ConcurrentLinkedHashMap<Integer, Integer> cache;
     private final List<List<Integer>> sets;
@@ -158,6 +159,7 @@ public final class MultiThreadedTest extends BaseTest {
       debug("#%d: ENDING", id);
     }
 
+    /** Hashes the key to a public operation. */
     private void execute(int key) {
       switch (key % OPERATIONS) {
         case 0:
@@ -171,6 +173,9 @@ public final class MultiThreadedTest extends BaseTest {
           break;
         case 3:
           if (cache.size() < 0) {
+            throw new IllegalStateException();
+          }
+          if (cache.weightedSize() < 0) {
             throw new IllegalStateException();
           }
           break;
@@ -245,6 +250,9 @@ public final class MultiThreadedTest extends BaseTest {
           break;
         case 17:
           cache.toString();
+          break;
+        case 18:
+          cache.setCapacity(cache.capacity());
           break;
         default:
           throw new IllegalArgumentException();
