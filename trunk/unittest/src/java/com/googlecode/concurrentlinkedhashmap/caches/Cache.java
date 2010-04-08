@@ -16,7 +16,7 @@ public enum Cache {
         @Override
         public <K, V> Map<K, V>  create(int capacity, int max, int nThreads) {
             return new Builder<K, V>()
-                .maximumCapacity(capacity)
+                .maximumWeightedCapacity(capacity)
                 .concurrencyLevel(nThreads)
                 .build();
         }

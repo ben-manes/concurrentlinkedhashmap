@@ -111,8 +111,9 @@ public final class Validator extends Assert {
     assertNotNull(node.key);
     assertNotNull(node.weightedValue);
     assertTrue(map.containsKey(node.key));
-    assertTrue(map.containsValue(node.weightedValue), format("Could not find value: %s", node.weightedValue));
-    assertEquals(map.data.get(node.key).weightedValue, node.weightedValue);
+    assertTrue(map.containsValue(node.weightedValue.value),
+        format("Could not find value: %s", node.weightedValue.value));
+    assertEquals(map.data.get(node.key).weightedValue.value, node.weightedValue.value);
     assertSame(map.data.get(node.key), node);
     assertNotNull(node.prev);
     assertNotNull(node.next);

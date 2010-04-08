@@ -43,7 +43,7 @@ public class CLHMCacheWrapper implements CacheWrapper {
   @Override
   public void setUp() throws Exception {
     cache = new Builder<Object, Object>()
-        .maximumCapacity(capacity)
+        .maximumWeightedCapacity(capacity)
         .concurrencyLevel(level)
         .build();
   }

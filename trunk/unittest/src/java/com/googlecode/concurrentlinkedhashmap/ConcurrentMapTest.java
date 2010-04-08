@@ -1,5 +1,6 @@
 package com.googlecode.concurrentlinkedhashmap;
 
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Node;
 
 import org.apache.commons.lang.SerializationUtils;
@@ -20,16 +21,13 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * The non-concurrent tests for the {@link ConcurrentLinkedHashMap}.
+ * A unit-test for {@link java.util.concurrent.ConcurrentMap} interface and its
+ * serializability. These tests do not assert correct concurrency behavior.
  *
- * @author <a href="mailto:ben.manes@gmail.com">Ben Manes</a>
+ * @author bmanes@gmail.com (Ben Manes)
  */
 @SuppressWarnings("unchecked")
-public final class SingleThreadedTest extends BaseTest {
-
-  public SingleThreadedTest() {
-    super(Integer.valueOf(System.getProperty("singleThreaded.maximumCapacity")));
-  }
+public final class ConcurrentMapTest extends BaseTest {
 
   @Test(groups = "development")
   public void empty() {
@@ -101,36 +99,6 @@ public final class SingleThreadedTest extends BaseTest {
   }
 
   @Test(groups = "development")
-  public void lruOnAccess() {
-    debug(" * lruOnAccess: START");
-    ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap(50);
-    Node<Integer, Integer> headNode = cache.sentinel.next;
-    Node<Integer, Integer> tailNode = cache.sentinel.prev;
-    int length = validator.dequeLength(cache);
-    int size = cache.data.size();
-    debug("size: %s, length: %s, writes: %s", size, length, cache.writeQueue.size());
-    debug("init: " + validator.printFwd(cache));
-
-    // Get
-    cache.get(headNode.key);
-    validator.drainEvictionQueues(cache);
-    assertNotSame(cache.sentinel.next, headNode);
-    assertSame(cache.sentinel.prev, headNode);
-    assertEquals(validator.dequeLength(cache), length);
-    assertEquals(cache.data.size(), size);
-    debug("after get:(" + headNode.key + "):" + validator.printFwd(cache));
-
-    // PutIfAbsent
-    assertNotSame(cache.sentinel.prev, tailNode); // due to get()
-    cache.putIfAbsent(tailNode.key, tailNode.weightedValue.value);
-    validator.drainEvictionQueues(cache);
-
-    assertEquals(validator.dequeLength(cache), length);
-    assertSame(cache.sentinel.prev, tailNode);
-    assertEquals(cache.data.size(), size);
-  }
-
-  @Test(groups = "development")
   public void remove() {
     debug(" * remove: START");
     EvictionMonitor guard = EvictionMonitor.newGuard();
@@ -181,51 +149,6 @@ public final class SingleThreadedTest extends BaseTest {
     ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap(guard);
     cache.clear();
     validator.state(cache);
-  }
-
-  @Test(groups = "development")
-  public void capacity() {
-    debug(" * capacity: START");
-    ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap();
-
-    int newMaxCapacity = 2 * capacity;
-    cache.setCapacity(newMaxCapacity);
-    assertEquals(cache.capacity(), newMaxCapacity);
-    assertEquals(cache, createWarmedMap());
-    validator.state(cache);
-    debug("capacity: #1 done");
-
-    newMaxCapacity = capacity / 2;
-    cache.setCapacity(newMaxCapacity);
-    assertEquals(cache.capacity(), newMaxCapacity);
-    assertEquals(cache.size(), newMaxCapacity);
-    validator.state(cache);
-    debug("capacity: #2 done");
-
-    newMaxCapacity = 1;
-    cache.setCapacity(newMaxCapacity);
-    assertEquals(cache.capacity(), newMaxCapacity);
-    assertEquals(cache.size(), newMaxCapacity);
-    validator.state(cache);
-    debug("capacity: #3 done");
-
-    try {
-      cache.setCapacity(-1);
-      fail("Capacity must be positive");
-    } catch (Exception e) {
-      assertEquals(cache.capacity(), newMaxCapacity);
-    }
-  }
-
-  @Test(groups = "development")
-  public void alwaysDiscard() {
-    debug(" * alwaysDiscard: START");
-    EvictionMonitor monitor = EvictionMonitor.newMonitor();
-    ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap(0, monitor);
-    for (int i=0; i<100; i++) {
-      assertNull(cache.put(i, i));
-    }
-    assertEquals(monitor.evicted.size(), 100);
   }
 
   @Test(groups = "development")
@@ -413,68 +336,31 @@ public final class SingleThreadedTest extends BaseTest {
   @Test(groups="development")
   public void serialize() {
     debug(" * serialize: START");
-    ConcurrentLinkedHashMap<Integer, Integer> expected = createWarmedMap();
+
+    // default listener & weigher, custom concurrencyLevel
+    ConcurrentLinkedHashMap<Integer, Integer> expected = new Builder<Integer, Integer>()
+        .maximumWeightedCapacity(capacity)
+        .concurrencyLevel(32)
+        .build();
+    warm(expected, capacity);
+
     ConcurrentLinkedHashMap actual = (ConcurrentLinkedHashMap) SerializationUtils.clone(expected);
     assertEquals(actual, expected);
-    assertEquals(actual.concurrencyLevel, expected.concurrencyLevel);
-    assertEquals(actual.listener, expected.listener);
+    assertEquals(actual.concurrencyLevel, 32);
     assertEquals(actual.capacity, expected.capacity);
+    assertEquals(actual.listener, expected.listener);
     assertEquals(actual.weigher, expected.weigher);
     validator.state((ConcurrentLinkedHashMap<Integer, Integer>) actual);
-  }
 
-  @Test(groups = "development")
-  public void evictAsLru() {
-    debug(" * evictAsLru: START");
-    ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap(10);
-
-    debug("Initial: %s", validator.printFwd(cache));
-    assertTrue(cache.keySet().containsAll(asList(0, 1, 2, 3, 4, 5, 6, 7, 8, 9)),
-               "Instead: " + cache.keySet());
-    assertEquals(cache.size(), 10);
-
-    // re-order
-    for (int i : asList(0, 1, 2)) {
-      cache.get(i);
-      validator.drainEvictionQueues(cache);
-    }
-
-    debug("Reordered #1: %s", validator.printFwd(cache));
-    assertTrue(cache.keySet().containsAll(asList(3, 4, 5, 6, 7, 8, 9, 0, 1, 2)),
-               "Instead: " + cache.keySet());
-    assertEquals(cache.size(), 10);
-
-    // evict 3, 4, 5
-    for (int i : asList(10, 11, 12)) {
-      cache.put(i, i);
-      validator.drainEvictionQueues(cache);
-    }
-
-    debug("Evict #1: %s", validator.printFwd(cache));
-    assertTrue(cache.keySet().containsAll(asList(6, 7, 8, 9, 0, 1, 2, 10, 11, 12)),
-               "Instead: " + cache.keySet());
-    assertEquals(cache.size(), 10);
-
-    // re-order
-    for (int i : asList(6, 7, 8)) {
-      cache.get(i);
-      validator.drainEvictionQueues(cache);
-    }
-
-    debug("Reordered #2: %s", validator.printFwd(cache));
-    assertTrue(cache.keySet().containsAll(asList(9, 0, 1, 2, 10, 11, 12, 6, 7, 8)),
-               "Instead: " + cache.keySet());
-    assertEquals(cache.size(), 10);
-
-    // evict 9, 0, 1
-    for (int i : asList(13, 14, 15)) {
-      cache.put(i, i);
-      validator.drainEvictionQueues(cache);
-    }
-
-    debug("Evict #2: %s", validator.printFwd(cache));
-    assertTrue(cache.keySet().containsAll(asList(2, 10, 11, 12, 6, 7, 8, 13, 14, 15)),
-               "Instead: " + cache.keySet());
-    assertEquals(cache.size(), 10);
+    // custom listener & weigher
+    ConcurrentLinkedHashMap<Integer, Collection<Integer>> expected2 =
+        new Builder<Integer, Collection<Integer>>()
+            .listener(EvictionMonitor.<Integer, Collection<Integer>>newGuard())
+            .weigher(Weighers.<Integer>collection())
+            .maximumWeightedCapacity(capacity)
+            .build();
+    actual = (ConcurrentLinkedHashMap) SerializationUtils.clone(expected2);
+    assertEquals(actual.listener.getClass(), expected2.listener.getClass());
+    assertEquals(actual.weigher, expected2.weigher);
   }
 }

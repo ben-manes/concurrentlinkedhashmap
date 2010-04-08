@@ -6,22 +6,28 @@ import org.testng.Assert;
 import org.testng.annotations.BeforeClass;
 
 import java.io.Serializable;
+import java.util.AbstractMap.SimpleImmutableEntry;
 import java.util.Collection;
+import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
- * Base utilities for testing purposes.
+ * Base utilities for testing purposes. This is ugly from an inheritance
+ * perspective, but makes the tests easier to read by moving the junk here.
  *
- * @author <a href="mailto:ben.manes@gmail.com">Ben Manes</a>
+ * @author bmanes@gmail.com (Ben Manes)
  */
 public abstract class BaseTest extends Assert {
-
   protected final EvictionMonitor<Integer, Integer> guard = EvictionMonitor.newGuard();
   protected Validator validator;
   protected final int capacity;
   protected boolean debug;
 
-  public BaseTest(int capacity) {
+  protected BaseTest() {
+    this(Integer.valueOf(System.getProperty("singleThreaded.maximumCapacity")));
+  }
+
+  protected BaseTest(int capacity) {
     this.capacity = capacity;
   }
 
@@ -32,24 +38,26 @@ public abstract class BaseTest extends Assert {
   public void before() {
     validator = new Validator(Boolean.valueOf(System.getProperty("test.exhaustive")));
     debug = Boolean.valueOf(System.getProperty("test.debugMode"));
-    info("\n%s:\n", getClass().getSimpleName());
+    info("\nRunning %s...\n", getClass().getSimpleName());
   }
 
-  /**
-   * Logs a statement.
-   */
+  /* ---------------- Logging methods -------------- */
+
   protected void info(String message, Object... args) {
     System.out.printf(message, args);
     System.out.println();
   }
 
-  /**
-   * Logs a statement, if debugging is enabled.
-   */
   protected void debug(String message, Object... args) {
     if (debug) {
       info(message, args);
     }
+  }
+
+  /* ---------------- Factory methods -------------- */
+
+  <K, V> Builder<K, V> builder() {
+    return new Builder<K, V>().maximumWeightedCapacity(capacity);
   }
 
   protected <K, V> ConcurrentLinkedHashMap<K, V> create() {
@@ -58,7 +66,7 @@ public abstract class BaseTest extends Assert {
 
   protected <K, V> ConcurrentLinkedHashMap<K, V> create(int size) {
     return new Builder<K, V>()
-        .maximumCapacity(size)
+        .maximumWeightedCapacity(size)
         .build();
   }
 
@@ -72,14 +80,13 @@ public abstract class BaseTest extends Assert {
 
   protected <K, V> ConcurrentLinkedHashMap<K, V> create(int size, EvictionListener<K, V> listener) {
     return new Builder<K, V>()
-        .maximumCapacity(size)
+        .maximumWeightedCapacity(size)
         .listener(listener)
         .build();
   }
 
-  /**
-   * Creates a map warmed to the specified maximum capacity.
-   */
+  /* ---------------- Warming methods -------------- */
+
   protected ConcurrentLinkedHashMap<Integer, Integer> createWarmedMap() {
     return createWarmedMap(capacity);
   }
@@ -89,8 +96,8 @@ public abstract class BaseTest extends Assert {
     return createWarmedMap(capacity, listener);
   }
 
-  protected ConcurrentLinkedHashMap<Integer, Integer> createWarmedMap(int size,
-                                                                      EvictionListener<Integer, Integer> listener) {
+  protected ConcurrentLinkedHashMap<Integer, Integer> createWarmedMap(
+      int size, EvictionListener<Integer, Integer> listener) {
     return warm(create(size, listener), size);
   }
 
@@ -108,6 +115,11 @@ public abstract class BaseTest extends Assert {
     return cache;
   }
 
+  /* ---------------- Listener support -------------- */
+
+  /**
+   * A listener that either aggregates the results or fails if invoked.
+   */
   protected static final class EvictionMonitor<K, V>
       implements EvictionListener<K, V>, Serializable {
 
@@ -132,18 +144,7 @@ public abstract class BaseTest extends Assert {
       if (!isAllowed) {
         throw new IllegalStateException("Eviction should not have occured");
       }
-      evicted.add(new Entry(key, value));
-    }
-
-    final class Entry {
-
-      K key;
-      V value;
-
-      public Entry(K key, V value) {
-        this.key = key;
-        this.value = value;
-      }
+      evicted.add(new SimpleImmutableEntry<K, V>(key, value));
     }
   }
 }
