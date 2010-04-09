@@ -264,7 +264,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    */
   @GuardedBy("evictionLock")
   private void evict() {
-    // Attempts to evicts entries from the map if it exceeds the maximum
+    // Attempts to evict entries from the map if it exceeds the maximum
     // capacity. If the eviction fails due to a concurrent removal of the
     // victim, that removal cancels out the addition that triggered this
     // eviction. The victim is eagerly unlinked before the removal task so
@@ -641,13 +641,13 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       prior = data.putIfAbsent(node.key, node);
       if (prior == null) {
         writeQueue.add(task);
+      } else if (onlyIfAbsent) {
+        oldValue = prior.weightedValue.value;
       } else {
-        if (onlyIfAbsent) {
-          oldValue = prior.weightedValue.value;
-        } else {
-          weightedDifference = weight - prior.weightedValue.weight;
-          oldValue = prior.getAndSetValue(node.weightedValue);
-        }
+        WeightedValue<V> oldWeightedValue = prior.weightedValue;
+        weightedDifference = weight - oldWeightedValue.weight;
+        prior.weightedValue = node.weightedValue;
+        oldValue = oldWeightedValue.value;
       }
     } finally {
       lock.unlock();
@@ -658,8 +658,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       if (weightedDifference != 0) {
         writeQueue.add(new UpdateTask(weightedDifference));
       }
-      addToReorderQueue(prior);
-      delayReorder = false;
+      int buffered = addToReorderQueue(prior);
+      delayReorder = (buffered <= REORDER_THRESHOLD);
     }
     processEvents(segment, delayReorder);
     return oldValue;
@@ -752,8 +752,10 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     try {
       node = data.get(key);
       if (node != null) {
-        weightedDifference = weight - node.weightedValue.weight;
-        prior = node.getAndSetValue(weightedValue);
+        WeightedValue<V> oldWeightedValue = node.weightedValue;
+        weightedDifference = weight - oldWeightedValue.weight;
+        node.weightedValue = weightedValue;
+        prior = oldWeightedValue.value;
       }
     } finally {
       lock.unlock();
@@ -873,15 +875,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       this.key = key;
       this.prev = null;
       this.next = null;
-    }
-
-    /** Retrieves and updates the value. */
-    @GuardedBy("segmentLock")
-    public V getAndSetValue(WeightedValue<V> value) {
-      // not atomic as always performed under lock
-      WeightedValue<V> oldValue = this.weightedValue;
-      this.weightedValue = value;
-      return oldValue.value;
     }
 
     /** Updates the value if it is equal to the expected value. */
