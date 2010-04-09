@@ -84,16 +84,15 @@
 
   <!-- Ehcache -->
   <path id="ehcache.compile.path">
-    <fileset dir="${external.dir}/ehcache/1.5.0">
-      <include name="ehcache-1.5.0.jar"/>
+    <fileset dir="${external.dir}/ehcache/2.0.1">
+      <include name="ehcache-core-2.0.1.jar"/>
     </fileset>
   </path>
   <path id="ehcache.deploy.path">
     <path refid="ehcache.compile.path"/>
-    <fileset dir="${external.dir}/ehcache/1.5.0">
-      <include name="backport-util-concurrent-3.0.jar"/>
-      <include name="commons-logging-1.0.4.jar"/>
-      <include name="jsr107cache-1.0.jar"/>
+    <fileset dir="${external.dir}/ehcache/2.0.1/lib">
+      <include name="slf4j-api-1.5.8.jar"/>
+      <include name="slf4j-jdk14-1.5.8.jar"/>
     </fileset>
   </path>
 
