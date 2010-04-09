@@ -64,8 +64,8 @@
 
   <!-- Commons Lang -->
   <path id="commons.lang.compile.path">
-    <fileset dir="${external.dir}/commons-lang/2.4">
-      <include name="commons-lang-2.4.jar"/>
+    <fileset dir="${external.dir}/commons-lang/2.5">
+      <include name="commons-lang-2.5.jar"/>
     </fileset>
   </path>
   <path id="commons.lang.deploy.path">
