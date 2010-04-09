@@ -29,6 +29,10 @@ import java.util.Set;
 @SuppressWarnings("unchecked")
 public final class Weighers {
 
+  private Weighers() {
+    throw new AssertionError();
+  }
+
   /**
    * A weigher where a value has a weight of <tt>1</tt>. A map bounded with
    * this weigher will evict when the number of key-value pairs exceeds the
