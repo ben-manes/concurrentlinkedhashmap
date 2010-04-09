@@ -184,8 +184,8 @@
 
   <!-- TestNG -->
   <path id="testng.compile.path">
-    <fileset dir="${external.dir}/testng/5.8">
-      <include name="testng-5.8-jdk15.jar"/>
+    <fileset dir="${external.dir}/testng/5.12">
+      <include name="testng-5.12.jar"/>
     </fileset>
   </path>
   <path id="testng.deploy.path">
