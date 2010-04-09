@@ -143,8 +143,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   final Lock[] segmentLock;
 
   /** These fields provide support to bound the map by a maximum capacity. */
-  @GuardedBy("evictionLock")
-  // must write under lock
+  @GuardedBy("evictionLock") // must write under lock
   volatile int weightedSize;
   @GuardedBy("evictionLock")
   final Node<K, V> sentinel;
@@ -265,7 +264,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    */
   @GuardedBy("evictionLock")
   private void evict() {
-    // Attempts to evicts an entry from the map if it exceeds the maximum
+    // Attempts to evicts entries from the map if it exceeds the maximum
     // capacity. If the eviction fails due to a concurrent removal of the
     // victim, that removal cancels out the addition that triggered this
     // eviction. The victim is eagerly unlinked before the removal task so
@@ -854,6 +853,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
     final K key;
     final int segment;
+    @GuardedBy("segmentLock") // must write under lock
     volatile WeightedValue<V> weightedValue;
 
     /** Creates a new sentinel node. */
