@@ -460,7 +460,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * Updates the weighted size and evicts an entry on overflow.
    */
   private final class UpdateTask implements Runnable {
-    private int weightDifference;
+    private final int weightDifference;
 
     public UpdateTask(int weightDifference) {
       this.weightDifference = weightDifference;
@@ -763,7 +763,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     // completed, the read value isn't stale, and that the replacement is
     // ordered.
     Node<K, V> node;
-    boolean replaced;
+    // boolean replaced;
     boolean delayReorder = false;
     int segment = segmentFor(key);
     Lock lock = segmentLock[segment];
