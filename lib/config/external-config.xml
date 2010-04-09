@@ -24,10 +24,10 @@
 
   <!-- Cobertura -->
   <path id="cobertura.compile.path">
-    <fileset dir="${external.dir}/cobertura/1.9.1">
+    <fileset dir="${external.dir}/cobertura/1.9.4.1">
       <include name="cobertura.jar"/>
     </fileset>
-    <fileset dir="${external.dir}/cobertura/1.9.1/lib">
+    <fileset dir="${external.dir}/cobertura/1.9.4.1/lib">
       <include name="asm-3.0.jar"/>
       <include name="asm-tree-3.0.jar"/>
       <include name="jakarta-oro-2.0.8.jar"/>
