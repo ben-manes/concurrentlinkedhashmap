@@ -74,8 +74,8 @@
 
   <!-- Commons Math -->
   <path id="commons.math.compile.path">
-    <fileset dir="${external.dir}/commons-math/1.2">
-      <include name="commons-math-1.2.jar"/>
+    <fileset dir="${external.dir}/commons-math/2.1">
+      <include name="commons-math-2.1.jar"/>
     </fileset>
   </path>
   <path id="commons.math.deploy.path">
