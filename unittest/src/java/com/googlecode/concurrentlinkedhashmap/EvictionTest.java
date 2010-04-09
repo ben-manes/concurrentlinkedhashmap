@@ -1,5 +1,3 @@
-// Copyright 2010 Google Inc. All Rights Reserved.
-
 package com.googlecode.concurrentlinkedhashmap;
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Node;
