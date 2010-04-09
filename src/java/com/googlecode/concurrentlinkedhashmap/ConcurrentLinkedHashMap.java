@@ -120,8 +120,14 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   /** The maximum number of segments to allow. */
   static final int MAX_SEGMENTS = 1 << 16; // slightly conservative
 
+  /** The maxmum weighted capacity of the map. */
+  static final int MAXIMUM_CAPACITY = 1 << 30;
+
+  /** The maximum weight of a value. */
+  static final int MAXIMUM_WEIGHT = 1 << 29;
+
   /** A queue that discards all entries. */
-  static final Queue nullQueue = new DiscardingQueue();
+  static final Queue discardingQueue = new DiscardingQueue();
 
   /** The backing data store holding the key-value associations. */
   final ConcurrentMap<K, Node<K, V>> data;
@@ -178,7 +184,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
     // The data store and its maximum capacity
     data = new ConcurrentHashMap<K, Node<K, V>>(builder.initialCapacity, 0.75f, concurrencyLevel);
-    capacity = builder.maximumWeightedCapacity;
+    capacity = (builder.maximumWeightedCapacity > MAXIMUM_CAPACITY) ? MAXIMUM_CAPACITY
+        : builder.maximumWeightedCapacity;
 
     // The eviction support
     weigher = builder.weigher;
@@ -196,7 +203,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     // The notification listener and event queue
     listener = builder.listener;
     listenerQueue = (listener == DiscardingListener.INSTANCE)
-        ? (Queue<Node<K, V>>) nullQueue
+        ? (Queue<Node<K, V>>) discardingQueue
         : new ConcurrentLinkedQueue<Node<K, V>>();
   }
 
@@ -235,6 +242,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
     evictionLock.lock();
     try {
+      drainReorderQueues();
       drainWriteQueue();
       evict();
     } finally {
@@ -317,7 +325,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * @param node the entry that was read
    * @return the size of the queue
    */
-  private int appendToReorderQueue(Node<K, V> node) {
+  private int addToReorderQueue(Node<K, V> node) {
     int segment = node.segment;
     reorderQueue[segment].add(node);
     return reorderQueueLength[segment].incrementAndGet();
@@ -349,7 +357,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * Attempts to acquire the eviction lock and apply pending write updates to
    * the eviction algorithm.
    */
-  private void attemptToDrainWriteQueues() {
+  private void attemptToDrainWriteQueue() {
     if (!writeQueue.isEmpty() && evictionLock.tryLock()) {
       try {
         drainWriteQueue();
@@ -367,6 +375,16 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     Runnable task;
     while ((task = writeQueue.poll()) != null) {
       task.run();
+    }
+  }
+
+  /**
+   * Applies the pending reorderings to the list.
+   */
+  @GuardedBy("evictionLock")
+  void drainReorderQueues() {
+    for (int segment=0; segment<segments; segment++) {
+      drainReorderQueue(segment);
     }
   }
 
@@ -478,13 +496,13 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
   @Override
   public boolean isEmpty() {
-    attemptToDrainWriteQueues();
+    attemptToDrainWriteQueue();
     return data.isEmpty();
   }
 
   @Override
   public int size() {
-    attemptToDrainWriteQueues();
+    attemptToDrainWriteQueue();
     return data.size();
   }
 
@@ -494,7 +512,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * @return the combined weight of the values in this map
    */
   public int weightedSize() {
-    attemptToDrainWriteQueues();
+    attemptToDrainWriteQueue();
     return weightedSize;
   }
 
@@ -502,15 +520,14 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   public void clear() {
     // The alternative is to iterate through the keys and call #remove(), which
     // unnecessarily adds contention on the eviction lock and the write queue.
-    // Instead the nodes in the list are copied, the list is cleared, and the
-    // nodes are conditionally removed. The prev and next fields are null'ed
-    // out to reduce GC pressure.
+    // Instead the nodes in the list are copied, the list is cleared, the nodes
+    // are conditionally removed, and the reorder queues drained. The prev and
+    // next fields are null'ed out to reduce GC pressure.
     List<Node<K, V>> nodes;
     evictionLock.lock();
     try {
       drainWriteQueue();
       nodes = new ArrayList<Node<K, V>>(weightedSize);
-      weightedSize = 0;
 
       Node<K, V> current = sentinel.next;
       while (current != sentinel) {
@@ -521,12 +538,14 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       }
       sentinel.next = sentinel;
       sentinel.prev = sentinel;
+
+      for (Node<K, V> node : nodes) {
+        data.remove(node.key, node);
+        weightedSize -= node.weightedValue.weight;
+      }
+      drainReorderQueues();
     } finally {
       evictionLock.unlock();
-    }
-
-    for (Node<K, V> node : nodes) {
-      data.remove(node.key, node);
     }
   }
 
@@ -541,7 +560,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   @Override
   public boolean containsValue(Object value) {
     checkNotNull(value, "value");
-    attemptToDrainWriteQueues();
+    attemptToDrainWriteQueue();
 
     for (Node<K, V> node : data.values()) {
       if (node.weightedValue.value.equals(value)) {
@@ -567,7 +586,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     if (node == null) {
       segment = segmentFor(key);
     } else {
-      int buffered = appendToReorderQueue(node);
+      int buffered = addToReorderQueue(node);
       delayReorder = (buffered <= REORDER_THRESHOLD);
       value = node.weightedValue.value;
       segment = node.segment;
@@ -640,7 +659,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       if (weightedDifference != 0) {
         writeQueue.add(new UpdateTask(weightedDifference));
       }
-      appendToReorderQueue(prior);
+      addToReorderQueue(prior);
       delayReorder = false;
     }
     processEvents(segment, delayReorder);
@@ -729,6 +748,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     int weight = weigher.weightOf(value);
     WeightedValue<V> weightedValue = new WeightedValue<V>(value, weight);
 
+    // maintain per-segment write ordering
     lock.lock();
     try {
       node = data.get(key);
@@ -745,7 +765,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       if (weightedDifference != 0) {
         writeQueue.add(new UpdateTask(weightedDifference));
       }
-      int buffered = appendToReorderQueue(node);
+      int buffered = addToReorderQueue(node);
       delayReorder = (buffered <= REORDER_THRESHOLD);
     }
     processEvents(segment, delayReorder);
@@ -763,7 +783,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     // completed, the read value isn't stale, and that the replacement is
     // ordered.
     Node<K, V> node;
-    // boolean replaced;
     boolean delayReorder = false;
     int segment = segmentFor(key);
     Lock lock = segmentLock[segment];
@@ -771,6 +790,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     WeightedValue<V> oldWeightedValue = null;
     WeightedValue<V> newWeightedValue = new WeightedValue<V>(newValue, weight);
 
+    // maintain per-segment write ordering
     lock.lock();
     try {
       node = data.get(key);
@@ -786,7 +806,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       if (oldWeightedValue != null) {
         writeQueue.add(new UpdateTask(newWeightedValue.weight - oldWeightedValue.weight));
       }
-      int buffered = appendToReorderQueue(node);
+      int buffered = addToReorderQueue(node);
       delayReorder = (buffered <= REORDER_THRESHOLD);
     }
     processEvents(segment, delayReorder);
@@ -816,8 +836,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     final V value;
 
     public WeightedValue(V value, int weight) {
-      if (weight < 1) {
-        throw new IllegalArgumentException("weight must be positive");
+      if ((weight < 1) || (weight > MAXIMUM_WEIGHT)) {
+        throw new IllegalArgumentException("invalid weight");
       }
       this.weight = weight;
       this.value = value;

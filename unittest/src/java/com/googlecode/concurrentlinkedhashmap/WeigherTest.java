@@ -10,9 +10,10 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.HashSet;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * A unit-test for the weigher algorithms and that the map keeps track of the
@@ -187,6 +188,29 @@ public final class WeigherTest extends BaseTest {
     cache.clear();
     assertEquals(cache.size(), 0);
     assertEquals(cache.weightedSize(), 0);
+  }
+
+  @Test(groups = "development")
+  public void integerOverflow() {
+    debug(" * integerOverflow: START");
+    final AtomicBoolean max = new AtomicBoolean(true);
+    Builder<Integer, Integer> builder = builder();
+    builder.weigher(new Weigher<Integer>() {
+      public int weightOf(Integer value) {
+        return max.get() ? ConcurrentLinkedHashMap.MAXIMUM_WEIGHT : 1;
+      }
+    });
+    ConcurrentLinkedHashMap<Integer, Integer> cache = builder
+        .maximumWeightedCapacity(ConcurrentLinkedHashMap.MAXIMUM_CAPACITY)
+        .build();
+    cache.put(1, 1);
+    cache.put(2, 2);
+    assertEquals(cache.size(), 2);
+    assertEquals(cache.weightedSize(), ConcurrentLinkedHashMap.MAXIMUM_CAPACITY);
+    max.set(false);
+    cache.put(3, 3);
+    assertEquals(cache.size(), 2);
+    assertEquals(cache.weightedSize(), ConcurrentLinkedHashMap.MAXIMUM_WEIGHT + 1);
   }
 
   private <E> Iterable<E> asIterable(final Collection<E> c) {
