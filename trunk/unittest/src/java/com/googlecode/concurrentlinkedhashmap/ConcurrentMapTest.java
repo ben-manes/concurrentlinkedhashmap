@@ -327,7 +327,6 @@ public final class ConcurrentMapTest extends BaseTest {
     }
     assertEquals(cache, expected);
     assertEquals(cache.hashCode(), expected.hashCode());
-    assertEquals(cache.toString(), expected.toString());
   }
 
   /**
