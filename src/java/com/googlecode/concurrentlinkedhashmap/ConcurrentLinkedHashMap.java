@@ -268,8 +268,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     // capacity. If the eviction fails due to a concurrent removal of the
     // victim, that removal cancels out the addition that triggered this
     // eviction. The victim is eagerly unlinked before the removal task so
-    // that if are other pending prior additions then a new victim will be
-    // chosen for removal.
+    // that if there are other pending prior additions then a new victim
+    // will be chosen for removal.
 
     while (isOverflow()) {
       Node<K, V> node = sentinel.next;
