@@ -112,7 +112,7 @@ public final class Weighers {
   }
 
   /**
-   * A weigher where the value is an {@link Map} and its weight is the number of
+   * A weigher where the value is a {@link Map} and its weight is the number of
    * entries. A map bounded with this weigher will evict when the total number of
    * entries across all values exceeds the capacity rather than the number of
    * key-value pairs in the map.
