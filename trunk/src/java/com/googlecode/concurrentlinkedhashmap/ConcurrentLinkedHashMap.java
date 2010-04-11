@@ -335,7 +335,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * eviction algorithm.
    *
    * @param segment the segment's reorder queue to drain
-   * @param onlyIfWrites attempts the drain the eviction queues only if there
+   * @param onlyIfWrites attempts to drain the eviction queues only if there
    *     are pending writes
    */
   private void attemptToDrainEvictionQueues(int segment, boolean onlyIfWrites) {
@@ -396,7 +396,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   void drainReorderQueue(int segment) {
     // While the queue is being drained it may be concurrently appended to. The
     // number of elements removed are tracked so that the length can be
-    // decremented by the delta rather than be set to zero.
+    // decremented by the delta rather than set to zero.
     int delta = 0;
     Node<K, V> node;
     Queue<Node<K, V>> queue = reorderQueue[segment];
