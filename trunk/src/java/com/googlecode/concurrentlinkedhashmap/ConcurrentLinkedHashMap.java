@@ -118,7 +118,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   static final int REORDER_THRESHOLD = 64;
 
   /** The maximum number of segments to allow. */
-  static final int MAX_SEGMENTS = 1 << 16; // slightly conservative
+  static final int MAXIMUM_SEGMENTS = 1 << 16; // slightly conservative
 
   /** The maximum weighted capacity of the map. */
   static final int MAXIMUM_CAPACITY = 1 << 30;
@@ -168,8 +168,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     // a key is associated with. This avoids lock contention by ensuring that
     // lock selected by this decorator parallels the one used by the data store
     // so that concurrent writes for different segments do not contend.
-    concurrencyLevel = (builder.concurrencyLevel > MAX_SEGMENTS)
-        ? MAX_SEGMENTS : builder.concurrencyLevel;
+    concurrencyLevel = (builder.concurrencyLevel > MAXIMUM_SEGMENTS)
+        ? MAXIMUM_SEGMENTS : builder.concurrencyLevel;
     int sshift = 0;
     int ssize = 1;
     while (ssize < concurrencyLevel) {
