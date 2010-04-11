@@ -57,7 +57,7 @@ import java.util.concurrent.locks.ReentrantLock;
  * modifies its weight requires that an update operation is performed on the
  * map.
  * <p>
- * A {@link EvictionListener} may be supplied for notification when an entry is
+ * An {@link EvictionListener} may be supplied for notification when an entry is
  * evicted from the map. This listener is invoked on a caller's thread and will
  * not block other threads from operating on the map. An implementation should
  * be aware that the caller's thread will not expect long execution times or
