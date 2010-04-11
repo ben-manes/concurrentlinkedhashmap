@@ -134,7 +134,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   final int concurrencyLevel;
 
   /**
-   * These fields mirrors the lock striping on ConcurrentHashMap to order
+   * These fields mirror the lock striping on ConcurrentHashMap to order
    * the write operations. This allows the write queue to be consistent.
    */
   final int segments;
