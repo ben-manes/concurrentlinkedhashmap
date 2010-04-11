@@ -166,8 +166,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   private ConcurrentLinkedHashMap(Builder<K, V> builder) {
     // The shift and mask used by ConcurrentHashMap to select the segment that
     // a key is associated with. This avoids lock contention by ensuring that
-    // lock selected by this decorator parallels the one used by the data store
-    // so that concurrent writes for different segments do not contend.
+    // the lock selected by this decorator parallels the one used by the data
+    // store so that concurrent writes for different segments do not contend.
     concurrencyLevel = (builder.concurrencyLevel > MAXIMUM_SEGMENTS)
         ? MAXIMUM_SEGMENTS : builder.concurrencyLevel;
     int sshift = 0;
