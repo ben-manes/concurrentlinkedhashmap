@@ -120,7 +120,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   /** The maximum number of segments to allow. */
   static final int MAX_SEGMENTS = 1 << 16; // slightly conservative
 
-  /** The maxmum weighted capacity of the map. */
+  /** The maximum weighted capacity of the map. */
   static final int MAXIMUM_CAPACITY = 1 << 30;
 
   /** The maximum weight of a value. */
