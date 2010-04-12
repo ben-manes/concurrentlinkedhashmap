@@ -558,7 +558,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
   @Override
   public boolean containsValue(Object value) {
-    checkNotNull(value, "value");
+    checkNotNull(value, "null value");
     attemptToDrainWriteQueue();
 
     for (Node<K, V> node : data.values()) {
