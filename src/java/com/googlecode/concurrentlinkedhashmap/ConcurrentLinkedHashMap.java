@@ -573,7 +573,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   public V get(Object key) {
     checkNotNull(key, "null key");
 
-    // As read are the common case they should be performed lock-free to avoid
+    // As reads are the common case they should be performed lock-free to avoid
     // blocking other readers. If the entry was found then a reorder operation
     // is scheduled on the queue to be applied sometime in the future. The
     // draining of the queues should be delayed until either the reorder
@@ -605,12 +605,12 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   }
 
   /**
-   * Adds a node to the list and the data store. If an existing node exists
+   * Adds a node to the list and the data store. If an existing node is found,
    * then its value is updated if allowed.
    *
    * @param key key with which the specified value is to be associated
    * @param value value to be associated with the specified key
-   * @param onlyIfAbsent a write is performed only the key is not already
+   * @param onlyIfAbsent a write is performed only if the key is not already
    *     associated with a value
    * @return the prior value in the data store or null if no mapping was found
    */
