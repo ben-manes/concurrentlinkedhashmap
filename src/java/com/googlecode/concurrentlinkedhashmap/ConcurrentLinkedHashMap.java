@@ -623,7 +623,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     // put, the concurrent insertion into the queue might allow the removal to
     // be processed first which would corrupt the capacity constraint. The
     // locking is kept slim and if the insertion fails then the operation is
-    // treaded as a read so a reordering operation is scheduled.
+    // treated as a read so that a reordering operation is scheduled.
     Node<K, V> prior;
     V oldValue = null;
     int weightedDifference = 0;
