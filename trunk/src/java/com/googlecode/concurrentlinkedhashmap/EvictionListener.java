@@ -29,7 +29,7 @@ package com.googlecode.concurrentlinkedhashmap;
  * performing the operation asynchronously, such as by submitting a task to an
  * {@link java.util.concurrent.ExecutorService}.
  *
- * @author bmanes@gmail.com (Ben Manes)
+ * @author ben.manes@gmail.com (Ben Manes)
  * @see <tt>http://code.google.com/p/concurrentlinkedhashmap/</tt>
  */
 @ThreadSafe

@@ -27,7 +27,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * A unit-test to assert basic concurrency characteristics by validating the
  * internal state after load.
  *
- * @author bmanes@gmail.com (Ben Manes)
+ * @author ben.manes@gmail.com (Ben Manes)
  */
 public final class MultiThreadedTest extends BaseTest {
   private Queue<String> failures;

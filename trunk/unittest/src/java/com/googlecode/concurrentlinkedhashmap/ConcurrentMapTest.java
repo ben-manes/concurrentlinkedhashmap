@@ -24,7 +24,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * A unit-test for {@link java.util.concurrent.ConcurrentMap} interface and its
  * serializability. These tests do not assert correct concurrency behavior.
  *
- * @author bmanes@gmail.com (Ben Manes)
+ * @author ben.manes@gmail.com (Ben Manes)
  */
 @SuppressWarnings("unchecked")
 public final class ConcurrentMapTest extends BaseTest {

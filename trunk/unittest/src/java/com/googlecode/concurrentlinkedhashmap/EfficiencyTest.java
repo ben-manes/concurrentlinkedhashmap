@@ -15,7 +15,7 @@ import java.util.concurrent.Callable;
 /**
  * A unit-test and benchmark for evaluating the cache's hit rate.
  *
- * @author bmanes@gmail.com (Ben Manes)
+ * @author ben.manes@gmail.com (Ben Manes)
  */
 public final class EfficiencyTest extends BaseTest {
   private Distribution distribution;

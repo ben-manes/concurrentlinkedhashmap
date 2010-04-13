@@ -13,7 +13,7 @@ import java.util.Queue;
 /**
  * Validations for the concurrent data structure.
  *
- * @author <a href="mailto:ben.manes@reardencommerce.com">Ben Manes</a>
+ * @author ben.manes@gmail.com (Ben Manes)
  */
 public final class Validator extends Assert {
 

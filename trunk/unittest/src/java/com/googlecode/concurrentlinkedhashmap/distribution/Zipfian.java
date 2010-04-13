@@ -10,26 +10,26 @@ import cern.jet.random.engine.RandomEngine;
 /**
  * Creates a Zipfian distribution.
  *
- * @author <a href="mailto:ben.manes@reardencommerce.com">Ben Manes</a>
+ * @author ben.manes@gmail.com (Ben Manes)
  */
 final class Zipfian implements Callable<Double> {
-    private final double skew;
-    private final RandomEngine random;
+  private final double skew;
+  private final RandomEngine random;
 
-    /**
-     * A uniform distribution across the open interval.
-     *
-     * @param skew The skew of the distribution (must be > 1.0).
-     */
-    public Zipfian(double skew) {
-        this.skew = skew;
-        this.random = new MersenneTwister(new Date());
-    }
+  /**
+   * A uniform distribution across the open interval.
+   *
+   * @param skew The skew of the distribution (must be > 1.0).
+   */
+  public Zipfian(double skew) {
+    this.skew = skew;
+    this.random = new MersenneTwister(new Date());
+  }
 
-    /**
-     * Random value with given skew.
-     */
-    public Double call() {
-        return (double) Distributions.nextZipfInt(skew, random);
-    }
+  /**
+   * Random value with given skew.
+   */
+  public Double call() {
+    return (double) Distributions.nextZipfInt(skew, random);
+  }
 }

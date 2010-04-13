@@ -15,17 +15,12 @@ import java.util.Map;
  */
 @SuppressWarnings("unchecked")
 public class CLHMCacheWrapper implements CacheWrapper {
-
   private final Log logger = LogFactory.getLog("org.cachebench.cachewrappers.CLHMCacheWrapper");
-
-  private int level;
-  private int capacity;
-
   private ConcurrentLinkedHashMap<Object, Object> cache;
+  private int capacity;
+  private int level;
 
-  /**
-   * {@inheritDoc}
-   */
+  @Override
   public void init(Map parameters) throws Exception {
 //    InputStream stream =
 //        getClass().getClassLoader().getResourceAsStream((String) parameters.get("config"));

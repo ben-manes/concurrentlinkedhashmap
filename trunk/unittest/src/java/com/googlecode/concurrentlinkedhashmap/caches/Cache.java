@@ -9,7 +9,7 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * A factory for creating caches for use within tests.
  *
- * @author <a href="mailto:ben.manes@reardencommerce.com">Ben Manes</a>
+ * @author ben.manes@gmail.com (Ben Manes)
  */
 public enum Cache {
     CONCURRENT_LRU() { /** A concurrent linked hashmap, using LRU eviction */

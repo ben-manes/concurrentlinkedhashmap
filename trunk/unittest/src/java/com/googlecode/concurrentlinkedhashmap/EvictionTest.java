@@ -1,7 +1,7 @@
 package com.googlecode.concurrentlinkedhashmap;
 
-import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Node;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Node;
 
 import org.testng.annotations.Test;
 
@@ -11,7 +11,7 @@ import java.util.Collection;
 /**
  * A unit-test for the page replacement algorithm and its public methods.
  *
- * @author bmanes@gmail.com (Ben Manes)
+ * @author ben.manes@gmail.com (Ben Manes)
  */
 @SuppressWarnings("unchecked")
 public final class EvictionTest extends BaseTest {

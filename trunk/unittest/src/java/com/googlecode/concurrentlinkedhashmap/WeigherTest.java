@@ -19,7 +19,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * A unit-test for the weigher algorithms and that the map keeps track of the
  * weighted sizes.
  *
- * @author bmanes@gmail.com (Ben Manes)
+ * @author ben.manes@gmail.com (Ben Manes)
  */
 @SuppressWarnings("unchecked")
 public final class WeigherTest extends BaseTest {

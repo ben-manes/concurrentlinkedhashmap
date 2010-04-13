@@ -11,19 +11,14 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * @author bmanes@google.com (Ben Manes)
+ * @author ben.manes@gmail.com (Ben Manes)
  */
 public class CHMCacheWrapper implements CacheWrapper {
-
   private final Log logger = LogFactory.getLog("org.cachebench.cachewrappers.LHMCacheWrapper");
-
+  private Map<Object, Object> cache;
   private int capacity;
 
-  private Map<Object, Object> cache;
-
-  /**
-   * {@inheritDoc}
-   */
+  @Override
   public void init(Map parameters) throws Exception {
 //    InputStream stream =
 //        getClass().getClassLoader().getResourceAsStream((String) parameters.get("config"));

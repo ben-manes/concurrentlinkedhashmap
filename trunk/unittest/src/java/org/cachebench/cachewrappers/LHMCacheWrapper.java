@@ -12,19 +12,14 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * @author bmanes@google.com (Ben Manes)
+ * @author ben.manes@gmail.com (Ben Manes)
  */
 public class LHMCacheWrapper implements CacheWrapper {
-
   private final Log logger = LogFactory.getLog("org.cachebench.cachewrappers.LHMCacheWrapper");
-
+  private Map<Object, Object> cache;
   private int capacity;
 
-  private Map<Object, Object> cache;
-
-  /**
-   * {@inheritDoc}
-   */
+  @Override
   public void init(Map parameters) throws Exception {
 //    InputStream stream =
 //        getClass().getClassLoader().getResourceAsStream((String) parameters.get("config"));
@@ -42,7 +37,7 @@ public class LHMCacheWrapper implements CacheWrapper {
   public void setUp() throws Exception {
     cache = Collections.synchronizedMap(new LinkedHashMap<Object, Object>(capacity, 0.75f, true) {
       private static final long serialVersionUID = 1L;
-      
+
       @Override
       protected boolean removeEldestEntry(Map.Entry<Object, Object> eldest) {
         return size() > capacity;
