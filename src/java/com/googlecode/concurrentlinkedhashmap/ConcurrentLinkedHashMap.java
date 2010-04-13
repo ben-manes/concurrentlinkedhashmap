@@ -128,7 +128,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   static final Queue discardingQueue = new DiscardingQueue();
 
   /** The backing data store holding the key-value associations. */
-  final ConcurrentMap<K, Node<K, V>> data;
+  final ConcurrentMap<K, Node> data;
   final int concurrencyLevel;
 
   /**
@@ -144,17 +144,17 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   @GuardedBy("evictionLock") // must write under lock
   volatile int weightedSize;
   @GuardedBy("evictionLock")
-  final Node<K, V> sentinel;
+  final Node sentinel;
 
   volatile int capacity;
   final Lock evictionLock;
   final Weigher<V> weigher;
   final Queue<Runnable> writeQueue;
-  final Queue<Node<K, V>>[] reorderQueue;
+  final Queue<Node>[] reorderQueue;
   final AtomicInteger[] reorderQueueLength;
 
   /** A listener is notified when an entry is evicted. */
-  final Queue<Node<K, V>> listenerQueue;
+  final Queue<Node> listenerQueue;
   final EvictionListener<K, V> listener;
 
   /**
@@ -180,28 +180,28 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     segmentLock = new Lock[segments];
 
     // The data store and its maximum capacity
-    data = new ConcurrentHashMap<K, Node<K, V>>(builder.initialCapacity, 0.75f, concurrencyLevel);
+    data = new ConcurrentHashMap<K, Node>(builder.initialCapacity, 0.75f, concurrencyLevel);
     capacity = (builder.maximumWeightedCapacity > MAXIMUM_CAPACITY) ? MAXIMUM_CAPACITY
         : builder.maximumWeightedCapacity;
 
     // The eviction support
     weigher = builder.weigher;
-    sentinel = new Node<K, V>();
+    sentinel = new Node();
     evictionLock = new ReentrantLock();
     writeQueue = new ConcurrentLinkedQueue<Runnable>();
     reorderQueueLength = new AtomicInteger[segments];
-    reorderQueue = (Queue<Node<K, V>>[]) new Queue[segments];
+    reorderQueue = (Queue<Node>[]) new Queue[segments];
     for (int i=0; i<segments; i++) {
       segmentLock[i] = new ReentrantLock();
       reorderQueueLength[i] = new AtomicInteger();
-      reorderQueue[i] = new ConcurrentLinkedQueue<Node<K, V>>();
+      reorderQueue[i] = new ConcurrentLinkedQueue<Node>();
     }
 
     // The notification listener and event queue
     listener = builder.listener;
     listenerQueue = (listener == DiscardingListener.INSTANCE)
-        ? (Queue<Node<K, V>>) discardingQueue
-        : new ConcurrentLinkedQueue<Node<K, V>>();
+        ? (Queue<Node>) discardingQueue
+        : new ConcurrentLinkedQueue<Node>();
   }
 
   /**
@@ -270,7 +270,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     // will be chosen for removal.
 
     while (isOverflow()) {
-      Node<K, V> node = sentinel.next;
+      Node node = sentinel.next;
       // Notify the listener if the entry was evicted
       if (data.remove(node.key, node)) {
         listenerQueue.add(node);
@@ -322,7 +322,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * @param node the entry that was read
    * @return the size of the queue
    */
-  private int addToReorderQueue(Node<K, V> node) {
+  private int addToReorderQueue(Node node) {
     int segment = node.segment;
     reorderQueue[segment].add(node);
     return reorderQueueLength[segment].incrementAndGet();
@@ -396,8 +396,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     // number of elements removed are tracked so that the length can be
     // decremented by the delta rather than set to zero.
     int delta = 0;
-    Node<K, V> node;
-    Queue<Node<K, V>> queue = reorderQueue[segment];
+    Node node;
+    Queue<Node> queue = reorderQueue[segment];
     while ((node = queue.poll()) != null) {
       // skip the node if appended to queue during its removal
       if (node.isLinked()) {
@@ -424,7 +424,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * Notifies the listener of entries that were evicted.
    */
   private void notifyListeners() {
-    Node<K, V> node;
+    Node node;
     while ((node = listenerQueue.poll()) != null) {
       listener.onEviction(node.key, node.weightedValue.value);
     }
@@ -434,10 +434,10 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * Adds a node to the list and evicts an entry on overflow.
    */
   private final class AddTask implements Runnable {
-    private final Node<K, V> node;
+    private final Node node;
     private final int weight;
 
-    AddTask(Node<K, V> node, int weight) {
+    AddTask(Node node, int weight) {
       this.weight = weight;
       this.node = node;
     }
@@ -455,9 +455,9 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * Removes a node from the list.
    */
   private final class RemovalTask implements Runnable {
-    private final Node<K, V> node;
+    private final Node node;
 
-    RemovalTask(Node<K, V> node) {
+    RemovalTask(Node node) {
       this.node = node;
     }
 
@@ -517,14 +517,13 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   public void clear() {
     // The alternative is to iterate through the keys and call #remove(), which
     // unnecessarily adds contention on the eviction lock and the write queue.
-    // Instead the nodes in the list are copied, the list is cleared, the nodes
-    // are conditionally removed, and the reorder queues drained. The prev and
-    // next fields are null'ed out to reduce GC pressure.
+    // Instead the list is walked to conditionally remove the nodes and the
+    // prev and next fields are null'ed out to reduce GC pressure.
     evictionLock.lock();
     try {
       drainWriteQueue();
 
-      Node<K, V> current = sentinel.next;
+      Node current = sentinel.next;
       while (current != sentinel) {
         weightedSize -= current.weightedValue.weight;
         data.remove(current.key, current);
@@ -554,7 +553,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     checkNotNull(value, "null value");
     attemptToDrainWriteQueue();
 
-    for (Node<K, V> node : data.values()) {
+    for (Node node : data.values()) {
       if (node.weightedValue.value.equals(value)) {
         return true;
       }
@@ -574,7 +573,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     int segment;
     V value = null;
     boolean delayReorder = true;
-    Node<K, V> node = data.get(key);
+    Node node = data.get(key);
     if (node == null) {
       segment = segmentFor(key);
     } else {
@@ -617,7 +616,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     // be processed first which would corrupt the capacity constraint. The
     // locking is kept slim and if the insertion fails then the operation is
     // treated as a read so that a reordering operation is scheduled.
-    Node<K, V> prior;
+    Node prior;
     V oldValue = null;
     int weightedDifference = 0;
     boolean delayReorder = true;
@@ -625,7 +624,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     Lock lock = segmentLock[segment];
     int weight = weigher.weightOf(value);
     WeightedValue<V> weightedValue = new WeightedValue<V>(value, weight);
-    Node<K, V> node = new Node<K, V>(key, weightedValue, segment, sentinel);
+    Node node = new Node(key, weightedValue, segment, sentinel);
     Runnable task = new AddTask(node, weight);
 
     // maintain per-segment write ordering
@@ -668,7 +667,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     // insertion into the write queue after #putIfAbsent()'s is ensured through
     // this lock. This behavior allows shrinking the lock's critical section.
     V value = null;
-    Node<K, V> node;
+    Node node;
     int segment = segmentFor(key);
     Lock lock = segmentLock[segment];
 
@@ -699,7 +698,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     // Per-segment write ordering is required to ensure that the map and write
     // queue are consistently ordered. The lock enforces that other mutations
     // completed, the read value isn't stale, and that the removal is ordered.
-    Node<K, V> node;
+    Node node;
     boolean removed = false;
     int segment = segmentFor(key);
     Lock lock = segmentLock[segment];
@@ -732,7 +731,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     // completed, the read value isn't stale, and that the replacement is
     // ordered.
     V prior = null;
-    Node<K, V> node;
+    Node node;
     int weightedDifference = 0;
     boolean delayReorder = false;
     int segment = segmentFor(key);
@@ -776,7 +775,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     // queue are consistently ordered. The lock enforces that other mutations
     // completed, the read value isn't stale, and that the replacement is
     // ordered.
-    Node<K, V> node;
+    Node node;
     boolean delayReorder = false;
     int segment = segmentFor(key);
     Lock lock = segmentLock[segment];
@@ -789,7 +788,11 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     try {
       node = data.get(key);
       if (node != null) {
-        oldWeightedValue = node.casValue(oldValue, newWeightedValue);
+        WeightedValue<V> weightedValue = node.weightedValue;
+        if (oldValue.equals(weightedValue.value)) {
+          node.weightedValue = newWeightedValue;
+          oldWeightedValue = weightedValue;
+        }
       }
     } finally {
       lock.unlock();
@@ -841,10 +844,9 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   /**
    * A node on the double-linked list. This list cross-cuts the data store.
    */
-  static final class Node<K, V> {
-    final Node<K, V> sentinel;
-    Node<K, V> prev;
-    Node<K, V> next;
+  final class Node {
+    Node prev;
+    Node next;
 
     final K key;
     final int segment;
@@ -852,8 +854,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     volatile WeightedValue<V> weightedValue;
 
     /** Creates a new sentinel node. */
-    public Node() {
-      this.sentinel = this;
+    Node() {
       this.segment = -1;
       this.key = null;
       this.prev = this;
@@ -861,30 +862,17 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     }
 
     /** Creates a new, unlinked node. */
-    public Node(K key, WeightedValue<V> weightedValue, int segment, Node<K, V> sentinel) {
+    Node(K key, WeightedValue<V> weightedValue, int segment, Node sentinel) {
       this.weightedValue = weightedValue;
-      this.sentinel = sentinel;
       this.segment = segment;
       this.key = key;
       this.prev = null;
       this.next = null;
     }
 
-    /** Updates the value if it is equal to the expected value. */
-    @GuardedBy("segmentLock")
-    public WeightedValue<V> casValue(V expect, WeightedValue<V> update) {
-      // not atomic as always performed under lock
-      WeightedValue<V> weightedValue = this.weightedValue;
-      if (weightedValue.value.equals(expect)) {
-        this.weightedValue = update;
-        return weightedValue;
-      }
-      return null;
-    }
-
     /** Removes the node from the list. */
     @GuardedBy("evictionLock")
-    public void remove() {
+    void remove() {
       prev.next = next;
       next.prev = prev;
       // null to reduce GC pressure
@@ -893,7 +881,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
     /** Appends the node to the tail of the list. */
     @GuardedBy("evictionLock")
-    public void appendToTail() {
+    void appendToTail() {
       prev = sentinel.prev;
       next = sentinel;
       sentinel.prev.next = this;
@@ -902,7 +890,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
     /** Moves the node to the tail of the list. */
     @GuardedBy("evictionLock")
-    public void moveToTail() {
+    void moveToTail() {
       if (next != sentinel) {
         prev.next = next;
         next.prev = prev;
@@ -912,13 +900,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
     /** Whether the node is linked on the list. */
     @GuardedBy("evictionLock")
-    public boolean isLinked() {
+    boolean isLinked() {
       return (next != null);
-    }
-
-    @Override
-    public String toString() {
-      return key + "=" + ((this == sentinel) ? "null" : weightedValue.value);
     }
   }
 
@@ -1061,7 +1044,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
         return false;
       }
       Entry<?, ?> entry = (Entry<?, ?>) obj;
-      Node<K, V> node = map.data.get(entry.getKey());
+      Node node = map.data.get(entry.getKey());
       return (node != null) && (node.weightedValue.value.equals(entry.getValue()));
     }
 
@@ -1084,10 +1067,10 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * An adapter to safely externalize the entry iterator.
    */
   private final class EntryIterator implements Iterator<Entry<K, V>> {
-    private final Iterator<Node<K, V>> iterator;
-    private Node<K, V> current;
+    private final Iterator<Node> iterator;
+    private Node current;
 
-    public EntryIterator(Iterator<Node<K, V>> iterator) {
+    public EntryIterator(Iterator<Node> iterator) {
       this.iterator = iterator;
     }
 
@@ -1118,7 +1101,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   private final class WriteThroughEntry extends SimpleEntry<K, V> {
     private static final long serialVersionUID = 1;
 
-    public WriteThroughEntry(Node<K, V> node) {
+    public WriteThroughEntry(Node node) {
       super(node.key, node.weightedValue.value);
     }
 
@@ -1201,14 +1184,10 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
     SerializationProxy(ConcurrentLinkedHashMap<K, V> map) {
       concurrencyLevel = map.concurrencyLevel;
-      data = new HashMap<K, V>(map.size());
+      data = new HashMap<K, V>(map);
       listener = map.listener;
       capacity = map.capacity;
       weigher = map.weigher;
-
-      for (Node<K, V> node : map.data.values()) {
-        data.put(node.key, node.weightedValue.value);
-      }
     }
 
     private Object readResolve() {
@@ -1228,11 +1207,13 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   /* ---------------- Builder -------------- */
 
   /**
-   * A builder that creates {@link ConcurrentLinkedHashMap} instances and can
-   * be used in the following manner:
+   * A builder that creates {@link ConcurrentLinkedHashMap} instances. It
+   * provides a flexible approach for constructing customized instances with
+   * a named parameter syntax. It can be used in the following manner:
    * <p>
    * <pre>
    * {@code
+   *   // a cache of the groups that a user belongs to
    *   ConcurrentMap<User, Set<Group>> groups = new Builder<User, Set<Group>>()
    *       .weigher(Weighers.<Group>set())
    *       .maximumWeightedCapacity(5000)

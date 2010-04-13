@@ -177,7 +177,7 @@ public final class ConcurrentMapTest extends BaseTest {
 
     // key iterator
     Iterator<Integer> iterator = keys.iterator();
-    for (Node<Integer, Integer> node : cache.data.values()) {
+    for (Node node : cache.data.values()) {
       assertEquals(iterator.next(), node.key);
     }
     assertFalse(iterator.hasNext());
@@ -229,7 +229,7 @@ public final class ConcurrentMapTest extends BaseTest {
 
     // values iterator
     Iterator<Integer> iterator = values.iterator();
-    for (Node<Integer, Integer> node : cache.data.values()) {
+    for (Node node : cache.data.values()) {
       assertEquals(iterator.next(), node.weightedValue.value);
     }
     assertFalse(iterator.hasNext());
@@ -244,8 +244,8 @@ public final class ConcurrentMapTest extends BaseTest {
 
     // toArray
     List<Integer> list = new ArrayList<Integer>();
-    for (Node<Integer, Integer> node : cache.data.values()) {
-      list.add(node.weightedValue.value);
+    for (Node node : cache.data.values()) {
+      list.add((Integer) node.weightedValue.value);
     }
     assertTrue(Arrays.equals(values.toArray(), list.toArray()));
     assertTrue(Arrays.equals(values.toArray(new Integer[cache.size()]),
