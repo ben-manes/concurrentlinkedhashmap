@@ -1230,12 +1230,15 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   /**
    * A builder that creates {@link ConcurrentLinkedHashMap} instances and can
    * be used in the following manner:
+   * <p>
+   * <pre>
    * {@code
    *   ConcurrentMap<User, Set<Group>> groups = new Builder<User, Set<Group>>()
    *       .weigher(Weighers.<Group>set())
    *       .maximumWeightedCapacity(5000)
    *       .build();
    * }
+   * </pre>
    */
   @SuppressWarnings("unchecked")
   public static final class Builder<K, V> {
