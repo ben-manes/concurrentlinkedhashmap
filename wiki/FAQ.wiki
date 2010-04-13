@@ -8,26 +8,23 @@ Special thanks to (in no particular order):
  * Adam Zell, who wrote the build, code reviews, and finds interesting papers.
  * Bob Lane, whose performance and concurrency expertise was invaluable when exploring algorithmic ideas.
 
-== Usage ==
-* Should I use this data structure?
+----
 
-While a goal is to have a functional implementation that can be used, the primary motivation for its creation was exploratory. It serves as a means to better understand concurrent and lock free algorithms by experimenting with different techniques. A pragmatic approach would be to implement a known algorithm, but this would not be educational and therefore defeats this project's sole purpose.
+==Previous Generations==
+The previous generations attempted to reduce the critical section by making the linked list support concurrent removals, CAS-based appends, and using a concurrency-friendly eviction policy (Second Chance). A concurrent algorithm was designed and prototyped. This approach is described in the [http://code.google.com/p/concurrentlinkedhashmap/wiki/Design2 design document].
 
-The practicality of why one would need this data structure is an interesting question. The miss penalty of a cache will far outweigh the overhead of synchronization on a cache hit. If lock contention is the issue then much simpler approaches offer equivalent performance. Example acceptable solutions include (1) an eviction thread that is woken when a threshold is crossed, (2) an eviction queue, (3) a [http://java.sun.com/javase/6/docs/api/java/util/LinkedHashMap.html LinkedHashMap] guarded by a read/write lock, (4) eviction based on statistical sampling, (5) a !ConcurrentLinkedHashMap guarding the list with a lock, (6) a soft-reference based cache.
+ * The first generation used a state-machine and lazily evicted dead nodes (Sept. 2008 jar).
+ * The second generation used per-node spin locks on a concurrent list and supported ad-hoc removals.
+ * The [ProductionVersion production] version contains a lock-based implementation for those wanting something faster than [http://java.sun.com/javase/6/docs/api/java/util/LinkedHashMap.html LinkedHashMap] without using experimental code.
 
-If the application realizes a noticeable performance gain by using this type of data structure, it most likely indicates that there is a design flaw. As memory is a very expensive resource, a layering of caches (memory, disk, etc) should provide an acceptable miss penalty. The scope of data should be limited when possible, such as through thread-local storage if used only by a single execution flow. Techniques like these should be leveraged so that the application's acceptable performance is not impacted by this type of data structure.
-
-The primary value for using this data structure should be (1) as a performance buffer to provide time to fix the application's architecture; (2) to improve operational cost and aid in capacity planning. By having a higher performing application the costs can be reduced in cooling, server management, hardware, etc. This goal is achieved by aggregating many improvements.
-
-This discussion is not to discourage usage of this data structure or others like it. However, from a practical perspective it should have limited value. From a theoretical perspective it is a fun engineering exercise.
-
+=== Usage ===
 * Which eviction policy is recommended?
 
 The _Second Chance Fifo_ policy provides both an excellent hit rate and concurrency performance. It is recommended as the primary policy.
 
 If the _Least Recently Used_ policy is used then the amount of expected concurrency should be relatively small. This is because each operation requires reordering the list which creates contention at the tail. In practice the cost is acceptable, but in extreme usages this policy will have poor performance characteristics.
 
-== Development ==
+=== Development ===
 * Why are fields marked volatile with an [http://java.sun.com/javase/6/docs/api/java/util/concurrent/atomic/AtomicReferenceFieldUpdater.html AtomicReferenceFieldUpdater] instead of using an [http://java.sun.com/javase/6/docs/api/java/util/concurrent/atomic/AtomicReference.html AtomicReference]?
 
 This was done based on a [http://cs.oswego.edu/pipermail/concurrency-interest/2007-March/003802.html recommendation] by Doug Lea in regards to [http://java.sun.com/javase/6/docs/api/java/util/concurrent/ConcurrentLinkedQueue.html ConcurrentLinkedQueue].
