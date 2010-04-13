@@ -1,4 +1,8 @@
-#summary The code for a production-approved version.
+#summary The code for a production-approved version. (deprecated)
+
+*This version is deprecated with release-1.0*
+
+----
 
 = Introduction =
 
