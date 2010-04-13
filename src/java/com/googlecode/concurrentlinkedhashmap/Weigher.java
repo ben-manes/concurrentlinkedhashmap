@@ -19,7 +19,7 @@ package com.googlecode.concurrentlinkedhashmap;
  * A class that can determine the weight of a value. The total weight threshold
  * is used to determine when an eviction is required.
  *
- * @author bmanes@gmail.com (Ben Manes)
+ * @author ben.manes@gmail.com (Ben Manes)
  * @see <tt>http://code.google.com/p/concurrentlinkedhashmap/</tt>
  */
 @ThreadSafe

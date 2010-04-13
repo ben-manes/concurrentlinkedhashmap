@@ -80,7 +80,7 @@ import java.util.concurrent.locks.ReentrantLock;
  * Like {@link java.util.Hashtable} but unlike {@link HashMap}, this class
  * does <em>not</em> allow <tt>null</tt> to be used as a key or value.
  *
- * @author bmanes@gmail.com (Ben Manes)
+ * @author ben.manes@gmail.com (Ben Manes)
  * @param <K> the type of keys maintained by this map
  * @param <V> the type of mapped values
  * @see <tt>http://code.google.com/p/concurrentlinkedhashmap/</tt>

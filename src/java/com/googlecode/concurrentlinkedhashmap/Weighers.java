@@ -23,7 +23,7 @@ import java.util.Set;
 /**
  * A common set of {@link Weigher} implementations.
  *
- * @author bmanes@gmail.com (Ben Manes)
+ * @author ben.manes@gmail.com (Ben Manes)
  * @see <tt>http://code.google.com/p/concurrentlinkedhashmap/</tt>
  */
 @SuppressWarnings("unchecked")

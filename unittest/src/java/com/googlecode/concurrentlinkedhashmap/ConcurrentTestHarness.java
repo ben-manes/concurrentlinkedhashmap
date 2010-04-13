@@ -18,7 +18,7 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
  * This code was adapted from <tt>Java Concurrency in Practice</tt>, using an example
  * of a {@link CountDownLatch} for starting and stopping threads in timing tests.
  *
- * @author  <a href="mailto:ben.manes@reardencommerce.com">Ben Manes</a>
+ * @author ben.manes@gmail.com (Ben Manes)
  */
 public final class ConcurrentTestHarness {
 

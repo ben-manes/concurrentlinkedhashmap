@@ -15,7 +15,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
  * Base utilities for testing purposes. This is ugly from an inheritance
  * perspective, but makes the tests easier to read by moving the junk here.
  *
- * @author bmanes@gmail.com (Ben Manes)
+ * @author ben.manes@gmail.com (Ben Manes)
  */
 public abstract class BaseTest extends Assert {
   protected final EvictionMonitor<Integer, Integer> guard = EvictionMonitor.newGuard();
