@@ -1,5 +1,9 @@
-#summary The algorithmic design of a concurrent linked hash map.
-#labels Featured,Phase-Design
+#summary The algorithmic design of a concurrent linked hash map. (deprecated)
+#labels Phase-Design
+
+*This version is deprecated with release-1.0*
+
+----
 
 = Introduction =
 The following describes the algorithm for a concurrent [http://java.sun.com/javase/6/docs/api/java/util/LinkedHashMap.html LinkedHashMap].
