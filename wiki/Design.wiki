@@ -1,5 +1,5 @@
 #summary The algorithmic design of a concurrent linked hash map. (deprecated)
-#labels Phase-Design,Featured
+#labels Phase-Design
 
 *This version is deprecated with release-1.0*
 
