@@ -22,12 +22,10 @@ import java.util.AbstractCollection;
 import java.util.AbstractMap;
 import java.util.AbstractQueue;
 import java.util.AbstractSet;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
@@ -522,15 +520,14 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     // Instead the nodes in the list are copied, the list is cleared, the nodes
     // are conditionally removed, and the reorder queues drained. The prev and
     // next fields are null'ed out to reduce GC pressure.
-    List<Node<K, V>> nodes;
     evictionLock.lock();
     try {
       drainWriteQueue();
-      nodes = new ArrayList<Node<K, V>>(weightedSize);
 
       Node<K, V> current = sentinel.next;
       while (current != sentinel) {
-        nodes.add(current);
+        weightedSize -= current.weightedValue.weight;
+        data.remove(current.key, current);
         current = current.next;
         current.prev.prev = null;
         current.prev.next = null;
@@ -538,10 +535,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       sentinel.next = sentinel;
       sentinel.prev = sentinel;
 
-      for (Node<K, V> node : nodes) {
-        data.remove(node.key, node);
-        weightedSize -= node.weightedValue.weight;
-      }
       drainReorderQueues();
     } finally {
       evictionLock.unlock();
@@ -1122,8 +1115,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   /**
    * An entry that allows updates to write through to the map.
    */
-  @SuppressWarnings("serial")
   private final class WriteThroughEntry extends SimpleEntry<K, V> {
+    private static final long serialVersionUID = 1;
 
     public WriteThroughEntry(Node<K, V> node) {
       super(node.key, node.weightedValue.value);
@@ -1133,6 +1126,10 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     public V setValue(V value) {
       put(getKey(), value);
       return super.setValue(value);
+    }
+
+    private Object writeReplace() {
+      return new SimpleEntry<K, V>(this);
     }
   }
 
@@ -1204,7 +1201,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
     SerializationProxy(ConcurrentLinkedHashMap<K, V> map) {
       concurrencyLevel = map.concurrencyLevel;
-      data = new HashMap<K, V>(map.weightedSize);
+      data = new HashMap<K, V>(map.size());
       listener = map.listener;
       capacity = map.capacity;
       weigher = map.weigher;
@@ -1225,7 +1222,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       return map;
     }
 
-    private static final long serialVersionUID = 0;
+    private static final long serialVersionUID = 1;
   }
 
   /* ---------------- Builder -------------- */
