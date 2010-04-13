@@ -93,8 +93,8 @@ public final class MultiThreadedTest extends BaseTest {
 
       // Print the state of the cache
       debug("Cached Elements: %s", cache.toString());
-      debug("List Forward:\n%s", validator.printFwd(cache));
-      debug("List Backward:\n%s", validator.printBwd(cache));
+      debug("List Forward:\n%s", listForwardToString(cache));
+      debug("List Backward:\n%s", listBackwardsToString(cache));
 
       // Print the recorded failures
       for (String failure : failures) {
@@ -146,13 +146,13 @@ public final class MultiThreadedTest extends BaseTest {
         } catch (RuntimeException e) {
           String error =
               String.format("Failed: key %s on operation %d for node %s", key, key % OPERATIONS,
-                            validator.printNode(key, cache));
+                            nodeToString(findNode(key, cache)));
           failures.add(error);
           throw e;
         } catch (Throwable thr) {
           String error =
               String.format("Halted: key %s on operation %d for node %s", key, key % OPERATIONS,
-                            validator.printNode(key, cache));
+                            nodeToString(findNode(key, cache)));
           failures.add(error);
         }
       }
