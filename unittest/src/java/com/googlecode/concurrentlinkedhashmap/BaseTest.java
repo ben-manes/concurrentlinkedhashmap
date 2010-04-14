@@ -9,9 +9,6 @@ import org.testng.annotations.BeforeClass;
 import java.io.Serializable;
 import java.util.AbstractMap.SimpleImmutableEntry;
 import java.util.Collection;
-import java.util.Set;
-import java.util.Collections;
-import java.util.IdentityHashMap;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
@@ -163,23 +160,24 @@ public abstract class BaseTest extends Assert {
   }
 
   private static String listToString(ConcurrentLinkedHashMap<?, ?> map, boolean forward) {
-    map.evictionLock.lock();
-    try {
-        Set<Node> seen = Collections.newSetFromMap(new IdentityHashMap<Node, Boolean>());
-        StringBuilder buffer = new StringBuilder("\n");
-        Node current = forward ? map.sentinel.next : map.sentinel.prev;
-        while (current != map.sentinel) {
-          buffer.append(nodeToString(current)).append("\n");
-          if (seen.add(current)) {
-            buffer.append("Failure: Loop detected\n");
-            break;
-          }
-          current = forward ? current.next : current.next.prev;
-        }
-        return buffer.toString();
-    } finally {
-      map.evictionLock.unlock();
-    }
+//    map.evictionLock.lock();
+//    try {
+//        Set<Node> seen = Collections.newSetFromMap(new IdentityHashMap<Node, Boolean>());
+//        StringBuilder buffer = new StringBuilder("\n");
+//        Node current = forward ? map.sentinel.next : map.sentinel.prev;
+//        while (current != map.sentinel) {
+//          buffer.append(nodeToString(current)).append("\n");
+//          if (seen.add(current)) {
+//            buffer.append("Failure: Loop detected\n");
+//            break;
+//          }
+//          current = forward ? current.next : current.next.prev;
+//        }
+//        return buffer.toString();
+//    } finally {
+//      map.evictionLock.unlock();
+//    }
+    return "disabled";
   }
 
   protected static String nodeToString(Node node) {

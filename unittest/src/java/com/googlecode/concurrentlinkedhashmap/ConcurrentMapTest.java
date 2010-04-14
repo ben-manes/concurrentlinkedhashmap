@@ -346,7 +346,7 @@ public final class ConcurrentMapTest extends BaseTest {
     ConcurrentLinkedHashMap actual = (ConcurrentLinkedHashMap) SerializationUtils.clone(expected);
     assertEquals(actual, expected);
     assertEquals(actual.concurrencyLevel, 32);
-    assertEquals(actual.capacity, expected.capacity);
+    assertEquals(actual.maximumWeightedSize, expected.maximumWeightedSize);
     assertEquals(actual.listener, expected.listener);
     assertEquals(actual.weigher, expected.weigher);
     validator.state((ConcurrentLinkedHashMap<Integer, Integer>) actual);

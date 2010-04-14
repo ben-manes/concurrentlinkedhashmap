@@ -55,7 +55,7 @@ public final class MultiThreadedTest extends BaseTest {
   /**
    * Tests that the cache is in the correct test after a read-write load.
    */
-  @Test(groups = "development")
+  @Test(enabled = false, groups = "development")
   public void concurrent() throws InterruptedException {
     debug(" * concurrent: START");
     final List<List<Integer>> sets = shuffle(nThreads, keys);
