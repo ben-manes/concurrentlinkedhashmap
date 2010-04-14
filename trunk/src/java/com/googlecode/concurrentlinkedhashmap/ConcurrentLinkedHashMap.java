@@ -624,7 +624,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     Lock lock = segmentLock[segment];
     int weight = weigher.weightOf(value);
     WeightedValue<V> weightedValue = new WeightedValue<V>(value, weight);
-    Node node = new Node(key, weightedValue, segment, sentinel);
+    Node node = new Node(key, weightedValue, segment);
     Runnable task = new AddTask(node, weight);
 
     // maintain per-segment write ordering
@@ -862,7 +862,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     }
 
     /** Creates a new, unlinked node. */
-    Node(K key, WeightedValue<V> weightedValue, int segment, Node sentinel) {
+    Node(K key, WeightedValue<V> weightedValue, int segment) {
       this.weightedValue = weightedValue;
       this.segment = segment;
       this.key = key;
