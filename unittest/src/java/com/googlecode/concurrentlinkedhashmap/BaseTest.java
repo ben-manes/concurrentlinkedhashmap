@@ -1,12 +1,12 @@
 package com.googlecode.concurrentlinkedhashmap;
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.SimpleEntry;
 
 import org.testng.Assert;
 import org.testng.annotations.BeforeClass;
 
 import java.io.Serializable;
-import java.util.AbstractMap.SimpleImmutableEntry;
 import java.util.Collection;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -144,7 +144,7 @@ public abstract class BaseTest extends Assert {
       if (!isAllowed) {
         throw new IllegalStateException("Eviction should not have occured");
       }
-      evicted.add(new SimpleImmutableEntry<K, V>(key, value));
+      evicted.add(new SimpleEntry<K, V>(key, value));
     }
   }
 }

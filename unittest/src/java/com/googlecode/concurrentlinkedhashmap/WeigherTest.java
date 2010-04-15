@@ -91,7 +91,6 @@ public final class WeigherTest extends BaseTest {
   public void negativeWeightedValue() {
     debug(" * negativeWeightedValue: START");
     Weigher<Integer> weigher = new Weigher<Integer>() {
-      @Override
       public int weightOf(Integer value) {
         return -1;
       }
@@ -105,7 +104,6 @@ public final class WeigherTest extends BaseTest {
   public void zeroWeightedValue() {
     debug(" * zeroWeightedValue: START");
     Weigher<Integer> weigher = new Weigher<Integer>() {
-      @Override
       public int weightOf(Integer value) {
         return 0;
       }
@@ -215,7 +213,6 @@ public final class WeigherTest extends BaseTest {
 
   private <E> Iterable<E> asIterable(final Collection<E> c) {
     return new Iterable<E>() {
-      @Override
       public Iterator<E> iterator() {
         return c.iterator();
       }
