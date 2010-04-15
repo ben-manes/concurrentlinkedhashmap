@@ -20,7 +20,6 @@ public class CLHMCacheWrapper implements CacheWrapper {
   private int capacity;
   private int level;
 
-  @Override
   public void init(Map parameters) throws Exception {
 //    InputStream stream =
 //        getClass().getClassLoader().getResourceAsStream((String) parameters.get("config"));
@@ -35,7 +34,6 @@ public class CLHMCacheWrapper implements CacheWrapper {
     capacity = 5000;
   }
 
-  @Override
   public void setUp() throws Exception {
     cache = new Builder<Object, Object>()
         .maximumWeightedCapacity(capacity)
@@ -43,46 +41,37 @@ public class CLHMCacheWrapper implements CacheWrapper {
         .build();
   }
 
-  @Override
   public void tearDown() throws Exception {
   }
 
-  @Override
   public void put(List<String> path, Object key, Object value) throws Exception {
     cache.put(key, value);
   }
 
-  @Override
   public Object get(List<String> path, Object key) throws Exception {
     return cache.get(key);
   }
 
-  @Override
   public void empty() throws Exception {
     cache.clear();
   }
 
-  @Override
   public int getNumMembers() {
     return 0;
   }
 
-  @Override
   public String getInfo() {
     return "size/capacity: " + cache.size() + "/" + cache.capacity();
   }
 
-  @Override
   public Object getReplicatedData(List<String> path, String key) throws Exception {
     return get(path, key);
   }
 
-  @Override
   public Object startTransaction() {
     throw new UnsupportedOperationException("Does not support JTA!");
   }
 
-  @Override
   public void endTransaction(boolean successful) {
     throw new UnsupportedOperationException("Does not support JTA!");
   }

@@ -22,6 +22,7 @@ import java.util.AbstractCollection;
 import java.util.AbstractMap;
 import java.util.AbstractQueue;
 import java.util.AbstractSet;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -442,7 +443,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       this.node = node;
     }
 
-    @Override
     @GuardedBy("evictionLock")
     public void run() {
       weightedSize += weight;
@@ -461,7 +461,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       this.node = node;
     }
 
-    @Override
     @GuardedBy("evictionLock")
     public void run() {
       if (node.isLinked()) {
@@ -481,7 +480,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       this.weightDifference = weightDifference;
     }
 
-    @Override
     @GuardedBy("evictionLock")
     public void run() {
       weightedSize += weightDifference;
@@ -592,7 +590,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     return put(key, value, false);
   }
 
-  @Override
   public V putIfAbsent(K key, V value) {
     return put(key, value, true);
   }
@@ -691,7 +688,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     return value;
   }
 
-  @Override
   public boolean remove(Object key, Object value) {
     checkNotNull(key, "null key");
     checkNotNull(value, "null value");
@@ -722,7 +718,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     return removed;
   }
 
-  @Override
   public V replace(K key, V value) {
     checkNotNull(key, "null key");
     checkNotNull(value, "null value");
@@ -766,7 +761,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     return prior;
   }
 
-  @Override
   public boolean replace(K key, V oldValue, V newValue) {
     checkNotNull(key, "null key");
     checkNotNull(oldValue, "null oldValue");
@@ -970,17 +964,14 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   private final class KeyIterator implements Iterator<K> {
     private final EntryIterator iterator = new EntryIterator(data.values().iterator());
 
-    @Override
     public boolean hasNext() {
       return iterator.hasNext();
     }
 
-    @Override
     public K next() {
       return iterator.next().getKey();
     }
 
-    @Override
     public void remove() {
       iterator.remove();
     }
@@ -1010,6 +1001,24 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     public boolean contains(Object o) {
       return containsValue(o);
     }
+
+    @Override
+    public Object[] toArray() {
+      Collection<V> values = new ArrayList<V>(size());
+      for (V value : this) {
+        values.add(value);
+      }
+      return values.toArray();
+    }
+
+    @Override
+    public <T> T[] toArray(T[] array) {
+      Collection<V> values = new ArrayList<V>(size());
+      for (V value : this) {
+        values.add(value);
+      }
+      return values.toArray(array);
+    }
   }
 
   /**
@@ -1018,17 +1027,14 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   private final class ValueIterator implements Iterator<V> {
     private final EntryIterator iterator = new EntryIterator(data.values().iterator());
 
-    @Override
     public boolean hasNext() {
       return iterator.hasNext();
     }
 
-    @Override
     public V next() {
       return iterator.next().getValue();
     }
 
-    @Override
     public void remove() {
       iterator.remove();
     }
@@ -1078,6 +1084,24 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       Entry<?, ?> entry = (Entry<?, ?>) obj;
       return map.remove(entry.getKey(), entry.getValue());
     }
+
+    @Override
+    public Object[] toArray() {
+      Collection<Entry<K, V>> entries = new ArrayList<Entry<K, V>>(size());
+      for (Entry<K, V> entry : this) {
+        entries.add(new SimpleEntry<K, V>(entry));
+      }
+      return entries.toArray();
+    }
+
+    @Override
+    public <T> T[] toArray(T[] array) {
+      Collection<Entry<K, V>> entries = new ArrayList<Entry<K, V>>(size());
+      for (Entry<K, V> entry : this) {
+        entries.add(new SimpleEntry<K, V>(entry));
+      }
+      return entries.toArray(array);
+    }
   }
 
   /**
@@ -1091,18 +1115,15 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       this.iterator = iterator;
     }
 
-    @Override
     public boolean hasNext() {
       return iterator.hasNext();
     }
 
-    @Override
     public Entry<K, V> next() {
       current = iterator.next();
       return new WriteThroughEntry(current);
     }
 
-    @Override
     public void remove() {
       if (current == null) {
         throw new IllegalStateException();
@@ -1134,6 +1155,63 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   }
 
   /**
+   * This duplicates {@link java.util.AbstractMap.SimpleEntry} (public in JDK-6).
+   */
+  static class SimpleEntry<K, V> implements Entry<K, V>, Serializable {
+    private static final long serialVersionUID = -8499721149061103585L;
+    private final K key;
+    private V value;
+
+    public SimpleEntry(K key, V value) {
+      this.key = key;
+      this.value = value;
+    }
+
+    public SimpleEntry(Entry<K, V> e) {
+      this.key = e.getKey();
+      this.value = e.getValue();
+    }
+
+    public K getKey() {
+      return key;
+    }
+
+    public V getValue() {
+      return value;
+    }
+
+    public V setValue(V value) {
+      V oldValue = this.value;
+      this.value = value;
+      return oldValue;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+      if (!(o instanceof Map.Entry)) {
+        return false;
+      }
+      Map.Entry e = (Map.Entry) o;
+      return eq(key, e.getKey()) && eq(value, e.getValue());
+    }
+
+    @Override
+    public int hashCode() {
+      return ((key == null) ? 0 : key.hashCode()) ^
+             ((value == null) ? 0 : value.hashCode());
+    }
+
+    @Override
+    public String toString() {
+      return key + "=" + value;
+    }
+
+    private static boolean eq(Object o1, Object o2) {
+      return (o1 == null) ? (o2 == null) : o1.equals(o2);
+    }
+  }
+
+  /**
    * A queue that discards all additions and is always empty.
    */
   private static final class DiscardingQueue<E> extends AbstractQueue<E> {
@@ -1141,15 +1219,12 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     public boolean add(E e) {
       return true;
     }
-    @Override
     public boolean offer(E e) {
       return true;
     }
-    @Override
     public E poll() {
       return null;
     }
-    @Override
     public E peek() {
       return null;
     }
@@ -1169,7 +1244,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   enum DiscardingListener implements EvictionListener {
     INSTANCE;
 
-    @Override
     public void onEviction(Object key, Object value) {}
   }
 
