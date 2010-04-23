@@ -3,7 +3,6 @@ package org.cachebench.cachewrappers;
 import com.googlecode.concurrentlinkedhashmap.caches.Cache;
 
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * An implementation that delegates to a ConcurrentHashMap.

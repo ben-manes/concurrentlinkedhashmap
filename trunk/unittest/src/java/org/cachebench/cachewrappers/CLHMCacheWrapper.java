@@ -1,14 +1,8 @@
 package org.cachebench.cachewrappers;
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap;
-import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 import com.googlecode.concurrentlinkedhashmap.caches.Cache;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
-import org.cachebench.CacheWrapper;
-
-import java.util.List;
 import java.util.Map;
 
 /**
