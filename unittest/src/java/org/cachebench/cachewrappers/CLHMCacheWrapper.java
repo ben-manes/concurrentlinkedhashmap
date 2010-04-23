@@ -2,6 +2,7 @@ package org.cachebench.cachewrappers;
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
+import com.googlecode.concurrentlinkedhashmap.caches.Cache;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -11,14 +12,13 @@ import java.util.List;
 import java.util.Map;
 
 /**
+ * An implementation that delegates to a {@link ConcurrentLinkedHashMap}.
+ *
  * @author Adam Zell
  */
-@SuppressWarnings("unchecked")
-public class CLHMCacheWrapper implements CacheWrapper {
-  private final Log logger = LogFactory.getLog("org.cachebench.cachewrappers.CLHMCacheWrapper");
-  private ConcurrentLinkedHashMap<Object, Object> cache;
+public final class CLHMCacheWrapper extends AbstractCacheWrapper {
+  private Map<Object, Object> cache;
   private int capacity;
-  private int level;
 
   @Override
   public void init(Map parameters) throws Exception {
@@ -31,59 +31,24 @@ public class CLHMCacheWrapper implements CacheWrapper {
 //
 //    level = Integer.parseInt(props.getProperty("clhm.concurrencyLevel"));
 //    capacity = Integer.parseInt(props.getProperty("clhm.maximumCapacity"));
-    level = 16;
+    int concurrencylevel = 16;
     capacity = 5000;
+
+    cache = Cache.CONCURRENT_LINKED_HASH_MAP.create(capacity, concurrencylevel);
   }
 
   @Override
   public void setUp() throws Exception {
-    cache = new Builder<Object, Object>()
-        .maximumWeightedCapacity(capacity)
-        .concurrencyLevel(level)
-        .build();
-  }
-
-  @Override
-  public void tearDown() throws Exception {
-  }
-
-  @Override
-  public void put(List<String> path, Object key, Object value) throws Exception {
-    cache.put(key, value);
-  }
-
-  @Override
-  public Object get(List<String> path, Object key) throws Exception {
-    return cache.get(key);
-  }
-
-  @Override
-  public void empty() throws Exception {
     cache.clear();
   }
 
   @Override
-  public int getNumMembers() {
-    return 0;
+  protected int capacity() {
+    return capacity;
   }
 
   @Override
-  public String getInfo() {
-    return "size/capacity: " + cache.size() + "/" + cache.capacity();
-  }
-
-  @Override
-  public Object getReplicatedData(List<String> path, String key) throws Exception {
-    return get(path, key);
-  }
-
-  @Override
-  public Object startTransaction() {
-    throw new UnsupportedOperationException("Does not support JTA!");
-  }
-
-  @Override
-  public void endTransaction(boolean successful) {
-    throw new UnsupportedOperationException("Does not support JTA!");
+  protected Map<Object, Object> delegate() {
+    return cache;
   }
 }

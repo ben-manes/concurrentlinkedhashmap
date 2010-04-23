@@ -50,18 +50,18 @@ import java.util.concurrent.locks.ReentrantLock;
  * determines how many units of capacity that a value consumes. The default
  * singleton weigher algorithm assigns each value a weight of <tt>1</tt> to
  * bound the map by the number of key-value pairs. A map that holds collections
- * may weigh values by the number of elements in the collection and bound the
- * map by the total number of elements it contains. A change to a value that
- * modifies its weight requires that an update operation is performed on the
- * map.
+ * may chose to weigh values by the number of elements in the collection and
+ * bound the map by the total number of elements it contains. A change to a
+ * value that modifies its weight requires that an update operation is
+ * performed on the map.
  * <p>
- * An {@link EvictionListener} may be supplied for notification when an entry is
- * evicted from the map. This listener is invoked on a caller's thread and will
- * not block other threads from operating on the map. An implementation should
- * be aware that the caller's thread will not expect long execution times or
- * failures as a side effect of the listener being notified. Execution safety
- * and a fast turn around time can be achieved by performing the operation
- * asynchronously, such as by submitting a task to an
+ * An {@link EvictionListener} may be supplied for notification when an entry
+ * is evicted from the map. This listener is invoked on a caller's thread and
+ * will not block other threads from operating on the map. An implementation
+ * should be aware that the caller's thread will not expect long execution
+ * times or failures as a side effect of the listener being notified. Execution
+ * safety and a fast turn around time can be achieved by performing the
+ * operation asynchronously, such as by submitting a task to an
  * {@link java.util.concurrent.ExecutorService}.
  * <p>
  * The <tt>concurrency level</tt> determines the number of threads that can
@@ -106,6 +106,16 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   // to record a memento of the the additions, removals, and accesses that were
   // performed on the map. The write queue is drained at the first opportunity
   // and a read queue is drained when it exceeds its capacity threshold.
+  //
+  // The Low Inter-reference Recency Set was chosen as the page replacement
+  // algorithm due to its high hit rate, ability to track both the recency and
+  // frequency, and be implemented with O(1) time complexity. This algorithm is
+  // described in [1] and was evaluated against other algorithms in [2].
+  //
+  // [1] LIRS: An Efficient Low Inter-reference Recency Set Replacement to
+  // Improve Buffer Cache Performance
+  // [2] The Performance Impact of Kernel Prefetching on Buffer Cache
+  // Replacement Algorithms
 
   /**
    * Number of cache reorder operations that can be buffered per segment before
@@ -161,7 +171,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   final Queue<Node>[] reorderQueue;
   final AtomicInteger[] reorderQueueLength;
 
-  // A listener is notified when an entry is evicted.
+  // These fields provide support for notifying a listener.
   final Queue<Node> listenerQueue;
   final EvictionListener<K, V> listener;
 
@@ -715,7 +725,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       } else {
         WeightedValue<V> oldWeightedValue = prior.weightedValue;
         weightedDifference = weight - oldWeightedValue.weight;
-        prior.weightedValue = node.weightedValue;
+        prior.weightedValue = weightedValue;
         oldValue = oldWeightedValue.value;
       }
     } finally {
@@ -1033,6 +1043,12 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       prevInStack = nextInStack = null;
     }
 
+    /** Whether the node is in the stack. */
+    @GuardedBy("evictionLock")
+    boolean inStack() {
+      return (nextInStack != null);
+    }
+
     /* ---------------- Queue Support -------------- */
 
     /** Adds or moves the node to the tail of the queue. */
@@ -1057,16 +1073,9 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     /** Removes the node from the queue. */
     @GuardedBy("evictionLock")
     void removeFromQueue() {
-
       prevInQueue.nextInQueue = nextInQueue;
       nextInQueue.prevInQueue = prevInQueue;
       prevInQueue = nextInQueue = null;
-    }
-
-    /** Whether the node is in the stack. */
-    @GuardedBy("evictionLock")
-    boolean inStack() {
-      return (nextInStack != null);
     }
 
     /** Whether the node is in the queue. */
@@ -1082,10 +1091,10 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
      * resident entries must remain in the queue).
      */
     @GuardedBy("evictionLock")
-    private void migrateToStack(Node node) {
-      node.removeFromQueue();
-      if (!node.inStack()) {
-        node.moveToStack_bottom();
+    void migrateToStack() {
+      removeFromQueue();
+      if (!inStack()) {
+        moveToStack_bottom();
       }
       makeHot();
     }
@@ -1097,8 +1106,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
      * The bottom entry on the queue is always hot due to stack pruning.
      */
     @GuardedBy("evictionLock")
-    private void migrateToQueue(Node node) {
-      node.removeFromStack();
+    private void migrateToQueue() {
+      removeFromStack();
       makeCold();
     }
 
@@ -1116,13 +1125,13 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     /** Becomes a hot entry. */
     @GuardedBy("evictionLock")
     private void makeHot() {
-      hotWeightedSize += weightedValue.weight;;
+      hotWeightedSize += weightedValue.weight;
       status = Status.HOT;
     }
 
     /** Becomes a cold entry. */
     @GuardedBy("evictionLock")
-    private void makeCold() {
+    void makeCold() {
       if (status == Status.HOT) {
         hotWeightedSize -= weightedValue.weight;
       }
@@ -1132,7 +1141,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
     /** Becomes a non-resident entry. */
     @GuardedBy("evictionLock")
-    private void makeNonResident() {
+    void makeNonResident() {
       int weight = weightedValue.weight;
       switch (status) {
         case HOT:
@@ -1176,7 +1185,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       if (inQueue()) {
         removeFromQueue();
       }
-      migrateToQueue(sentinel.prevInStack);
+      sentinel.prevInStack.migrateToQueue();
       pruneStack();
     }
 
@@ -1205,7 +1214,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
         // LIR block in the bottom of the stack to the end of list with its
         // status changed to HIR. A stack pruning is then conducted.
         makeHot();
-        migrateToQueue(sentinel.prevInStack);
+        sentinel.prevInStack.migrateToQueue();
         pruneStack();
       } else {
         // If the node is not in the stack, we leave its status in HIR and
