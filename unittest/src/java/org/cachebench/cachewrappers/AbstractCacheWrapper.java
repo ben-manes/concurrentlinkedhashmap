@@ -4,8 +4,11 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.cachebench.CacheWrapper;
 
+import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Properties;
 
 /**
  * A template implementation of the {@link CacheWrapper} interface.
@@ -24,6 +27,36 @@ public abstract class AbstractCacheWrapper implements CacheWrapper {
    * Retrieves the map to delegate operations to.
    */
   protected abstract Map<Object, Object> delegate();
+
+  /**
+   * Initializes the cache from its configuration. If a configuration file was
+   * specified then its properties and added to the parameter map.
+   */
+  protected abstract void initialize(Map<String, String> parameters);
+
+  @Override
+  @SuppressWarnings("unchecked")
+  public final void init(Map parameters) throws Exception {
+    addProperties(parameters);
+    initialize(parameters);
+  }
+
+  private void addProperties(Map<String, String> parameters) throws Exception {
+    String resourceName = parameters.get("config");
+    if ((resourceName == null) || resourceName.trim().isEmpty()) {
+      return;
+    }
+    InputStream stream = getClass().getClassLoader().getResourceAsStream(resourceName);
+    try {
+      Properties props = new Properties();
+      props.load(stream);
+      for (Entry<Object, Object> entry : props.entrySet()) {
+        parameters.put((String) entry.getKey(), (String) entry.getValue());
+      }
+    } finally {
+      stream.close();
+    }
+  }
 
   @Override
   public void put(List<String> path, Object key, Object value) throws Exception {

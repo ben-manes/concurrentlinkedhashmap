@@ -11,24 +11,17 @@ import java.util.Map;
  * @author Adam Zell
  */
 public final class CLHMCacheWrapper extends AbstractCacheWrapper {
+  private static final String MAX_CAPACITY_PARAM = "clhm.maximumCapacity";
+  private static final String CONCURRENCY_LEVEL_PARAM = "clhm.concurrencyLevel";
+  
   private Map<Object, Object> cache;
   private int capacity;
 
   @Override
-  public void init(Map parameters) throws Exception {
-//    InputStream stream =
-//        getClass().getClassLoader().getResourceAsStream((String) parameters.get("config"));
-//    Properties props = new Properties();
-//
-//    props.load(stream);
-//    stream.close();
-//
-//    level = Integer.parseInt(props.getProperty("clhm.concurrencyLevel"));
-//    capacity = Integer.parseInt(props.getProperty("clhm.maximumCapacity"));
-    int concurrencylevel = 16;
-    capacity = 5000;
-
-    cache = Cache.CONCURRENT_LINKED_HASH_MAP.create(capacity, concurrencylevel);
+  public void initialize(Map<String, String> params) {
+    capacity = Integer.parseInt(params.get(MAX_CAPACITY_PARAM));
+    int concurrencyLevel = Integer.parseInt(params.get(CONCURRENCY_LEVEL_PARAM));
+    cache = Cache.CONCURRENT_LINKED_HASH_MAP.create(capacity, concurrencyLevel);
   }
 
   @Override

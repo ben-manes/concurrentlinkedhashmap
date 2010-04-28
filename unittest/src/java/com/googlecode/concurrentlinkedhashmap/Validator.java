@@ -4,10 +4,11 @@ import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Node;
 
 import org.testng.Assert;
 
-import static java.lang.String.format;
 import java.util.Collections;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+
+import static java.lang.String.format;
 
 /**
  * Validations for the concurrent data structure.
@@ -42,7 +43,7 @@ public final class Validator extends Assert {
     assertTrue(map.writeQueue.isEmpty());
     for (int i=0; i<map.reorderQueue.length; i++) {
       assertTrue(map.reorderQueue[i].isEmpty());
-      assertEquals(map.reorderQueueLength[i].get(), 0);
+      assertEquals(map.reorderQueueLength.get(i), 0);
     }
     for (Lock lock : map.segmentLock) {
       assertFalse(((ReentrantLock) lock).isLocked());

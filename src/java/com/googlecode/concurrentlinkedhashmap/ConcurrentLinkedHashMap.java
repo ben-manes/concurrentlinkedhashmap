@@ -32,7 +32,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicIntegerArray;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -169,7 +169,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   final Weigher<V> weigher;
   final Queue<Runnable> writeQueue;
   final Queue<Node>[] reorderQueue;
-  final AtomicInteger[] reorderQueueLength;
+  final AtomicIntegerArray reorderQueueLength;
 
   // These fields provide support for notifying a listener.
   final Queue<Node> listenerQueue;
@@ -184,8 +184,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     // a key is associated with. This avoids lock contention by ensuring that
     // the lock selected by this decorator parallels the one used by the data
     // store so that concurrent writes for different segments do not contend.
-    concurrencyLevel = (builder.concurrencyLevel > MAXIMUM_SEGMENTS)
-        ? MAXIMUM_SEGMENTS : builder.concurrencyLevel;
+    concurrencyLevel = Math.min(builder.concurrencyLevel, MAXIMUM_SEGMENTS);
     int sshift = 0;
     int ssize = 1;
     while (ssize < concurrencyLevel) {
@@ -199,8 +198,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
     // The data store and its maximum capacity
     data = new ConcurrentHashMap<K, Node>(builder.initialCapacity, 0.75f, concurrencyLevel);
-    maximumWeightedSize = (builder.maximumWeightedCapacity > MAXIMUM_CAPACITY) ? MAXIMUM_CAPACITY
-        : builder.maximumWeightedCapacity;
+    maximumWeightedSize = Math.min(builder.maximumWeightedCapacity, MAXIMUM_CAPACITY);
     resetMaximumHotWeightedSize();
 
     // The eviction support
@@ -208,11 +206,10 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     sentinel = new Node();
     evictionLock = new ReentrantLock();
     writeQueue = new ConcurrentLinkedQueue<Runnable>();
-    reorderQueueLength = new AtomicInteger[segments];
     reorderQueue = (Queue<Node>[]) new Queue[segments];
+    reorderQueueLength = new AtomicIntegerArray(segments);
     for (int i=0; i<segments; i++) {
       segmentLock[i] = new ReentrantLock();
-      reorderQueueLength[i] = new AtomicInteger();
       reorderQueue[i] = new ConcurrentLinkedQueue<Node>();
     }
 
@@ -402,7 +399,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   private int addToReorderQueue(Node node) {
     int segment = node.segment;
     reorderQueue[segment].add(node);
-    return reorderQueueLength[segment].incrementAndGet();
+    return reorderQueueLength.incrementAndGet(segment);
   }
 
   /**
@@ -494,7 +491,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       }
       delta--;
     }
-    reorderQueueLength[segment].addAndGet(delta);
+    reorderQueueLength.addAndGet(segment, delta);
   }
 
   /**

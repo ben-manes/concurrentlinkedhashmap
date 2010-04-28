@@ -10,19 +10,21 @@ import java.util.Map;
  * @author ben.manes@gmail.com (Ben Manes)
  */
 public final class CHMCacheWrapper extends AbstractCacheWrapper {
+  private static final String INITIAL_CAPACITY_PARAM = "chm.initialCapacity";
+  private static final String CONCURRENCY_LEVEL_PARAM = "chm.concurrencyLevel";
+
   private Map<Object, Object> cache;
-  private int concurrencyLevel;
-  private int capacity;
 
   @Override
-  public void init(Map parameters) throws Exception {
-    concurrencyLevel = 16;
-    capacity = 5000;
+  public void initialize(Map<String, String> params) {
+    int initialCapacity = Integer.parseInt(params.get(INITIAL_CAPACITY_PARAM));
+    int concurrencyLevel = Integer.parseInt(params.get(CONCURRENCY_LEVEL_PARAM));
+    cache = Cache.CONCURRENT_HASH_MAP.create(initialCapacity, concurrencyLevel);
   }
 
   @Override
   public void setUp() throws Exception {
-    cache = Cache.CONCURRENT_HASH_MAP.create(capacity, concurrencyLevel);
+    cache.clear();
   }
 
   @Override
