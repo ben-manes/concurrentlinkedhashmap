@@ -30,18 +30,18 @@ public abstract class AbstractCacheWrapper implements CacheWrapper {
 
   /**
    * Initializes the cache from its configuration. If a configuration file was
-   * specified then its properties and added to the parameter map.
+   * specified then its properties are added to the parameter map.
    */
   protected abstract void initialize(Map<String, String> parameters);
 
   @Override
   @SuppressWarnings("unchecked")
   public final void init(Map parameters) throws Exception {
-    addProperties(parameters);
+    addPropertiesToMap(parameters);
     initialize(parameters);
   }
 
-  private void addProperties(Map<String, String> parameters) throws Exception {
+  private void addPropertiesToMap(Map<String, String> parameters) throws Exception {
     String resourceName = parameters.get("config");
     if ((resourceName == null) || resourceName.trim().isEmpty()) {
       return;
