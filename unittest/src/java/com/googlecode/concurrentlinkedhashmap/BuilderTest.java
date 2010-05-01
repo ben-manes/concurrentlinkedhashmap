@@ -64,7 +64,7 @@ public final class BuilderTest extends BaseTest {
     assertEquals(builder().concurrencyLevel(32).build().concurrencyLevel, 32);
   }
 
-  @Test(groups = "development", expectedExceptions=IllegalArgumentException.class)
+  @Test(groups = "development", expectedExceptions=NullPointerException.class)
   public void nullListener() {
     debug(" * nullListener: START");
     builder().listener(null);
@@ -78,7 +78,7 @@ public final class BuilderTest extends BaseTest {
     assertSame(builder().listener(listener).build().listener, listener);
   }
 
-  @Test(groups = "development", expectedExceptions=IllegalArgumentException.class)
+  @Test(groups = "development", expectedExceptions=NullPointerException.class)
   public void nullWeigher() {
     debug(" * nullWeigher: START");
     builder().weigher(null);

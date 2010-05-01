@@ -1613,12 +1613,10 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
      * an entry is evicted.
      *
      * @param listener the object to forward evicted entries to
-     * @throws IllegalArgumentException if the listener is null
+     * @throws NullPointerException if the listener is null
      */
     public Builder<K, V> listener(EvictionListener<K, V> listener) {
-      if (listener == null) {
-        throw new IllegalArgumentException();
-      }
+      checkNotNull(listener, null);
       this.listener = listener;
       return this;
     }
@@ -1629,11 +1627,10 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
      * key-value pairs by giving each entry a weight of <tt>1</tt>.
      *
      * @param weigher the algorithm to determine a value's weight
+     * @throws NullPointerException if the weigher is null
      */
     public Builder<K, V> weigher(Weigher<V> weigher) {
-      if (weigher == null) {
-        throw new IllegalArgumentException();
-      }
+      checkNotNull(weigher, null);
       this.weigher = weigher;
       return this;
     }
