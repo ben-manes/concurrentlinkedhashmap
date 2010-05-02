@@ -251,7 +251,7 @@ public class LirsMap<K, V> extends AbstractMap<K, V> {
    * Returns a string representation of the stack. Useful for debugging.
    */
   private String printStack() {
-    StringBuffer result = new StringBuffer();
+    StringBuilder result = new StringBuilder();
     result.append("[");
     LirsEntry e = stackTop();
     if (e != null) {
@@ -268,7 +268,7 @@ public class LirsMap<K, V> extends AbstractMap<K, V> {
    * Returns a string representation of the stack. Useful for debugging.
    */
   private String printQueue() {
-    StringBuffer result = new StringBuffer();
+    StringBuilder result = new StringBuilder();
     result.append("[");
     LirsEntry e = queueFront();
     if (e != null) {
