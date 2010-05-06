@@ -149,6 +149,7 @@ public final class ConcurrentMapTest extends BaseTest {
     ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap(guard);
     cache.clear();
     validator.state(cache);
+    validator.empty(cache);
   }
 
   @Test(groups = "development")
@@ -200,7 +201,7 @@ public final class ConcurrentMapTest extends BaseTest {
     assertEquals(keys.size(), capacity / 2);
 
     keys.clear();
-    assertTrue(cache.isEmpty());
+    validator.empty(cache);
     assertTrue(keys.isEmpty());
   }
 
@@ -256,7 +257,7 @@ public final class ConcurrentMapTest extends BaseTest {
     assertEquals(values.size(), capacity / 2);
 
     values.clear();
-    assertTrue(cache.isEmpty());
+    validator.empty(cache);
     assertTrue(values.isEmpty());
   }
 
@@ -313,7 +314,7 @@ public final class ConcurrentMapTest extends BaseTest {
     assertEquals(entries.size(), capacity / 2);
 
     entries.clear();
-    assertTrue(cache.isEmpty());
+    validator.empty(cache);
     assertTrue(entries.isEmpty());
   }
 
