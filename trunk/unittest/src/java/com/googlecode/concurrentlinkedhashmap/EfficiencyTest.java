@@ -22,7 +22,7 @@ public final class EfficiencyTest extends BaseTest {
   private int size;
 
   public EfficiencyTest() {
-    super(Integer.valueOf(System.getProperty("efficiency.maximumCapacity")));
+    super(intProperty("efficiency.maximumCapacity"));
   }
 
   @BeforeClass(groups = "efficiency")
