@@ -12,7 +12,7 @@ import org.testng.annotations.Test;
  */
 public final class BuilderTest extends BaseTest {
 
-  @Test(groups = "development", expectedExceptions=IllegalArgumentException.class)
+  @Test(groups = "development", expectedExceptions=IllegalStateException.class)
   public void unconfigured() {
     debug(" * unconfigured: START");
     new Builder().build();

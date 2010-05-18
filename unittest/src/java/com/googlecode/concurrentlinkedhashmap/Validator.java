@@ -41,9 +41,9 @@ public final class Validator extends Assert {
   public void state(ConcurrentLinkedHashMap<?, ?> map) {
     BaseTest.drainEvictionQueues(map);
     assertTrue(map.writeQueue.isEmpty());
-    for (int i=0; i<map.reorderQueue.length; i++) {
-      assertTrue(map.reorderQueue[i].isEmpty());
-      assertEquals(map.reorderQueueLength.get(i), 0);
+    for (int i=0; i<map.recencyQueue.length; i++) {
+      assertTrue(map.recencyQueue[i].isEmpty());
+      assertEquals(map.recencyQueueLength.get(i), 0);
     }
     for (Lock lock : map.segmentLock) {
       assertFalse(((ReentrantLock) lock).isLocked());
@@ -73,7 +73,7 @@ public final class Validator extends Assert {
     assertEquals(map.size(), 0, "Size != 0");
     assertEquals(map.size(), map.data.size(), "Internal size != 0");
 
-    assertEquals(map.weightedSize, 0, "Weighted size != 0");
+    assertEquals(map.weightedSize(), 0, "Weighted size != 0");
     assertEquals(map.weightedSize, 0, "Internal weighted size != 0");
 
     assertTrue(map.keySet().isEmpty(), "Not empty key set");

@@ -78,7 +78,7 @@ public final class EvictionTest extends BaseTest {
   //TODO(bmanes): Fix and enable
   @Test(enabled = false, groups = "development")
   public void weightedBoundSize() {
-    debug(" * boundSize: START");
+    debug(" * weightedBoundSize: START");
     Builder<Integer, Collection<Integer>> builder = builder();
     ConcurrentLinkedHashMap<Integer, Collection<Integer>> cache = builder
         .weigher(Weighers.<Integer>collection())

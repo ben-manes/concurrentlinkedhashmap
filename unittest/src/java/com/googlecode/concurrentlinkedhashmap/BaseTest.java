@@ -25,7 +25,7 @@ public abstract class BaseTest extends Assert {
   protected boolean debug;
 
   protected BaseTest() {
-    this(Integer.valueOf(System.getProperty("singleThreaded.maximumCapacity")));
+    this(intProperty("singleThreaded.maximumCapacity"));
   }
 
   protected BaseTest(int capacity) {
@@ -37,9 +37,17 @@ public abstract class BaseTest extends Assert {
    */
   @BeforeClass(alwaysRun = true)
   public void before() {
-    validator = new Validator(Boolean.valueOf(System.getProperty("test.exhaustive")));
-    debug = Boolean.valueOf(System.getProperty("test.debugMode"));
+    validator = new Validator(booleanProperty("test.exhaustive"));
+    debug = booleanProperty("test.debugMode");
     info("\nRunning %s...\n", getClass().getSimpleName());
+  }
+
+  protected static int intProperty(String property) {
+    return Integer.valueOf(System.getProperty(property));
+  }
+
+  protected static boolean booleanProperty(String property) {
+    return Boolean.valueOf(System.getProperty(property));
   }
 
   /* ---------------- Logging methods -------------- */
@@ -224,7 +232,7 @@ public abstract class BaseTest extends Assert {
   static void drainEvictionQueues(ConcurrentLinkedHashMap<?, ?> map) {
     map.evictionLock.lock();
     try {
-      map.drainReorderQueues();
+      map.drainRecencyQueues();
       map.drainWriteQueue();
     } finally {
       map.evictionLock.unlock();
