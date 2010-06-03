@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<metadata>
+  <groupId>com.googlecode.concurrentlinkedhashmap</groupId>
+  <artifactId>concurrentlinkedhashmap-lru</artifactId>
+  <version>1.0</version>
+  <versioning>
+    <versions>
+      <version>1.0</version>
+    </versions>
+    <lastUpdated>20100603033755</lastUpdated>
+  </versioning>
+</metadata>
