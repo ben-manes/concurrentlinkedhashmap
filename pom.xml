@@ -2,18 +2,22 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>com.googlecode.concurrentlinkedhashmap</groupId>
   <artifactId>concurrentlinkedhashmap-lirs</artifactId>
-  <version>1.0</version>
+  <packaging>jar</packaging>
   <name>ConcurrentLinkedHashMap</name>
-  <url>http://code.google.com/p/concurrentlinkedhashmap</url>
+  <version>1.0</version>
   <description>
     A high performance version of java.util.LinkedHashMap for use as a software cache.
   </description>
+  <url>http://code.google.com/p/concurrentlinkedhashmap</url>
   <licenses>
     <license>
       <name>Apache</name>
       <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
     </license>
   </licenses>
+  <scm>
+    <url>http://concurrentlinkedhashmap.googlecode.com/svn</url>
+  </scm>
   <dependencies>
     <dependency>
       <groupId>colt</groupId>
@@ -165,8 +169,8 @@
   <distributionManagement>
     <repository>
       <uniqueVersion>false</uniqueVersion>
-      <id>java.net-maven2-repository</id>
-      <url>java-net:/maven2-repository/trunk/repository/</url>
+      <id>googlecode</id>
+      <url>svn:https://concurrentlinkedhashmap.googlecode.com/svn/repo</url>
     </repository>
   </distributionManagement>
 </project>
