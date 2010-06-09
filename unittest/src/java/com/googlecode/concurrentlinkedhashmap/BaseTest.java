@@ -24,6 +24,10 @@ public abstract class BaseTest extends Assert {
   protected final int capacity;
   protected boolean debug;
 
+  static {
+    System.out.println("*** Experimental! See /tags/release-1.0-LRU/ for stable branch. ***");
+  }
+
   protected BaseTest() {
     this(intProperty("singleThreaded.maximumCapacity"));
   }
