@@ -1,7 +1,7 @@
 package com.googlecode.concurrentlinkedhashmap;
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
-import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.DiscardingListener;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.DiscardingListener;
 
 import org.testng.annotations.Test;
 
@@ -12,10 +12,10 @@ import org.testng.annotations.Test;
  */
 public final class BuilderTest extends BaseTest {
 
-  @Test(groups = "development", expectedExceptions=IllegalArgumentException.class)
+  @Test(groups = "development", expectedExceptions=IllegalStateException.class)
   public void unconfigured() {
     debug(" * unconfigured: START");
-    new Builder().build();
+    new Builder<Object, Object>().build();
   }
 
   @Test(groups = "development", expectedExceptions=IllegalArgumentException.class)
@@ -64,7 +64,7 @@ public final class BuilderTest extends BaseTest {
     assertEquals(builder().concurrencyLevel(32).build().concurrencyLevel, 32);
   }
 
-  @Test(groups = "development", expectedExceptions=IllegalArgumentException.class)
+  @Test(groups = "development", expectedExceptions=NullPointerException.class)
   public void nullListener() {
     debug(" * nullListener: START");
     builder().listener(null);
@@ -78,7 +78,7 @@ public final class BuilderTest extends BaseTest {
     assertSame(builder().listener(listener).build().listener, listener);
   }
 
-  @Test(groups = "development", expectedExceptions=IllegalArgumentException.class)
+  @Test(groups = "development", expectedExceptions=NullPointerException.class)
   public void nullWeigher() {
     debug(" * nullWeigher: START");
     builder().weigher(null);
@@ -87,8 +87,10 @@ public final class BuilderTest extends BaseTest {
   @Test(groups = "development")
   public void weigher() {
     debug(" * weigher: START");
+    ConcurrentLinkedHashMap<Integer, byte[]> map = super.<Integer, byte[]>builder()
+        .weigher(Weighers.byteArray())
+        .build();
     assertSame(builder().build().weigher, Weighers.singleton());
-    assertSame(super.<Integer, byte[]>builder().weigher(Weighers.byteArray()).build().weigher,
-        Weighers.byteArray());
+    assertSame(map.weigher, Weighers.byteArray());
   }
 }

@@ -12,83 +12,138 @@ import java.util.concurrent.ConcurrentHashMap;
  * @author ben.manes@gmail.com (Ben Manes)
  */
 public enum Cache {
-    CONCURRENT_LRU() { /** A concurrent linked hashmap, using LRU eviction */
-        @Override
-        public <K, V> Map<K, V>  create(int capacity, int max, int nThreads) {
-            return new Builder<K, V>()
-                .maximumWeightedCapacity(capacity)
-                .concurrencyLevel(nThreads)
-                .build();
-        }
-    },
-    FAST_FIFO() { /** ConcurrentMap and ConcurrentQueue, using FIFO eviction */
-        @Override
-        public <K, V> Map<K, V>  create(int capacity, int max, int nThreads) {
-            return new ConcurrentFifoMap<K, V>(capacity);
-        }
-    },
-    FAST_FIFO_2C() { /** ConcurrentMap and ConcurrentQueue, using second-chance FIFO eviction */
-        @Override
-        public <K, V> Map<K, V>  create(int capacity, int max, int nThreads) {
-            return new SecondChanceMap<K, V>(capacity);
-        }
-    },
-    FAST_FIFO_LINKED_2C() { /** ConcurrentMap and ConcurrentQueue and key-value links, using second-chance FIFO eviction */
-        @Override
-        public <K, V> Map<K, V>  create(int capacity, int max, int nThreads) {
-            return new SecondChanceLinkedMap<K, V>(capacity, nThreads);
-        }
-    },
-    RW_FIFO() { /** LinkedHashMap in FIFO eviction, guarded by read/write lock */
-        @Override
-        public <K, V> Map<K, V>  create(int capacity, int max, int nThreads) {
-            return new LockMap<K, V>(false, capacity);
-        }
-    },
-    LOCK_LRU() { /** LinkedHashMap in LRU eviction, guarded by lock */
-        @Override
-        public <K, V> Map<K, V>  create(int capacity, int max, int nThreads) {
-            return new LockMap<K, V>(true, capacity);
-        }
-    },
-    SYNC_FIFO() { /** LinkedHashMap in FIFO eviction, guarded by synchronized monitor */
-        @Override
-        public <K, V> Map<K, V>  create(int capacity, int max, int nThreads) {
-            return synchronizedMap(new UnsafeMap<K, V>(false, capacity));
-        }
-    },
-    SYNC_LRU() { /** LinkedHashMap in LRU eviction, guarded by synchronized monitor */
-        @Override
-        public <K, V> Map<K, V>  create(int capacity, int max, int nThreads) {
-            return synchronizedMap(new UnsafeMap<K, V>(true, capacity));
-        }
-    },
-    UNBOUNDED() { /** ConcurrentMap with no eviction policy, initially sized to avoid internal resizing */
-        @Override
-        public <K, V> Map<K, V>  create(int capacity, int max, int nThreads) {
-            return new ConcurrentHashMap<K, V>(max, 0.75f, 1000);
-        }
-    },
-    EHCACHE_FIFO() { /** Ehcache, using FIFO eviction */
-        @Override
-        public <K, V> Map<K, V>  create(int capacity, int max, int nThreads) {
-            return new EhcacheMap<K, V>(false, capacity);
-        }
-    },
-    EHCACHE_LRU() { /** Ehcache, using LRU eviction */
-        @Override
-        public <K, V> Map<K, V>  create(int capacity, int max, int nThreads) {
-            return new EhcacheMap<K, V>(true, capacity);
-        }
-    };
 
-    /**
-     * Creates the local cache instance.
-     *
-     * @param capacity The cache's capacity.
-     * @param max      The unbounded, max possible size.
-     * @param nThreads The max number of concurrency accesses.
-     * @return         A cache provided under a {@link Map} interface.
-     */
-    public abstract <K, V> Map<K, V>  create(int capacity, int max, int nThreads);
+  /**
+   * A concurrent linked hashmap, using LRU eviction.
+   */
+  CONCURRENT_LINKED_HASH_MAP() {
+    @Override
+    public <K, V> Map<K, V>  create(int capacity, int concurrencyLevel) {
+      return new Builder<K, V>()
+          .initialCapacity(capacity)
+          .maximumWeightedCapacity(capacity)
+          .concurrencyLevel(concurrencyLevel)
+          .build();
+    }
+  },
+
+  /**
+   * ConcurrentMap and ConcurrentQueue, using FIFO eviction.
+   */
+  CONCURRENT_FIFO() {
+    @Override
+    public <K, V> Map<K, V>  create(int capacity, int concurrencyLevel) {
+      return new ConcurrentFifoMap<K, V>(capacity);
+    }
+  },
+
+  /**
+   * ConcurrentMap and ConcurrentQueue, using second-chance FIFO eviction.
+   */
+  SECOND_CHANCE() {
+    @Override
+    public <K, V> Map<K, V>  create(int capacity, int concurrencyLevel) {
+      return new SecondChanceMap<K, V>(capacity);
+    }
+  },
+
+  /**
+   * ConcurrentMap and ConcurrentQueue and key-value links, using second-chance
+   * FIFO eviction
+   */
+  SECOND_CHANCE_LINKED() {
+    @Override
+    public <K, V> Map<K, V>  create(int capacity, int concurrencyLevel) {
+      return new SecondChanceLinkedMap<K, V>(capacity, concurrencyLevel);
+    }
+  },
+
+  /**
+   * LinkedHashMap in FIFO eviction, guarded by read/write lock.
+   */
+  RW_FIFO() {
+    @Override
+    public <K, V> Map<K, V>  create(int capacity, int concurrencyLevel) {
+      return new LockMap<K, V>(false, capacity);
+    }
+  },
+
+  /**
+   * LinkedHashMap in LRU eviction, guarded by lock.
+   */
+  LOCK_LRU() {
+    @Override
+    public <K, V> Map<K, V>  create(int capacity, int concurrencyLevel) {
+      return new LockMap<K, V>(true, capacity);
+    }
+  },
+
+  /**
+   * LinkedHashMap in FIFO eviction, guarded by synchronized monitor.
+   */
+  SYNC_FIFO() {
+    @Override
+    public <K, V> Map<K, V>  create(int capacity, int concurrencyLevel) {
+      return synchronizedMap(new UnsafeMap<K, V>(false, capacity));
+    }
+  },
+
+  /**
+   * LinkedHashMap in LRU eviction, guarded by synchronized monitor.
+   */
+  SYNC_LRU() {
+    @Override
+    public <K, V> Map<K, V>  create(int capacity, int concurrencyLevel) {
+      return synchronizedMap(new UnsafeMap<K, V>(true, capacity));
+    }
+  },
+
+  /**
+   * ConcurrentMap with no eviction policy.
+   */
+  CONCURRENT_HASH_MAP() {
+    @Override
+    public <K, V> Map<K, V>  create(int capacity, int concurrencyLevel) {
+      return new ConcurrentHashMap<K, V>(capacity, 0.75f, concurrencyLevel);
+    }
+  },
+
+  /**
+   * Ehcache, using FIFO eviction.
+   */
+  EHCACHE_FIFO() {
+    @Override
+    public <K, V> Map<K, V>  create(int capacity, int concurrencyLevel) {
+      return new EhcacheMap<K, V>(false, capacity);
+    }
+  },
+
+  /**
+   * Ehcache, using LRU eviction.
+   */
+  EHCACHE_LRU() {
+    @Override
+    public <K, V> Map<K, V>  create(int capacity, int concurrencyLevel) {
+      return new EhcacheMap<K, V>(true, capacity);
+    }
+  },
+
+  /**
+   * A HashMap with LIRS eviction, guarded by synchronized monitor.
+   */
+  LIRS() {
+    @Override
+    public <K, V> Map<K, V>  create(int capacity, int concurrencyLevel) {
+      return synchronizedMap(new LirsMap<K, V>(capacity));
+    }
+  };
+
+  /**
+   * Creates the local cache instance.
+   *
+   * @param capacity the cache's capacity.
+   * @param concurrencyLevel the number of concurrent writes
+   * @return a cache provided under a {@link Map} interface
+   */
+  public abstract <K, V> Map<K, V>  create(int capacity, int concurrencyLevel);
 }

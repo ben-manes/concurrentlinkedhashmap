@@ -22,7 +22,7 @@ public final class EfficiencyTest extends BaseTest {
   private int size;
 
   public EfficiencyTest() {
-    super(Integer.valueOf(System.getProperty("efficiency.maximumCapacity")));
+    super(intProperty("efficiency.maximumCapacity"));
   }
 
   @BeforeClass(groups = "efficiency")
@@ -36,7 +36,7 @@ public final class EfficiencyTest extends BaseTest {
   public void lruEfficiency() {
     debug(" * Lru-efficency: START");
     ConcurrentLinkedHashMap<Long, Long> actual = create(capacity);
-    Map<Long, Long> expected = Cache.SYNC_LRU.create(capacity, capacity, 1);
+    Map<Long, Long> expected = Cache.SYNC_LRU.create(capacity, 1);
 
     List<Long> workingSet = createWorkingSet(Distribution.EXPONENTIAL, 10 * capacity);
     float hitExpected = determineEfficiency(expected, workingSet);
@@ -58,7 +58,7 @@ public final class EfficiencyTest extends BaseTest {
     List<Long> workingSet = createWorkingSet(distribution, size);
     debug("WorkingSet:\n%s", workingSet);
     for (Cache type : Cache.values()) {
-      Map<Long, Long> cache = type.create(capacity, size, 1);
+      Map<Long, Long> cache = type.create(capacity, 1);
       double hits = determineEfficiency(cache, workingSet);
       double misses = size - hits;
       info("%s: hits=%s (%s percent), misses=%s (%s percent)", type,

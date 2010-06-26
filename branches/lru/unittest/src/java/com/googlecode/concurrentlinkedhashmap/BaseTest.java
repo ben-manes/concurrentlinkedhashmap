@@ -1,6 +1,7 @@
 package com.googlecode.concurrentlinkedhashmap;
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Node;
 
 import org.testng.Assert;
 import org.testng.annotations.BeforeClass;
@@ -8,12 +9,15 @@ import org.testng.annotations.BeforeClass;
 import java.io.Serializable;
 import java.util.AbstractMap.SimpleImmutableEntry;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.Map.Entry;
+import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
- * Base utilities for testing purposes. This is ugly from an inheritance
- * perspective, but makes the tests easier to read by moving the junk here.
+ * Base utilities for testing purposes. This is ugly, but it makes the tests
+ * easier to read by moving the junk utilities here.
  *
  * @author ben.manes@gmail.com (Ben Manes)
  */
@@ -24,7 +28,7 @@ public abstract class BaseTest extends Assert {
   protected boolean debug;
 
   protected BaseTest() {
-    this(Integer.valueOf(System.getProperty("singleThreaded.maximumCapacity")));
+    this(intProperty("singleThreaded.maximumCapacity"));
   }
 
   protected BaseTest(int capacity) {
@@ -36,9 +40,17 @@ public abstract class BaseTest extends Assert {
    */
   @BeforeClass(alwaysRun = true)
   public void before() {
-    validator = new Validator(Boolean.valueOf(System.getProperty("test.exhaustive")));
-    debug = Boolean.valueOf(System.getProperty("test.debugMode"));
+    validator = new Validator(booleanProperty("test.exhaustive"));
+    debug = booleanProperty("test.debugMode");
     info("\nRunning %s...\n", getClass().getSimpleName());
+  }
+
+  protected static int intProperty(String property) {
+    return Integer.valueOf(System.getProperty(property));
+  }
+
+  protected static boolean booleanProperty(String property) {
+    return Boolean.valueOf(System.getProperty(property));
   }
 
   /* ---------------- Logging methods -------------- */
@@ -124,12 +136,12 @@ public abstract class BaseTest extends Assert {
       implements EvictionListener<K, V>, Serializable {
 
     private static final long serialVersionUID = 1L;
-    final Collection<Entry> evicted;
+    final Collection<Entry<K, V>> evicted;
     final boolean isAllowed;
 
     private EvictionMonitor(boolean isAllowed) {
       this.isAllowed = isAllowed;
-      this.evicted = new ConcurrentLinkedQueue<Entry>();
+      this.evicted = new ConcurrentLinkedQueue<Entry<K, V>>();
     }
 
     public static <K, V> EvictionMonitor<K, V> newMonitor() {
@@ -145,6 +157,89 @@ public abstract class BaseTest extends Assert {
         throw new IllegalStateException("Eviction should not have occured");
       }
       evicted.add(new SimpleImmutableEntry<K, V>(key, value));
+    }
+  }
+
+  /* ---------------- Node List support -------------- */
+
+  protected static String listForwardToString(ConcurrentLinkedHashMap<?, ?> map) {
+    return listToString(map, true);
+  }
+
+  protected static String listBackwardsToString(ConcurrentLinkedHashMap<?, ?> map) {
+    return listToString(map, false);
+  }
+
+  @SuppressWarnings("unchecked")
+  private static String listToString(ConcurrentLinkedHashMap<?, ?> map, boolean forward) {
+    map.evictionLock.lock();
+    try {
+        Set<Node> seen = Collections.newSetFromMap(new IdentityHashMap<Node, Boolean>());
+        StringBuilder buffer = new StringBuilder("\n");
+        Node current = forward ? map.sentinel.next : map.sentinel.prev;
+        while (current != map.sentinel) {
+          buffer.append(nodeToString(current)).append("\n");
+          if (seen.add(current)) {
+            buffer.append("Failure: Loop detected\n");
+            break;
+          }
+          current = forward ? current.next : current.next.prev;
+        }
+        return buffer.toString();
+    } finally {
+      map.evictionLock.unlock();
+    }
+  }
+
+  @SuppressWarnings("unchecked")
+  protected static String nodeToString(Node node) {
+    if (node == null) {
+      return "null";
+    } else if (node.segment == -1) {
+      return "setinel";
+    }
+    return node.key + "=" + node.weightedValue.value;
+  }
+
+  /** Finds the node in the map by walking the list. Returns null if not found. */
+  @SuppressWarnings("unchecked")
+  protected static Node findNode(Object key, ConcurrentLinkedHashMap<?, ?> map) {
+    map.evictionLock.lock();
+    try {
+      Node current = map.sentinel;
+      while (current != map.sentinel) {
+        if (current.equals(key)) {
+          return current;
+        }
+      }
+      return null;
+    } finally {
+      map.evictionLock.unlock();
+    }
+  }
+
+  @SuppressWarnings("unchecked")
+  protected static int listLength(ConcurrentLinkedHashMap<?, ?> map) {
+    map.evictionLock.lock();
+    try {
+      int length = 0;
+      Node current = map.sentinel;
+      while (current != map.sentinel) {
+        length++;
+      }
+      return length;
+    } finally {
+      map.evictionLock.unlock();
+    }
+  }
+
+  static void drainEvictionQueues(ConcurrentLinkedHashMap<?, ?> map) {
+    map.evictionLock.lock();
+    try {
+      map.drainRecencyQueues();
+      map.drainWriteQueue();
+    } finally {
+      map.evictionLock.unlock();
     }
   }
 }

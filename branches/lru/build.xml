@@ -196,8 +196,8 @@
       >
         <classfileset dir="${test.build.dir}"/>
         <jvmarg value="-Xms64m"/>
-        <jvmarg value="-Xmx128m"/>
-        <jvmarg value="-Xss4m"/>
+        <jvmarg value="-Xmx512m"/>
+        <jvmarg value="-Xss1m"/>
 
         <!-- All tests -->
         <sysproperty key="test.debugMode" value="${test.debugMode}"/>
