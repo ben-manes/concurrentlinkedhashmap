@@ -1,11 +1,12 @@
 package com.googlecode.concurrentlinkedhashmap;
 
+import static java.util.Arrays.asList;
+
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Node;
 
 import org.testng.annotations.Test;
 
-import static java.util.Arrays.asList;
 import java.util.Collection;
 
 /**
@@ -104,28 +105,29 @@ public final class EvictionTest extends BaseTest {
   public void lruOnAccess() {
     debug(" * lruOnAccess: START");
     ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap(50);
-    Node<Integer, Integer> headNode = cache.sentinel.next;
-    Node<Integer, Integer> tailNode = cache.sentinel.prev;
-    int length = validator.dequeLength(cache);
+    Node headNode = cache.sentinel.next;
+    Node tailNode = cache.sentinel.prev;
+    int length = listLength(cache);
     int size = cache.data.size();
     debug("size: %s, length: %s, writes: %s", size, length, cache.writeQueue.size());
-    debug("init: " + validator.printFwd(cache));
+    debug("init: " + listForwardToString(cache));
 
     // Get
     cache.get(headNode.key);
-    validator.drainEvictionQueues(cache);
+    drainEvictionQueues(cache);
     assertNotSame(cache.sentinel.next, headNode);
     assertSame(cache.sentinel.prev, headNode);
-    assertEquals(validator.dequeLength(cache), length);
+    assertEquals(listLength(cache), length);
     assertEquals(cache.data.size(), size);
-    debug("after get:(" + headNode.key + "):" + validator.printFwd(cache));
+    debug("after get:(" + headNode.key + "):" + listForwardToString(cache));
 
     // PutIfAbsent
-    assertNotSame(cache.sentinel.prev, tailNode); // due to get()
-    cache.putIfAbsent(tailNode.key, tailNode.weightedValue.value);
-    validator.drainEvictionQueues(cache);
+    assertNotSame(cache.sentinel.prev, tailNode,
+        nodeToString(cache.sentinel.prev) + "!=" + nodeToString(tailNode)); // due to get()
+    cache.putIfAbsent((Integer) tailNode.key, (Integer) tailNode.weightedValue.value);
+    drainEvictionQueues(cache);
 
-    assertEquals(validator.dequeLength(cache), length);
+    assertEquals(listLength(cache), length);
     assertSame(cache.sentinel.prev, tailNode);
     assertEquals(cache.data.size(), size);
   }
@@ -135,7 +137,7 @@ public final class EvictionTest extends BaseTest {
     debug(" * Lru-eviction: START");
     ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap(10);
 
-    debug("Initial: %s", validator.printFwd(cache));
+    debug("Initial: %s", listForwardToString(cache));
     assertTrue(cache.keySet().containsAll(asList(0, 1, 2, 3, 4, 5, 6, 7, 8, 9)),
                "Instead: " + cache.keySet());
     assertEquals(cache.size(), 10);
@@ -143,10 +145,10 @@ public final class EvictionTest extends BaseTest {
     // re-order
     for (int i : asList(0, 1, 2)) {
       cache.get(i);
-      validator.drainEvictionQueues(cache);
+      drainEvictionQueues(cache);
     }
 
-    debug("Reordered #1: %s", validator.printFwd(cache));
+    debug("Reordered #1: %s", listForwardToString(cache));
     assertTrue(cache.keySet().containsAll(asList(3, 4, 5, 6, 7, 8, 9, 0, 1, 2)),
                "Instead: " + cache.keySet());
     assertEquals(cache.size(), 10);
@@ -154,10 +156,10 @@ public final class EvictionTest extends BaseTest {
     // evict 3, 4, 5
     for (int i : asList(10, 11, 12)) {
       cache.put(i, i);
-      validator.drainEvictionQueues(cache);
+      drainEvictionQueues(cache);
     }
 
-    debug("Evict #1: %s", validator.printFwd(cache));
+    debug("Evict #1: %s", listForwardToString(cache));
     assertTrue(cache.keySet().containsAll(asList(6, 7, 8, 9, 0, 1, 2, 10, 11, 12)),
                "Instead: " + cache.keySet());
     assertEquals(cache.size(), 10);
@@ -165,10 +167,10 @@ public final class EvictionTest extends BaseTest {
     // re-order
     for (int i : asList(6, 7, 8)) {
       cache.get(i);
-      validator.drainEvictionQueues(cache);
+      drainEvictionQueues(cache);
     }
 
-    debug("Reordered #2: %s", validator.printFwd(cache));
+    debug("Reordered #2: %s", listForwardToString(cache));
     assertTrue(cache.keySet().containsAll(asList(9, 0, 1, 2, 10, 11, 12, 6, 7, 8)),
                "Instead: " + cache.keySet());
     assertEquals(cache.size(), 10);
@@ -176,10 +178,10 @@ public final class EvictionTest extends BaseTest {
     // evict 9, 0, 1
     for (int i : asList(13, 14, 15)) {
       cache.put(i, i);
-      validator.drainEvictionQueues(cache);
+      drainEvictionQueues(cache);
     }
 
-    debug("Evict #2: %s", validator.printFwd(cache));
+    debug("Evict #2: %s", listForwardToString(cache));
     assertTrue(cache.keySet().containsAll(asList(2, 10, 11, 12, 6, 7, 8, 13, 14, 15)),
                "Instead: " + cache.keySet());
     assertEquals(cache.size(), 10);

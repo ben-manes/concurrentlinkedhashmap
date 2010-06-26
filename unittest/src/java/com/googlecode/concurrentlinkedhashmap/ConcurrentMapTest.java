@@ -1,15 +1,16 @@
 package com.googlecode.concurrentlinkedhashmap;
 
+import static java.lang.String.format;
+import static java.util.Arrays.asList;
+
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Node;
 
 import org.apache.commons.lang.SerializationUtils;
 import org.testng.annotations.Test;
 
-import static java.lang.String.format;
 import java.util.ArrayList;
 import java.util.Arrays;
-import static java.util.Arrays.asList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -149,6 +150,7 @@ public final class ConcurrentMapTest extends BaseTest {
     ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap(guard);
     cache.clear();
     validator.state(cache);
+    validator.empty(cache);
   }
 
   @Test(groups = "development")
@@ -177,7 +179,7 @@ public final class ConcurrentMapTest extends BaseTest {
 
     // key iterator
     Iterator<Integer> iterator = keys.iterator();
-    for (Node<Integer, Integer> node : cache.data.values()) {
+    for (Node node : cache.data.values()) {
       assertEquals(iterator.next(), node.key);
     }
     assertFalse(iterator.hasNext());
@@ -200,7 +202,7 @@ public final class ConcurrentMapTest extends BaseTest {
     assertEquals(keys.size(), capacity / 2);
 
     keys.clear();
-    assertTrue(cache.isEmpty());
+    validator.empty(cache);
     assertTrue(keys.isEmpty());
   }
 
@@ -229,7 +231,7 @@ public final class ConcurrentMapTest extends BaseTest {
 
     // values iterator
     Iterator<Integer> iterator = values.iterator();
-    for (Node<Integer, Integer> node : cache.data.values()) {
+    for (Node node : cache.data.values()) {
       assertEquals(iterator.next(), node.weightedValue.value);
     }
     assertFalse(iterator.hasNext());
@@ -244,8 +246,8 @@ public final class ConcurrentMapTest extends BaseTest {
 
     // toArray
     List<Integer> list = new ArrayList<Integer>();
-    for (Node<Integer, Integer> node : cache.data.values()) {
-      list.add(node.weightedValue.value);
+    for (Node node : cache.data.values()) {
+      list.add((Integer) node.weightedValue.value);
     }
     assertTrue(Arrays.equals(values.toArray(), list.toArray()));
     assertTrue(Arrays.equals(values.toArray(new Integer[cache.size()]),
@@ -256,7 +258,7 @@ public final class ConcurrentMapTest extends BaseTest {
     assertEquals(values.size(), capacity / 2);
 
     values.clear();
-    assertTrue(cache.isEmpty());
+    validator.empty(cache);
     assertTrue(values.isEmpty());
   }
 
@@ -313,7 +315,7 @@ public final class ConcurrentMapTest extends BaseTest {
     assertEquals(entries.size(), capacity / 2);
 
     entries.clear();
-    assertTrue(cache.isEmpty());
+    validator.empty(cache);
     assertTrue(entries.isEmpty());
   }
 
@@ -346,10 +348,10 @@ public final class ConcurrentMapTest extends BaseTest {
     ConcurrentLinkedHashMap actual = (ConcurrentLinkedHashMap) SerializationUtils.clone(expected);
     assertEquals(actual, expected);
     assertEquals(actual.concurrencyLevel, 32);
-    assertEquals(actual.capacity, expected.capacity);
+    assertEquals(actual.maximumWeightedSize, expected.maximumWeightedSize);
     assertEquals(actual.listener, expected.listener);
     assertEquals(actual.weigher, expected.weigher);
-    validator.state((ConcurrentLinkedHashMap<Integer, Integer>) actual);
+    validator.state(actual);
 
     // custom listener & weigher
     ConcurrentLinkedHashMap<Integer, Collection<Integer>> expected2 =

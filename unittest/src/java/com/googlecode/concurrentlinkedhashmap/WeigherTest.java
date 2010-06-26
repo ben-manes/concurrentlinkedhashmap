@@ -1,5 +1,3 @@
-// Copyright 2010 Google Inc. All Rights Reserved.
-
 package com.googlecode.concurrentlinkedhashmap;
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
@@ -61,9 +59,9 @@ public final class WeigherTest extends BaseTest {
   @Test(groups = "development")
   public void list() {
     debug(" * list: START");
-    assertEquals(Weighers.collection().weightOf(Collections.emptyList()), 0);
-    assertEquals(Weighers.<Integer>collection().weightOf(Arrays.asList(1)), 1);
-    assertEquals(Weighers.<Integer>collection().weightOf(Arrays.asList(1, 2, 3)), 3);
+    assertEquals(Weighers.list().weightOf(Collections.emptyList()), 0);
+    assertEquals(Weighers.<Integer>list().weightOf(Arrays.asList(1)), 1);
+    assertEquals(Weighers.<Integer>list().weightOf(Arrays.asList(1, 2, 3)), 3);
   }
 
   @Test(groups = "development")

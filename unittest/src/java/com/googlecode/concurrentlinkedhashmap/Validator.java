@@ -1,22 +1,24 @@
 package com.googlecode.concurrentlinkedhashmap;
 
+import static java.lang.String.format;
+
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Node;
 
 import org.testng.Assert;
 
-import static java.lang.String.format;
 import java.util.Collections;
 import java.util.IdentityHashMap;
-import java.util.Map;
-import java.util.Queue;
+import java.util.Set;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * Validations for the concurrent data structure.
  *
  * @author ben.manes@gmail.com (Ben Manes)
  */
+@SuppressWarnings("unchecked")
 public final class Validator extends Assert {
-
   private final boolean exhaustive;
 
   /**
@@ -39,15 +41,24 @@ public final class Validator extends Assert {
    * Validates that the map is in a correct state.
    */
   public void state(ConcurrentLinkedHashMap<?, ?> map) {
-    assertEquals(map.capacity(), map.capacity, "Tracked capacity != reported capacity");
-    assertTrue(dequeLength(map) <= map.capacity,
-               "The list size is greater than the capacity: "
-               + dequeLength(map) + "/" + map.capacity);
+    BaseTest.drainEvictionQueues(map);
+    assertTrue(map.writeQueue.isEmpty());
+    for (int i=0; i<map.recencyQueue.length; i++) {
+      assertTrue(map.recencyQueue[i].isEmpty());
+      assertEquals(map.recencyQueueLength.get(i), 0);
+    }
+    for (Lock lock : map.segmentLock) {
+      assertFalse(((ReentrantLock) lock).isLocked());
+    }
+    assertTrue(map.listenerQueue.isEmpty());
+
+    assertEquals(map.capacity(), map.maximumWeightedSize, "Tracked capacity != reported capacity");
     assertEquals(map.data.size(), map.size(), "Internal size != reported size");
-    assertTrue(map.capacity() >= map.size(),
-               format("Overflow: c=%d s=%d", map.capacity(), map.size()));
+    assertEquals(map.weightedSize(), map.weightedSize,
+        "Tracked weighted size != reported weighted size");
+    assertTrue(map.maximumWeightedSize >= map.weightedSize());
     assertNotNull(map.sentinel.prev);
-    assertNotNull(map.sentinel.next);
+    assertNotNull(map.sentinel.next.next);
 
     if (exhaustive) {
       links(map);
@@ -59,10 +70,13 @@ public final class Validator extends Assert {
    */
   public void empty(ConcurrentLinkedHashMap<?, ?> map) {
     assertTrue(map.isEmpty(), "Not empty");
-    assertTrue(map.data.isEmpty(), "Internel not empty");
+    assertTrue(map.data.isEmpty(), "Internal not empty");
 
     assertEquals(map.size(), 0, "Size != 0");
-    assertEquals(map.size(), map.data.size(), "Internel size != 0");
+    assertEquals(map.size(), map.data.size(), "Internal size != 0");
+
+    assertEquals(map.weightedSize(), 0, "Weighted size != 0");
+    assertEquals(map.weightedSize, 0, "Internal weighted size != 0");
 
     assertTrue(map.keySet().isEmpty(), "Not empty key set");
     assertTrue(map.values().isEmpty(), "Not empty value set");
@@ -70,35 +84,34 @@ public final class Validator extends Assert {
     assertEquals(map, Collections.emptyMap(), "Not equal to empty map");
     assertEquals(map.hashCode(), Collections.emptyMap().hashCode(), "Not equal hash codes");
     assertEquals(map.toString(), Collections.emptyMap().toString(),
-                 "Not equal string representations");
+        "Not equal string representations");
   }
 
   /**
    * Validates that the doubly-linked list running through the map is in a correct state.
    */
   private void links(ConcurrentLinkedHashMap<?, ?> map) {
-    sentinelNode(map);
+    assertSentinel(map);
 
-    Map<Node<?, ?>, Object> seen = new IdentityHashMap<Node<?, ?>, Object>();
-    Node<?, ?> current = map.sentinel.next;
-    Object dummy = new Object();
-    for (; ;) {
-      assertNull(seen.put(current, dummy), "Loop detected in list: " + current + " seen: " + seen);
-      if (current == map.sentinel) {
-        break;
-      }
-      dataNode(map, current);
+    Set<Node> seen = Collections.newSetFromMap(new IdentityHashMap<Node, Boolean>());
+    Node current = map.sentinel.next;
+    while (current != map.sentinel) {
+      assertTrue(seen.add(current), format("Loop detected: %s, saw %s in %s", current, seen, map));
+      assertDataNode(map, current);
       current = current.next;
     }
-    assertEquals(map.size(), seen.size() - 1, "Size != list length");
+    assertEquals(map.size(), seen.size(), "Size != list length");
   }
 
   /**
    * Validates that the sentinel node is in a proper state.
    */
-  public void sentinelNode(ConcurrentLinkedHashMap<?, ?> map) {
+  public void assertSentinel(ConcurrentLinkedHashMap<?, ?> map) {
     assertNull(map.sentinel.key);
     assertNull(map.sentinel.weightedValue);
+    assertEquals(map.sentinel.segment, -1);
+    assertSame(map.sentinel.prev.next, map.sentinel);
+    assertSame(map.sentinel.next.prev, map.sentinel);
     assertFalse(map.data.containsValue(map.sentinel));
   }
 
@@ -107,9 +120,13 @@ public final class Validator extends Assert {
    *
    * @param node The data node.
    */
-  public void dataNode(ConcurrentLinkedHashMap<?, ?> map, Node<?, ?> node) {
+  private void assertDataNode(ConcurrentLinkedHashMap<?, ?> map, Node node) {
     assertNotNull(node.key);
     assertNotNull(node.weightedValue);
+    assertNotNull(node.weightedValue.value);
+    assertEquals(node.weightedValue.weight,
+        ((Weigher) map.weigher).weightOf(node.weightedValue.value));
+
     assertTrue(map.containsKey(node.key));
     assertTrue(map.containsValue(node.weightedValue.value),
         format("Could not find value: %s", node.weightedValue.value));
@@ -121,83 +138,6 @@ public final class Validator extends Assert {
     assertNotSame(node, node.next);
     assertSame(node, node.prev.next);
     assertSame(node, node.next.prev);
-  }
-
-  /**
-   * A string representation of the map's list nodes in the list's current order.
-   */
-  public String printFwd(ConcurrentLinkedHashMap<?, ?> map) {
-    Map<Node<?, ?>, Object> seen = new IdentityHashMap<Node<?, ?>, Object>();
-    StringBuilder buffer = new StringBuilder("\n");
-    Node<?, ?> current = map.sentinel;
-    do {
-      current = current.next;
-      if (seen.put(current, new Object()) != null) {
-        buffer.append("Failure: Loop detected\n");
-        break;
-      }
-      buffer.append(current).append("\n");
-    } while (current != map.sentinel);
-    return buffer.toString();
-  }
-
-  /**
-   * A string representation of the map's list nodes in the list's current order.
-   */
-  public String printBwd(ConcurrentLinkedHashMap<?, ?> map) {
-    StringBuilder buffer = new StringBuilder("\n");
-    Node<?, ?> current = map.sentinel;
-    do {
-      current = current.prev;
-      buffer.append(current).append("\n");
-      if (current == null) {
-        buffer.append("Failure: Reached null\n");
-        break;
-      }
-    } while (current != map.sentinel);
-    return buffer.toString();
-  }
-
-  /**
-   * A string representation of the node in the map, found by walking the list.
-   */
-  public String printNode(Object key, ConcurrentLinkedHashMap<?, ?> map) {
-    Node<?, ?> current = map.sentinel;
-    while (current.key != key) {
-      current = current.next;
-      if (current == null) {
-        return null;
-      }
-    }
-    return current.toString();
-  }
-
-  public int pendingReorders(ConcurrentLinkedHashMap<?, ?> map) {
-    int buffered = 0;
-    for (Queue<?> reorderQueue : map.reorderQueue) {
-      buffered += reorderQueue.size();
-    }
-    return buffered;
-  }
-
-  public int dequeLength(ConcurrentLinkedHashMap<?, ?> map) {
-    map.evictionLock.lock();
-    try {
-      return map.weightedSize;
-    } finally {
-      map.evictionLock.unlock();
-    }
-  }
-
-  public void drainEvictionQueues(ConcurrentLinkedHashMap<?, ?> map) {
-    map.evictionLock.lock();
-    try {
-      for (int i=0; i<map.segments; i++) {
-        map.drainReorderQueue(i);
-      }
-      map.drainWriteQueue();
-    } finally {
-      map.evictionLock.unlock();
-    }
+    assertEquals(node.segment, map.segmentFor(node.key));
   }
 }

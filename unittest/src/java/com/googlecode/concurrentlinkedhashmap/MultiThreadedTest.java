@@ -1,8 +1,10 @@
 package com.googlecode.concurrentlinkedhashmap;
 
-import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentTestHarness.timeTasks;
 
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
+
+import org.apache.commons.lang.SerializationUtils;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
@@ -36,20 +38,79 @@ public final class MultiThreadedTest extends BaseTest {
   private int nThreads;
 
   public MultiThreadedTest() {
-    super(Integer.valueOf(System.getProperty("multiThreaded.maximumCapacity")));
+    super(intProperty("multiThreaded.maximumCapacity"));
   }
 
   @BeforeClass(alwaysRun = true)
   public void beforeMultiThreaded() {
-    int iterations = Integer.valueOf(System.getProperty("multiThreaded.iterations"));
-    nThreads = Integer.valueOf(System.getProperty("multiThreaded.nThreads"));
-    timeout = Integer.valueOf(System.getProperty("multiThreaded.timeout"));
+    int iterations = intProperty("multiThreaded.iterations");
+    nThreads = intProperty("multiThreaded.nThreads");
+    timeout = intProperty("multiThreaded.timeout");
     failures = new ConcurrentLinkedQueue<String>();
     keys = new ArrayList<Integer>();
     Random random = new Random();
     for (int i = 0; i < iterations; i++) {
       keys.add(random.nextInt(iterations / 100));
     }
+  }
+
+  /**
+   * Tests that the cache does not have a memory leak by not being able to
+   * drain the eviction queues fast enough.
+   */
+  @Test(groups = "load")
+  public void memoryLeak() throws InterruptedException {
+    final String WARNING = "WARNING: This test will run forever and must be manually stopped";
+    final int ITERATIONS = 100000;
+    final int NUM_THREADS = 1000;
+    info(WARNING);
+
+    class Listener implements EvictionListener<Integer, Integer> {
+      ConcurrentLinkedHashMap<?, ?> cache;
+      volatile int calls;
+
+      @Override
+      public void onEviction(Integer key, Integer value) {
+        calls++;
+
+        if ((calls % ITERATIONS) == 0) {
+          long reorders = 0;
+          for (Queue<?> queue : cache.recencyQueue) {
+            reorders += queue.size();
+          }
+          debug("Evicted by thread #" + Thread.currentThread().getId());
+          debug("Write queue size = " + cache.writeQueue.size());
+          debug("Read queues size = " + reorders);
+          info(WARNING);
+        }
+      }
+    }
+    Listener listener = new Listener();
+
+    final ConcurrentLinkedHashMap<Integer, Integer> cache =
+        new Builder<Integer, Integer>()
+            .maximumWeightedCapacity(1000)
+            .concurrencyLevel(NUM_THREADS)
+            .initialCapacity(ITERATIONS)
+            .listener(listener)
+            .build();
+    listener.cache = cache;
+
+    timeTasks(1000, new Runnable() {
+      @Override
+      public void run() {
+        int current = (int) Math.random();
+        for (int i=1; ; i++) {
+          cache.put(current, current);
+          cache.get(current);
+          current++;
+          if ((i % ITERATIONS) == 0) {
+            debug("Write queue size = " + cache.writeQueue.size());
+            info(WARNING);
+          }
+        }
+      }
+    });
   }
 
   /**
@@ -82,10 +143,10 @@ public final class MultiThreadedTest extends BaseTest {
     } catch (TimeoutException e) {
       for (StackTraceElement[] trace : Thread.getAllStackTraces().values()) {
         for (StackTraceElement element : trace) {
-          System.out.println("\tat " + element);
+          info("\tat " + element);
         }
         if (trace.length > 0) {
-          System.out.println("------");
+          info("------");
         }
       }
       es.shutdownNow();
@@ -93,8 +154,8 @@ public final class MultiThreadedTest extends BaseTest {
 
       // Print the state of the cache
       debug("Cached Elements: %s", cache.toString());
-      debug("List Forward:\n%s", validator.printFwd(cache));
-      debug("List Backward:\n%s", validator.printBwd(cache));
+      debug("List Forward:\n%s", listForwardToString(cache));
+      debug("List Backward:\n%s", listBackwardsToString(cache));
 
       // Print the recorded failures
       for (String failure : failures) {
@@ -125,8 +186,6 @@ public final class MultiThreadedTest extends BaseTest {
    * Executes operations against the cache to simulate random load.
    */
   private final class Thrasher implements Runnable {
-    private static final int OPERATIONS = 19;
-
     private final ConcurrentLinkedHashMap<Integer, Integer> cache;
     private final List<List<Integer>> sets;
     private final AtomicInteger index;
@@ -137,126 +196,168 @@ public final class MultiThreadedTest extends BaseTest {
       this.sets = sets;
     }
 
+    @Override
     public void run() {
+      Operation[] ops = Operation.values();
       int id = index.getAndIncrement();
+      Random random = new Random();
       debug("#%d: STARTING", id);
       for (Integer key : sets.get(id)) {
+        Operation operation = ops[random.nextInt(ops.length)];
         try {
-          execute(key);
+          operation.execute(cache, key);
         } catch (RuntimeException e) {
           String error =
-              String.format("Failed: key %s on operation %d for node %s", key, key % OPERATIONS,
-                            validator.printNode(key, cache));
+              String.format("Failed: key %s on operation %s for node %s", key, operation,
+                            nodeToString(findNode(key, cache)));
           failures.add(error);
           throw e;
         } catch (Throwable thr) {
           String error =
-              String.format("Halted: key %s on operation %d for node %s", key, key % OPERATIONS,
-                            validator.printNode(key, cache));
+              String.format("Halted: key %s on operation %s for node %s", key, operation,
+                            nodeToString(findNode(key, cache)));
           failures.add(error);
         }
       }
       debug("#%d: ENDING", id);
     }
+  }
 
-    /** Hashes the key to a public operation. */
-    private void execute(int key) {
-      switch (key % OPERATIONS) {
-        case 0:
-          cache.containsKey(key);
-          break;
-        case 1:
-          cache.containsValue(key);
-          break;
-        case 2:
-          cache.isEmpty();
-          break;
-        case 3:
-          if (cache.size() < 0) {
-            throw new IllegalStateException();
-          }
-          if (cache.weightedSize() < 0) {
-            throw new IllegalStateException();
-          }
-          break;
-        case 4:
-          cache.get(key);
-          break;
-        case 5:
-          cache.put(key, key);
-          break;
-        case 6:
-          cache.putIfAbsent(key, key);
-          break;
-        case 7:
-          cache.remove(key);
-          break;
-        case 8:
-          cache.remove(key, key);
-          break;
-        case 9:
-          cache.replace(key, key);
-          break;
-        case 10:
-          cache.replace(key, key, key);
-          break;
-        case 11:
-          cache.clear();
-          break;
-        case 12:
-          if ((key % 2) == 0) {
-            for (Integer i : cache.keySet()) {
-              if (i == null) {
-                throw new IllegalArgumentException();
-              }
-            }
-          } else {
-            for (Integer i : cache.keySet().toArray(new Integer[cache.size()])) {
-              // spin
-            }
-          }
-          break;
-        case 13:
-          if ((key % 2) == 0) {
-            for (Integer i : cache.values()) {
-              if (i == null) {
-                throw new IllegalArgumentException();
-              }
-            }
-          } else {
-            for (Integer i : cache.values().toArray(new Integer[cache.size()])) {
-              // spin
-            }
-          }
-          break;
-        case 14:
-          if ((key % 2) == 0) {
-            for (Entry<Integer, Integer> entry : cache.entrySet()) {
-              if ((entry == null) || (entry.getKey() == null) || (entry.getValue() == null)) {
-                throw new IllegalArgumentException(String.valueOf(entry));
-              }
-            }
-          } else {
-            for (Entry<?, ?> entry : cache.entrySet().toArray(new Entry[cache.size()])) {
-              // spin
-            }
-          }
-          break;
-        case 15:
-          cache.hashCode();
-          break;
-        case 16:
-          cache.equals(cache);
-          break;
-        case 17:
-          cache.toString();
-          break;
-        case 18:
-          cache.setCapacity(cache.capacity());
-          break;
-        default:
-          throw new IllegalArgumentException();
+  /**
+   * The public operations that can be performed on the cache.
+   */
+  private enum Operation {
+    CONTAINS_KEY() {
+      @Override void execute(ConcurrentLinkedHashMap<Integer, Integer> cache, Integer key) {
+        cache.containsKey(key);
       }
-    }
+    },
+    CONTAINS_VALUE() {
+      @Override void execute(ConcurrentLinkedHashMap<Integer, Integer> cache, Integer key) {
+        cache.containsValue(key);
+      }
+    },
+    IS_EMPTY() {
+      @Override void execute(ConcurrentLinkedHashMap<Integer, Integer> cache, Integer key) {
+        cache.isEmpty();
+      }
+    },
+    SIZE() {
+      @Override void execute(ConcurrentLinkedHashMap<Integer, Integer> cache, Integer key) {
+        if (cache.size() < 0) {
+          throw new IllegalStateException();
+        }
+      }
+    },
+    WEIGHTED_SIZE() {
+      @Override void execute(ConcurrentLinkedHashMap<Integer, Integer> cache, Integer key) {
+        if (cache.weightedSize() < 0) {
+          throw new IllegalStateException();
+        }
+      }
+    },
+    CAPACITY() {
+      @Override void execute(ConcurrentLinkedHashMap<Integer, Integer> cache, Integer key) {
+        cache.setCapacity(cache.capacity());
+      }
+    },
+    GET() {
+      @Override void execute(ConcurrentLinkedHashMap<Integer, Integer> cache, Integer key) {
+        cache.get(key);
+      }
+    },
+    PUT() {
+      @Override void execute(ConcurrentLinkedHashMap<Integer, Integer> cache, Integer key) {
+        cache.put(key, key);
+      }
+    },
+    PUT_IF_ABSENT() {
+      @Override void execute(ConcurrentLinkedHashMap<Integer, Integer> cache, Integer key) {
+        cache.putIfAbsent(key, key);
+      }
+    },
+    REMOVE() {
+      @Override void execute(ConcurrentLinkedHashMap<Integer, Integer> cache, Integer key) {
+        cache.remove(key);
+      }
+    },
+    REMOVE_IF_EQUAL() {
+      @Override void execute(ConcurrentLinkedHashMap<Integer, Integer> cache, Integer key) {
+        cache.remove(key, key);
+      }
+    },
+    REPLACE() {
+      @Override void execute(ConcurrentLinkedHashMap<Integer, Integer> cache, Integer key) {
+        cache.replace(key, key);
+      }
+    },
+    REPLACE_IF_EQUAL() {
+      @Override void execute(ConcurrentLinkedHashMap<Integer, Integer> cache, Integer key) {
+        cache.replace(key, key, key);
+      }
+    },
+    CLEAR() {
+      @Override void execute(ConcurrentLinkedHashMap<Integer, Integer> cache, Integer key) {
+        cache.clear();
+      }
+    },
+    KEY_SET() {
+      @Override void execute(ConcurrentLinkedHashMap<Integer, Integer> cache, Integer key) {
+        for (Integer i : cache.keySet()) {
+          if (i == null) {
+            throw new IllegalArgumentException();
+          }
+        }
+        cache.keySet().toArray(new Integer[cache.size()]);
+      }
+    },
+    VALUE_SET() {
+      @Override void execute(ConcurrentLinkedHashMap<Integer, Integer> cache, Integer key) {
+        for (Integer i : cache.values()) {
+          if (i == null) {
+            throw new IllegalArgumentException();
+          }
+        }
+        cache.values().toArray(new Integer[cache.size()]);
+      }
+    },
+    ENTRY_SET() {
+      @Override void execute(ConcurrentLinkedHashMap<Integer, Integer> cache, Integer key) {
+        for (Entry<Integer, Integer> entry : cache.entrySet()) {
+          if ((entry == null) || (entry.getKey() == null) || (entry.getValue() == null)) {
+            throw new IllegalArgumentException(String.valueOf(entry));
+          }
+        }
+        cache.entrySet().toArray(new Entry[cache.size()]);
+      }
+    },
+    HASHCODE() {
+      @Override void execute(ConcurrentLinkedHashMap<Integer, Integer> cache, Integer key) {
+        cache.hashCode();
+      }
+    },
+    EQUALS() {
+      @Override void execute(ConcurrentLinkedHashMap<Integer, Integer> cache, Integer key) {
+        cache.equals(cache);
+      }
+    },
+    TO_STRING() {
+      @Override void execute(ConcurrentLinkedHashMap<Integer, Integer> cache, Integer key) {
+        cache.toString();
+      }
+    },
+    SERIALIZE() {
+      @Override void execute(ConcurrentLinkedHashMap<Integer, Integer> cache, Integer key) {
+        SerializationUtils.clone(cache);
+      }
+    };
+
+    /**
+     * Executes the operation.
+     *
+     * @param cache the cache to operate against
+     * @param key the key to perform the operation with
+     */
+    abstract void execute(ConcurrentLinkedHashMap<Integer, Integer> cache, Integer key);
   }
 }
