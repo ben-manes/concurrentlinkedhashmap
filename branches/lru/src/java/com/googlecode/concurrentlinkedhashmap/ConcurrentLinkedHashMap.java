@@ -996,7 +996,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   /**
    * An adapter to safely externalize the value iterator.
    */
-  private final class ValueIterator implements Iterator<V> {
+  final class ValueIterator implements Iterator<V> {
     private final EntryIterator iterator = new EntryIterator(data.values().iterator());
 
     @Override
@@ -1018,7 +1018,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   /**
    * An adapter to safely externalize the entries.
    */
-  private final class EntrySet extends AbstractSet<Entry<K, V>> {
+  final class EntrySet extends AbstractSet<Entry<K, V>> {
     private final ConcurrentLinkedHashMap<K, V> map = ConcurrentLinkedHashMap.this;
 
     @Override
@@ -1064,7 +1064,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   /**
    * An adapter to safely externalize the entry iterator.
    */
-  private final class EntryIterator implements Iterator<Entry<K, V>> {
+  final class EntryIterator implements Iterator<Entry<K, V>> {
     private final Iterator<Node> iterator;
     private Node current;
 
@@ -1096,7 +1096,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   /**
    * An entry that allows updates to write through to the map.
    */
-  private final class WriteThroughEntry extends SimpleEntry<K, V> {
+  final class WriteThroughEntry extends SimpleEntry<K, V> {
     private static final long serialVersionUID = 1;
 
     public WriteThroughEntry(Node node) {
@@ -1117,7 +1117,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   /**
    * A queue that discards all additions and is always empty.
    */
-  private static final class DiscardingQueue<E> extends AbstractQueue<E> {
+  static final class DiscardingQueue<E> extends AbstractQueue<E> {
     @Override public boolean add(E e) { return true; }
     @Override public boolean offer(E e) { return true; }
     @Override public E poll() { return null; }
@@ -1209,7 +1209,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     int concurrencyLevel;
     int initialCapacity;
     Weigher<V> weigher;
-
 
     @SuppressWarnings("unchecked")
     public Builder() {
