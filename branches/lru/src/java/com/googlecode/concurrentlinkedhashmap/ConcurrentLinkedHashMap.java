@@ -258,7 +258,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    *
    * @return if the map has overflowed and an entry should be evicted
    */
-  boolean hasOverflow() {
+  boolean hasOverflowed() {
     return weightedSize > maximumWeightedSize;
   }
 
@@ -274,7 +274,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     // eviction. The victim is eagerly unlinked before the removal task so
     // that if there are other pending prior additions then a new victim
     // will be chosen for removal.
-    while (hasOverflow()) {
+    while (hasOverflowed()) {
       Node node = sentinel.next;
       // Notify the listener if the entry was evicted
       if (data.remove(node.key, node)) {
@@ -1209,6 +1209,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     int concurrencyLevel;
     int initialCapacity;
     Weigher<V> weigher;
+
 
     @SuppressWarnings("unchecked")
     public Builder() {

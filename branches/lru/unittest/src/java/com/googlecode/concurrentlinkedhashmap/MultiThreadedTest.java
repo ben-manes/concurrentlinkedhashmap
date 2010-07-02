@@ -118,7 +118,6 @@ public final class MultiThreadedTest extends BaseTest {
    */
   @Test(groups = "development")
   public void concurrent() throws InterruptedException {
-    debug(" * concurrent: START");
     final List<List<Integer>> sets = shuffle(nThreads, keys);
     ThreadPoolExecutor es =
         new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS,
@@ -137,7 +136,7 @@ public final class MultiThreadedTest extends BaseTest {
     try {
       long timeNS = future.get(timeout, TimeUnit.SECONDS);
       debug("\nExecuted in %d second(s)", TimeUnit.NANOSECONDS.toSeconds(timeNS));
-      validator.state(cache);
+      validator.checkValidState(cache);
     } catch (ExecutionException e) {
       fail("Exception during test: " + e.toString(), e);
     } catch (TimeoutException e) {

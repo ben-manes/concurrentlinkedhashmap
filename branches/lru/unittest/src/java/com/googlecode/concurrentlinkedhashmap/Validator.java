@@ -6,8 +6,10 @@ import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Node;
 
 import org.testng.Assert;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.IdentityHashMap;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -40,8 +42,8 @@ public final class Validator extends Assert {
   /**
    * Validates that the map is in a correct state.
    */
-  public void state(ConcurrentLinkedHashMap<?, ?> map) {
-    BaseTest.drainEvictionQueues(map);
+  public void checkValidState(ConcurrentLinkedHashMap<?, ?> map) {
+    map.tryToDrainEvictionQueues(false);
     assertTrue(map.writeQueue.isEmpty());
     for (int i=0; i<map.recencyQueue.length; i++) {
       assertTrue(map.recencyQueue[i].isEmpty());
@@ -59,6 +61,7 @@ public final class Validator extends Assert {
     assertTrue(map.maximumWeightedSize >= map.weightedSize());
     assertNotNull(map.sentinel.prev);
     assertNotNull(map.sentinel.next.next);
+    checkEqualsAndHashCode(map, map);
 
     if (exhaustive) {
       links(map);
@@ -68,7 +71,8 @@ public final class Validator extends Assert {
   /**
    * Validates that the linked map is empty.
    */
-  public void empty(ConcurrentLinkedHashMap<?, ?> map) {
+  public void checkEmpty(ConcurrentLinkedHashMap<?, ?> map) {
+    checkValidState(map);
     assertTrue(map.isEmpty(), "Not empty");
     assertTrue(map.data.isEmpty(), "Internal not empty");
 
@@ -78,13 +82,34 @@ public final class Validator extends Assert {
     assertEquals(map.weightedSize(), 0, "Weighted size != 0");
     assertEquals(map.weightedSize, 0, "Internal weighted size != 0");
 
-    assertTrue(map.keySet().isEmpty(), "Not empty key set");
-    assertTrue(map.values().isEmpty(), "Not empty value set");
-    assertTrue(map.entrySet().isEmpty(), "Not empty entry set");
+    checkEmpty(map.keySet());
+    checkEmpty(map.values());
+    checkEmpty(map.entrySet());
     assertEquals(map, Collections.emptyMap(), "Not equal to empty map");
     assertEquals(map.hashCode(), Collections.emptyMap().hashCode(), "Not equal hash codes");
     assertEquals(map.toString(), Collections.emptyMap().toString(),
         "Not equal string representations");
+  }
+
+  public void checkEmpty(Collection<?> collection) {
+    assertTrue(collection.isEmpty());
+    assertEquals(0, collection.size());
+    assertFalse(collection.iterator().hasNext());
+    assertEquals(0, collection.toArray().length);
+    assertEquals(0, collection.toArray(new Object[0]).length);
+    if (collection instanceof Set) {
+      checkEqualsAndHashCode(Collections.emptySet(), collection);
+    } else if (collection instanceof List) {
+      checkEqualsAndHashCode(Collections.emptySet(), collection);
+    }
+  }
+
+  public void checkEqualsAndHashCode(Object o1, Object o2) {
+    assertEquals(o1, o2);
+    assertEquals(o2, o1);
+    if (o1 != null) {
+      assertEquals(o1.hashCode(), o2.hashCode());
+    }
   }
 
   /**

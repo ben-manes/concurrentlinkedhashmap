@@ -11,6 +11,7 @@ import java.util.AbstractMap.SimpleImmutableEntry;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.IdentityHashMap;
+import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -110,21 +111,21 @@ public abstract class BaseTest extends Assert {
 
   protected ConcurrentLinkedHashMap<Integer, Integer> createWarmedMap(
       int size, EvictionListener<Integer, Integer> listener) {
-    return warm(create(size, listener), size);
+    ConcurrentLinkedHashMap<Integer, Integer> map = create(size, listener);
+    warmUp(map, 0, size);
+    return map;
   }
 
   protected ConcurrentLinkedHashMap<Integer, Integer> createWarmedMap(int size) {
-    return warm(this.<Integer, Integer>create(size), size);
+    ConcurrentLinkedHashMap<Integer, Integer> map = create(size);
+    warmUp(map, 0, size);
+    return map;
   }
 
-  protected ConcurrentLinkedHashMap<Integer, Integer> warm(
-      ConcurrentLinkedHashMap<Integer, Integer> cache, int size) {
-    for (Integer i = 0; i < size; i++) {
-      assertNull(cache.put(i, i));
-      assertEquals(cache.data.get(i).weightedValue.value, i);
+  protected void warmUp(Map<Integer, Integer> map, int start, int end) {
+    for (Integer i = start; i < end; i++) {
+      assertNull(map.put(i, -i));
     }
-    assertEquals(cache.size(), size, "Not warmed to max size");
-    return cache;
   }
 
   /* ---------------- Listener support -------------- */
@@ -228,16 +229,6 @@ public abstract class BaseTest extends Assert {
         length++;
       }
       return length;
-    } finally {
-      map.evictionLock.unlock();
-    }
-  }
-
-  static void drainEvictionQueues(ConcurrentLinkedHashMap<?, ?> map) {
-    map.evictionLock.lock();
-    try {
-      map.drainRecencyQueues();
-      map.drainWriteQueue();
     } finally {
       map.evictionLock.unlock();
     }
