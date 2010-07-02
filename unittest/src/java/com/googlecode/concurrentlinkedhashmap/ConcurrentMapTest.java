@@ -9,13 +9,16 @@ import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 import org.apache.commons.lang.SerializationUtils;
 import org.testng.annotations.Test;
 
+import java.io.Serializable;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.NoSuchElementException;
 import java.util.Set;
 
 /**
@@ -558,6 +561,8 @@ public final class ConcurrentMapTest extends BaseTest {
     Set<Integer> keys = map.keySet();
     warmUp(map, 0, 100);
 
+    assertFalse(keys.contains(new Object()));
+    assertFalse(keys.remove(new Object()));
     assertEquals(keys.size(), 100);
     for (int i=0; i<100; i++) {
       assertTrue(keys.contains(i));
@@ -567,6 +572,34 @@ public final class ConcurrentMapTest extends BaseTest {
     }
     validator.checkEmpty(keys);
     validator.checkEmpty(map);
+  }
+
+  @Test(groups = "development")
+  public void keySet_iterator() {
+    ConcurrentLinkedHashMap<Integer, Integer> map = createGuarded();
+    Set<Integer> keys = map.keySet();
+    warmUp(map, 0, 100);
+
+    int iterations = 0;
+    for (Iterator<Integer> i=map.keySet().iterator(); i.hasNext();) {
+      map.containsKey(i.next());
+      i.remove();
+      iterations++;
+    }
+    assertEquals(iterations, 100);
+    validator.checkEmpty(map);
+  }
+
+  @Test(groups = "development", expectedExceptions = IllegalStateException.class)
+  public void keyIterator_noElement() {
+    ConcurrentLinkedHashMap<Integer, Integer> map = createGuarded();
+    map.keySet().iterator().remove();
+  }
+
+  @Test(groups = "development", expectedExceptions = NoSuchElementException.class)
+  public void keyIterator_noMoreElements() {
+    ConcurrentLinkedHashMap<Integer, Integer> map = createGuarded();
+    map.keySet().iterator().next();
   }
 
   /* ---------------- Values -------------- */
@@ -626,6 +659,8 @@ public final class ConcurrentMapTest extends BaseTest {
     Collection<Integer> values = map.values();
     warmUp(map, 0, 100);
 
+    assertFalse(values.contains(new Object()));
+    assertFalse(values.remove(new Object()));
     assertEquals(values.size(), 100);
     for (int i=0; i<100; i++) {
       assertTrue(values.contains(-i));
@@ -635,6 +670,34 @@ public final class ConcurrentMapTest extends BaseTest {
     }
     validator.checkEmpty(values);
     validator.checkEmpty(map);
+  }
+
+  @Test(groups = "development")
+  public void valueIterator() {
+    ConcurrentLinkedHashMap<Integer, Integer> map = createGuarded();
+    Collection<Integer> values = map.values();
+    warmUp(map, 0, 100);
+
+    int iterations = 0;
+    for (Iterator<Integer> i=map.values().iterator(); i.hasNext();) {
+      map.containsValue(i.next());
+      i.remove();
+      iterations++;
+    }
+    assertEquals(iterations, 100);
+    validator.checkEmpty(map);
+  }
+
+  @Test(groups = "development", expectedExceptions = IllegalStateException.class)
+  public void valueIterator_noElement() {
+    ConcurrentLinkedHashMap<Integer, Integer> map = createGuarded();
+    map.values().iterator().remove();
+  }
+
+  @Test(groups = "development", expectedExceptions = NoSuchElementException.class)
+  public void valueIterator_noMoreElements() {
+    ConcurrentLinkedHashMap<Integer, Integer> map = createGuarded();
+    map.values().iterator().next();
   }
 
   /* ---------------- Entry Set -------------- */
@@ -698,6 +761,9 @@ public final class ConcurrentMapTest extends BaseTest {
     Set<Entry<Integer, Integer>> entries = map.entrySet();
     warmUp(map, 0, 100);
 
+    assertFalse(entries.contains(new SimpleEntry<Integer, Integer>(0, 200)));
+    assertFalse(entries.contains(new Object()));
+    assertFalse(entries.remove(new Object()));
     assertEquals(entries.size(), 100);
     for (int i=0; i<100; i++) {
       Entry<Integer, Integer> newEntry = new SimpleEntry<Integer, Integer>(i, -i);
@@ -706,8 +772,37 @@ public final class ConcurrentMapTest extends BaseTest {
       assertFalse(entries.remove(newEntry));
       assertFalse(entries.contains(newEntry));
     }
+
     validator.checkEmpty(entries);
     validator.checkEmpty(map);
+  }
+
+  @Test(groups = "development")
+  public void entryIterator() {
+    ConcurrentLinkedHashMap<Integer, Integer> map = createGuarded();
+    Set<Entry<Integer, Integer>> entries = map.entrySet();
+    warmUp(map, 0, 100);
+
+    int iterations = 0;
+    for (Iterator<Entry<Integer, Integer>> i=map.entrySet().iterator(); i.hasNext();) {
+      map.containsValue(i.next());
+      i.remove();
+      iterations++;
+    }
+    assertEquals(iterations, 100);
+    validator.checkEmpty(map);
+  }
+
+  @Test(groups = "development", expectedExceptions = IllegalStateException.class)
+  public void entryIterator_noElement() {
+    ConcurrentLinkedHashMap<Integer, Integer> map = createGuarded();
+    map.entrySet().iterator().remove();
+  }
+
+  @Test(groups = "development", expectedExceptions = NoSuchElementException.class)
+  public void entryIterator_noMoreElements() {
+    ConcurrentLinkedHashMap<Integer, Integer> map = createGuarded();
+    map.entrySet().iterator().next();
   }
 
   @Test(groups = "development")
@@ -731,5 +826,14 @@ public final class ConcurrentMapTest extends BaseTest {
     map.put(1, 2);
     Entry<Integer, Integer> entry = map.entrySet().iterator().next();
     entry.setValue(null);
+  }
+
+  @Test(groups = "development")
+  public void writeThroughEntry_serialize() {
+    ConcurrentLinkedHashMap<Integer, Integer> map = createGuarded();
+    map.put(1, 2);
+    Entry<Integer, Integer> entry = map.entrySet().iterator().next();
+    Object copy = SerializationUtils.clone((Serializable) entry);
+    validator.checkEqualsAndHashCode(entry, copy);
   }
 }

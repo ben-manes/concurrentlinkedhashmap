@@ -1,5 +1,7 @@
 package com.googlecode.concurrentlinkedhashmap;
 
+import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.MAXIMUM_WEIGHT;
+
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 
 import org.testng.annotations.Test;
@@ -21,6 +23,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 @SuppressWarnings("unchecked")
 public final class WeigherTest extends BaseTest {
+
+  @Test(groups = "development", expectedExceptions = IllegalAccessException.class)
+  public void constructor() throws InstantiationException, IllegalAccessException {
+    Weighers.class.newInstance();
+  }
 
   @Test(groups = "development")
   public void singleton() {
@@ -97,6 +104,19 @@ public final class WeigherTest extends BaseTest {
       @Override
       public int weightOf(Integer value) {
         return 0;
+      }
+    };
+    ConcurrentLinkedHashMap<Integer, Integer> cache = super.<Integer, Integer>builder()
+        .weigher(weigher).build();
+    cache.put(1, 2);
+  }
+
+  @Test(groups = "development", expectedExceptions=IllegalArgumentException.class)
+  public void weightedValue_withAboveMaximum() {
+    Weigher<Integer> weigher = new Weigher<Integer>() {
+      @Override
+      public int weightOf(Integer value) {
+        return MAXIMUM_WEIGHT + 1;
       }
     };
     ConcurrentLinkedHashMap<Integer, Integer> cache = super.<Integer, Integer>builder()
