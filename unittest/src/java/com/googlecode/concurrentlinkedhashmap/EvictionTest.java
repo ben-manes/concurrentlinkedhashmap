@@ -8,6 +8,9 @@ import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Node;
 import org.testng.annotations.Test;
 
 import java.util.Collection;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 /**
  * A unit-test for the page replacement algorithm and its public methods.
@@ -18,44 +21,54 @@ import java.util.Collection;
 public final class EvictionTest extends BaseTest {
 
   @Test(groups = "development")
-  public void capacity() {
-    debug(" * capacity: START");
+  public void capacity_increase() {
     ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap();
 
     int newMaxCapacity = 2 * capacity;
     cache.setCapacity(newMaxCapacity);
     assertEquals(cache.capacity(), newMaxCapacity);
     assertEquals(cache, createWarmedMap());
-    validator.state(cache);
-    debug("capacity: #1 done");
+    validator.checkValidState(cache);
+  }
 
-    newMaxCapacity = capacity / 2;
+  @Test(groups = "development")
+  public void capacity_decrease() {
+    ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap();
+
+    int newMaxCapacity = capacity / 2;
     cache.setCapacity(newMaxCapacity);
     assertEquals(cache.capacity(), newMaxCapacity);
     assertEquals(cache.size(), newMaxCapacity);
     assertEquals(cache.weightedSize(), newMaxCapacity);
-    validator.state(cache);
-    debug("capacity: #2 done");
+    validator.checkValidState(cache);
+  }
 
-    newMaxCapacity = 1;
+  @Test(groups = "development")
+  public void capacity_decreaseToMinimum() {
+    ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap();
+
+    int newMaxCapacity = 0;
     cache.setCapacity(newMaxCapacity);
     assertEquals(cache.capacity(), newMaxCapacity);
     assertEquals(cache.size(), newMaxCapacity);
     assertEquals(cache.weightedSize(), newMaxCapacity);
-    validator.state(cache);
-    debug("capacity: #3 done");
+    validator.checkValidState(cache);
+  }
+
+  @Test(groups = "development")
+  public void capacity_decreaseBelowMinimum() {
+    ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap();
 
     try {
       cache.setCapacity(-1);
       fail("Capacity must be positive");
     } catch (Exception e) {
-      assertEquals(cache.capacity(), newMaxCapacity);
+      assertEquals(cache.capacity(), capacity);
     }
   }
 
   @Test(groups = "development")
-  public void alwaysDiscard() {
-    debug(" * alwaysDiscard: START");
+  public void evict_alwaysDiscard() {
     EvictionMonitor monitor = EvictionMonitor.newMonitor();
     ConcurrentLinkedHashMap<Integer, Integer> cache = create(0, monitor);
     for (int i=0; i<100; i++) {
@@ -65,8 +78,7 @@ public final class EvictionTest extends BaseTest {
   }
 
   @Test(groups = "development")
-  public void boundSize() {
-    debug(" * boundSize: START");
+  public void evict() {
     EvictionMonitor monitor = EvictionMonitor.newMonitor();
     ConcurrentLinkedHashMap<Integer, Integer> cache = create(10, monitor);
     for (int i=0; i<20; i++) {
@@ -78,8 +90,7 @@ public final class EvictionTest extends BaseTest {
   }
 
   @Test(groups = "development")
-  public void weightedBoundSize() {
-    debug(" * boundSize: START");
+  public void evict_weighted() {
     Builder<Integer, Collection<Integer>> builder = builder();
     ConcurrentLinkedHashMap<Integer, Collection<Integer>> cache = builder
         .weigher(Weighers.<Integer>collection())
@@ -102,88 +113,111 @@ public final class EvictionTest extends BaseTest {
   }
 
   @Test(groups = "development")
-  public void lruOnAccess() {
-    debug(" * lruOnAccess: START");
-    ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap(50);
-    Node headNode = cache.sentinel.next;
-    Node tailNode = cache.sentinel.prev;
-    int length = listLength(cache);
-    int size = cache.data.size();
-    debug("size: %s, length: %s, writes: %s", size, length, cache.writeQueue.size());
-    debug("init: " + listForwardToString(cache));
+  public void evict_lru() {
+    ConcurrentLinkedHashMap<Integer, Integer> map = createWarmedMap(10);
+    assertSetEquals(map.keySet(), 0, 1, 2, 3, 4, 5, 6, 7, 8, 9);
 
-    // Get
-    cache.get(headNode.key);
-    drainEvictionQueues(cache);
-    assertNotSame(cache.sentinel.next, headNode);
-    assertSame(cache.sentinel.prev, headNode);
-    assertEquals(listLength(cache), length);
-    assertEquals(cache.data.size(), size);
-    debug("after get:(" + headNode.key + "):" + listForwardToString(cache));
+    // re-order
+    checkReorder(map, asList(0, 1, 2), 3, 4, 5, 6, 7, 8, 9, 0, 1, 2);
 
-    // PutIfAbsent
-    assertNotSame(cache.sentinel.prev, tailNode,
-        nodeToString(cache.sentinel.prev) + "!=" + nodeToString(tailNode)); // due to get()
-    cache.putIfAbsent((Integer) tailNode.key, (Integer) tailNode.weightedValue.value);
-    drainEvictionQueues(cache);
+    // evict 3, 4, 5
+    checkEvict(map, asList(10, 11, 12), 6, 7, 8, 9, 0, 1, 2, 10, 11, 12);
 
-    assertEquals(listLength(cache), length);
-    assertSame(cache.sentinel.prev, tailNode);
-    assertEquals(cache.data.size(), size);
+    // re-order
+    checkReorder(map, asList(6, 7, 8), 9, 0, 1, 2, 10, 11, 12, 6, 7, 8);
+
+    // evict 9, 0, 1
+    checkEvict(map, asList(13, 14, 15), 2, 10, 11, 12, 6, 7, 8, 13, 14, 15);
+  }
+
+  private void checkReorder(ConcurrentLinkedHashMap<Integer, Integer> map,
+      List<Integer> keys, Integer... expect) {
+    for (int i : keys) {
+      map.get(i);
+      map.tryToDrainEvictionQueues(false);
+    }
+    assertEquals(map.keySet(), new HashSet<Integer>(asList(expect)));
+  }
+
+  private void checkEvict(ConcurrentLinkedHashMap<Integer, Integer> map,
+      List<Integer> keys, Integer... expect) {
+    for (int i : keys) {
+      map.put(i, i);
+      map.tryToDrainEvictionQueues(false);
+    }
+    assertSetEquals(map.keySet(), expect);
+  }
+
+  private <E> void assertSetEquals(Set<E> set, E... other) {
+    assertEquals(set, new HashSet<E>(asList(other)));
   }
 
   @Test(groups = "development")
-  public void lruEviction() {
-    debug(" * Lru-eviction: START");
-    ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap(10);
+  public void updateRecency_onGet() {
+    final ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap(50);
+    final ConcurrentLinkedHashMap<Integer, Integer>.Node originalHead = cache.sentinel.next;
+    updateRecency(cache, new Runnable() {
+      @Override public void run() {
+        cache.get(originalHead.key);
+      }
+    });
+  }
 
-    debug("Initial: %s", listForwardToString(cache));
-    assertTrue(cache.keySet().containsAll(asList(0, 1, 2, 3, 4, 5, 6, 7, 8, 9)),
-               "Instead: " + cache.keySet());
-    assertEquals(cache.size(), 10);
+  @Test(groups = "development")
+  public void updateRecency_onPutIfAbsent() {
+    final ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap(50);
+    final ConcurrentLinkedHashMap<Integer, Integer>.Node originalHead = cache.sentinel.next;
+    updateRecency(cache, new Runnable() {
+      @Override public void run() {
+        cache.putIfAbsent(originalHead.key, originalHead.key);
+      }
+    });
+  }
 
-    // re-order
-    for (int i : asList(0, 1, 2)) {
-      cache.get(i);
-      drainEvictionQueues(cache);
-    }
+  @Test(groups = "development")
+  public void updateRecency_onPut() {
+    final ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap(50);
+    final ConcurrentLinkedHashMap<Integer, Integer>.Node originalHead = cache.sentinel.next;
+    updateRecency(cache, new Runnable() {
+      @Override public void run() {
+        cache.put(originalHead.key, originalHead.key);
+      }
+    });
+  }
 
-    debug("Reordered #1: %s", listForwardToString(cache));
-    assertTrue(cache.keySet().containsAll(asList(3, 4, 5, 6, 7, 8, 9, 0, 1, 2)),
-               "Instead: " + cache.keySet());
-    assertEquals(cache.size(), 10);
+  @Test(groups = "development")
+  public void updateRecency_onReplace() {
+    final ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap(50);
+    final ConcurrentLinkedHashMap<Integer, Integer>.Node originalHead = cache.sentinel.next;
+    updateRecency(cache, new Runnable() {
+      @Override public void run() {
+        cache.replace(originalHead.key, originalHead.key);
+      }
+    });
+  }
 
-    // evict 3, 4, 5
-    for (int i : asList(10, 11, 12)) {
-      cache.put(i, i);
-      drainEvictionQueues(cache);
-    }
+  @Test(groups = "development")
+  public void updateRecency_onReplaceConditionally() {
+    final ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap(50);
+    final ConcurrentLinkedHashMap<Integer, Integer>.Node originalHead = cache.sentinel.next;
+    updateRecency(cache, new Runnable() {
+      @Override public void run() {
+        cache.replace(originalHead.key, originalHead.key, originalHead.key);
+      }
+    });
+  }
 
-    debug("Evict #1: %s", listForwardToString(cache));
-    assertTrue(cache.keySet().containsAll(asList(6, 7, 8, 9, 0, 1, 2, 10, 11, 12)),
-               "Instead: " + cache.keySet());
-    assertEquals(cache.size(), 10);
+  private void updateRecency(ConcurrentLinkedHashMap<?, ?> cache, Runnable operation) {
+    Node originalHead = cache.sentinel.next;
+    int length = listLength(cache);
+    int size = cache.size();
 
-    // re-order
-    for (int i : asList(6, 7, 8)) {
-      cache.get(i);
-      drainEvictionQueues(cache);
-    }
+    operation.run();
+    cache.drainRecencyQueues();
 
-    debug("Reordered #2: %s", listForwardToString(cache));
-    assertTrue(cache.keySet().containsAll(asList(9, 0, 1, 2, 10, 11, 12, 6, 7, 8)),
-               "Instead: " + cache.keySet());
-    assertEquals(cache.size(), 10);
-
-    // evict 9, 0, 1
-    for (int i : asList(13, 14, 15)) {
-      cache.put(i, i);
-      drainEvictionQueues(cache);
-    }
-
-    debug("Evict #2: %s", listForwardToString(cache));
-    assertTrue(cache.keySet().containsAll(asList(2, 10, 11, 12, 6, 7, 8, 13, 14, 15)),
-               "Instead: " + cache.keySet());
-    assertEquals(cache.size(), 10);
+    assertNotSame(cache.sentinel.next, originalHead);
+    assertSame(cache.sentinel.prev, originalHead);
+    assertEquals(listLength(cache), length);
+    assertEquals(cache.size(), size);
   }
 }

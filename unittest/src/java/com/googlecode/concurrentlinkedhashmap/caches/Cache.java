@@ -1,8 +1,9 @@
 package com.googlecode.concurrentlinkedhashmap.caches;
 
+import static java.util.Collections.synchronizedMap;
+
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 
-import static java.util.Collections.synchronizedMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -125,16 +126,6 @@ public enum Cache {
     @Override
     public <K, V> Map<K, V>  create(int capacity, int concurrencyLevel) {
       return new EhcacheMap<K, V>(true, capacity);
-    }
-  },
-
-  /**
-   * A HashMap with LIRS eviction, guarded by synchronized monitor.
-   */
-  LIRS() {
-    @Override
-    public <K, V> Map<K, V>  create(int capacity, int concurrencyLevel) {
-      return synchronizedMap(new LirsMap<K, V>(capacity));
     }
   };
 

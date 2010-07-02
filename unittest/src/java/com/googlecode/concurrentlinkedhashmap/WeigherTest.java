@@ -24,7 +24,6 @@ public final class WeigherTest extends BaseTest {
 
   @Test(groups = "development")
   public void singleton() {
-    debug(" * singleton: START");
     assertEquals(Weighers.singleton().weightOf(new Object()), 1);
     assertEquals(Weighers.singleton().weightOf(Arrays.asList()), 1);
     assertEquals(Weighers.singleton().weightOf(Arrays.asList(1, 2, 3)), 1);
@@ -32,7 +31,6 @@ public final class WeigherTest extends BaseTest {
 
   @Test(groups = "development")
   public void byteArray() {
-    debug(" * byteArray: START");
     assertEquals(Weighers.byteArray().weightOf(new byte[]{}), 0);
     assertEquals(Weighers.byteArray().weightOf(new byte[] {1}), 1);
     assertEquals(Weighers.byteArray().weightOf(new byte[] {1, 2, 3}), 3);
@@ -40,7 +38,6 @@ public final class WeigherTest extends BaseTest {
 
   @Test(groups = "development")
   public void iterable() {
-    debug(" * iterable: START");
     assertEquals(Weighers.iterable().weightOf(Arrays.asList()), 0);
     assertEquals(Weighers.iterable().weightOf(asIterable(Arrays.asList())), 0);
     assertEquals(Weighers.<Integer>iterable().weightOf(Arrays.asList(1)), 1);
@@ -50,7 +47,6 @@ public final class WeigherTest extends BaseTest {
 
   @Test(groups = "development")
   public void collection() {
-    debug(" * collection: START");
     assertEquals(Weighers.collection().weightOf(Collections.emptyList()), 0);
     assertEquals(Weighers.<Integer>collection().weightOf(Arrays.asList(1)), 1);
     assertEquals(Weighers.<Integer>collection().weightOf(Arrays.asList(1, 2, 3)), 3);
@@ -58,7 +54,6 @@ public final class WeigherTest extends BaseTest {
 
   @Test(groups = "development")
   public void list() {
-    debug(" * list: START");
     assertEquals(Weighers.list().weightOf(Collections.emptyList()), 0);
     assertEquals(Weighers.<Integer>list().weightOf(Arrays.asList(1)), 1);
     assertEquals(Weighers.<Integer>list().weightOf(Arrays.asList(1, 2, 3)), 3);
@@ -66,7 +61,6 @@ public final class WeigherTest extends BaseTest {
 
   @Test(groups = "development")
   public void set() {
-    debug(" * set: START");
     assertEquals(Weighers.set().weightOf(Collections.emptySet()), 0);
     assertEquals(Weighers.<Integer>set().weightOf(Collections.singleton(1)), 1);
     assertEquals(Weighers.<Integer>set().weightOf(new HashSet<Integer>(Arrays.asList(1, 2, 3))), 3);
@@ -74,7 +68,6 @@ public final class WeigherTest extends BaseTest {
 
   @Test(groups = "development")
   public void map() {
-    debug(" * map: START");
     assertEquals(Weighers.map().weightOf(Collections.emptyMap()), 0);
     assertEquals(Weighers.<Integer, Integer>map().weightOf(Collections.singletonMap(1, 2)), 1);
 
@@ -86,8 +79,7 @@ public final class WeigherTest extends BaseTest {
   }
 
   @Test(groups = "development", expectedExceptions=IllegalArgumentException.class)
-  public void negativeWeightedValue() {
-    debug(" * negativeWeightedValue: START");
+  public void weightedValue_withNegative() {
     Weigher<Integer> weigher = new Weigher<Integer>() {
       @Override
       public int weightOf(Integer value) {
@@ -100,8 +92,7 @@ public final class WeigherTest extends BaseTest {
   }
 
   @Test(groups = "development", expectedExceptions=IllegalArgumentException.class)
-  public void zeroWeightedValue() {
-    debug(" * zeroWeightedValue: START");
+  public void weightedValue_withZero() {
     Weigher<Integer> weigher = new Weigher<Integer>() {
       @Override
       public int weightOf(Integer value) {
@@ -114,8 +105,7 @@ public final class WeigherTest extends BaseTest {
   }
 
   @Test(groups = "development")
-  public void weightedValues() {
-    debug(" * weightedValues: START");
+  public void weightedValue_withCollections() {
     Builder<Integer, Collection<Integer>> builder = builder();
     ConcurrentLinkedHashMap<Integer, Collection<Integer>> cache =
         builder.weigher(Weighers.<Integer>collection()).build();
@@ -190,7 +180,6 @@ public final class WeigherTest extends BaseTest {
 
   @Test(groups = "development")
   public void integerOverflow() {
-    debug(" * integerOverflow: START");
     final AtomicBoolean max = new AtomicBoolean(true);
     Builder<Integer, Integer> builder = builder();
     builder.weigher(new Weigher<Integer>() {
@@ -213,8 +202,7 @@ public final class WeigherTest extends BaseTest {
 
   private <E> Iterable<E> asIterable(final Collection<E> c) {
     return new Iterable<E>() {
-      @Override
-      public Iterator<E> iterator() {
+      @Override public Iterator<E> iterator() {
         return c.iterator();
       }
     };

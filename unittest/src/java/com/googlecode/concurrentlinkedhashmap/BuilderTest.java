@@ -14,79 +14,67 @@ public final class BuilderTest extends BaseTest {
 
   @Test(groups = "development", expectedExceptions=IllegalStateException.class)
   public void unconfigured() {
-    debug(" * unconfigured: START");
     new Builder<Object, Object>().build();
   }
 
   @Test(groups = "development", expectedExceptions=IllegalArgumentException.class)
-  public void negativeInitialCapacity() {
-    debug(" * negativeInitialCapacity: START");
+  public void initialCapacity_withNegative() {
     builder().initialCapacity(-100);
   }
 
   @Test(groups = "development")
   public void initialCapacity() {
-    debug(" * initialCapacity: START");
     Builder<?, ?> builder = builder().initialCapacity(100);
     assertEquals(builder.initialCapacity, 100);
     builder.build(); // can't check, so just assert that it builds
   }
 
   @Test(groups = "development", expectedExceptions=IllegalArgumentException.class)
-  public void negativeMaximumWeightedCapacity() {
-    debug(" * negativeMaximumWeightedCapacity: START");
+  public void maximumWeightedCapacity_withNegative() {
     builder().maximumWeightedCapacity(-100);
   }
 
   @Test(groups = "development")
   public void maximumWeightedCapacity() {
-    debug(" * maximumWeightedCapacity: START");
     ConcurrentLinkedHashMap<?, ?> cache = builder().build();
     assertEquals(cache.capacity(), capacity);
   }
 
   @Test(groups = "development", expectedExceptions=IllegalArgumentException.class)
-  public void negativeConcurrencyLevel() {
-    debug(" * negativeConcurrencyLevel: START");
+  public void concurrencyLevel_withNegative() {
     builder().concurrencyLevel(-100);
   }
 
   @Test(groups = "development", expectedExceptions=IllegalArgumentException.class)
-  public void zeroConcurrencyLevel() {
-    debug(" * zeroConcurrencyLevel: START");
+  public void concurrencyLevel_withZero() {
     builder().concurrencyLevel(0);
   }
 
   @Test(groups = "development")
   public void concurrencyLevel() {
-    debug(" * concurrencyLevel: START");
     assertEquals(builder().build().concurrencyLevel, Builder.DEFAULT_CONCURRENCY_LEVEL);
     assertEquals(builder().concurrencyLevel(32).build().concurrencyLevel, 32);
   }
 
   @Test(groups = "development", expectedExceptions=NullPointerException.class)
-  public void nullListener() {
-    debug(" * nullListener: START");
+  public void listener_withNull() {
     builder().listener(null);
   }
 
   @Test(groups = "development")
   public void listener() {
-    debug(" * listener: START");
     EvictionListener<Object, Object> listener = EvictionMonitor.newGuard();
     assertSame(builder().build().listener, DiscardingListener.INSTANCE);
     assertSame(builder().listener(listener).build().listener, listener);
   }
 
   @Test(groups = "development", expectedExceptions=NullPointerException.class)
-  public void nullWeigher() {
-    debug(" * nullWeigher: START");
+  public void weigher_withNull() {
     builder().weigher(null);
   }
 
   @Test(groups = "development")
   public void weigher() {
-    debug(" * weigher: START");
     ConcurrentLinkedHashMap<Integer, byte[]> map = super.<Integer, byte[]>builder()
         .weigher(Weighers.byteArray())
         .build();

@@ -33,8 +33,7 @@ public final class EfficiencyTest extends BaseTest {
   }
 
   @Test(groups = "development")
-  public void lruEfficiency() {
-    debug(" * Lru-efficency: START");
+  public void efficiency_lru() {
     ConcurrentLinkedHashMap<Long, Long> actual = create(capacity);
     Map<Long, Long> expected = Cache.SYNC_LRU.create(capacity, 1);
 
@@ -43,7 +42,7 @@ public final class EfficiencyTest extends BaseTest {
     float hitActual = determineEfficiency(actual, workingSet);
     assertTrue(hitExpected > 0);
     assertTrue(hitActual > 0);
-    validator.state(actual);
+    validator.checkValidState(actual);
 
     float expectedRate = 100 * hitActual/workingSet.size();
     float actualRate =  100 * hitActual/workingSet.size();
@@ -54,7 +53,7 @@ public final class EfficiencyTest extends BaseTest {
    * Compares the hit rate of different cache implementations.
    */
   @Test(groups = "efficiency")
-  public void efficency() {
+  public void efficency_compareAlgorithms() {
     List<Long> workingSet = createWorkingSet(distribution, size);
     debug("WorkingSet:\n%s", workingSet);
     for (Cache type : Cache.values()) {
