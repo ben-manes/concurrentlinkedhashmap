@@ -37,8 +37,9 @@ public final class MultiThreadedTest extends BaseTest {
   private int timeout = 180;
   private int nThreads;
 
-  public MultiThreadedTest() {
-    super(intProperty("multiThreaded.maximumCapacity"));
+  @Override
+  protected int capacity() {
+    return intProperty("multiThreaded.maximumCapacity");
   }
 
   @BeforeClass(alwaysRun = true)
@@ -124,7 +125,7 @@ public final class MultiThreadedTest extends BaseTest {
                                new LinkedBlockingQueue<Runnable>());
     final ConcurrentLinkedHashMap<Integer, Integer> cache =
         new Builder<Integer, Integer>()
-            .maximumWeightedCapacity(capacity)
+            .maximumWeightedCapacity(capacity())
             .concurrencyLevel(nThreads)
             .build();
     Future<Long> future = es.submit(new Callable<Long>() {

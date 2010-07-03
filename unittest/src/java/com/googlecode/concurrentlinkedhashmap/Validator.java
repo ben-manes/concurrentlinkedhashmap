@@ -19,7 +19,6 @@ import java.util.concurrent.locks.ReentrantLock;
  *
  * @author ben.manes@gmail.com (Ben Manes)
  */
-@SuppressWarnings("unchecked")
 public final class Validator extends Assert {
   private final boolean exhaustive;
 
@@ -72,7 +71,6 @@ public final class Validator extends Assert {
    * Validates that the linked map is empty.
    */
   public void checkEmpty(ConcurrentLinkedHashMap<?, ?> map) {
-    checkValidState(map);
     assertTrue(map.isEmpty(), "Not empty");
     assertTrue(map.data.isEmpty(), "Internal not empty");
 
@@ -97,9 +95,9 @@ public final class Validator extends Assert {
     assertFalse(collection.iterator().hasNext());
     assertEquals(0, collection.toArray().length);
     assertEquals(0, collection.toArray(new Object[0]).length);
-    if (collection instanceof Set) {
+    if (collection instanceof Set<?>) {
       checkEqualsAndHashCode(Collections.emptySet(), collection);
-    } else if (collection instanceof List) {
+    } else if (collection instanceof List<?>) {
       checkEqualsAndHashCode(Collections.emptySet(), collection);
     }
   }
@@ -115,6 +113,7 @@ public final class Validator extends Assert {
   /**
    * Validates that the doubly-linked list running through the map is in a correct state.
    */
+  @SuppressWarnings("unchecked")
   private void links(ConcurrentLinkedHashMap<?, ?> map) {
     assertSentinel(map);
 
@@ -145,6 +144,7 @@ public final class Validator extends Assert {
    *
    * @param node The data node.
    */
+  @SuppressWarnings("unchecked")
   private void assertDataNode(ConcurrentLinkedHashMap<?, ?> map, Node node) {
     assertNotNull(node.key);
     assertNotNull(node.weightedValue);
