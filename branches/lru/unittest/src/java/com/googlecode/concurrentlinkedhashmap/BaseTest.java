@@ -4,7 +4,10 @@ import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Node;
 
 import org.testng.Assert;
+import org.testng.ITestResult;
+import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeClass;
+import org.testng.annotations.DataProvider;
 
 import java.io.Serializable;
 import java.util.AbstractMap.SimpleImmutableEntry;
@@ -17,28 +20,18 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
- * Base utilities for testing purposes. This is ugly, but it makes the tests
- * easier to read by moving the junk utilities here.
+ * Base utilities for testing purposes.
  *
  * @author ben.manes@gmail.com (Ben Manes)
  */
 public abstract class BaseTest extends Assert {
-  protected final EvictionMonitor<Integer, Integer> guard = EvictionMonitor.newGuard();
   protected Validator validator;
-  protected final int capacity;
-  protected boolean debug;
+  private boolean debug;
 
-  protected BaseTest() {
-    this(intProperty("singleThreaded.maximumCapacity"));
-  }
+  /** Retrieves the maximum weighted capacity to build maps with. */
+  protected abstract int capacity();
 
-  protected BaseTest(int capacity) {
-    this.capacity = capacity;
-  }
-
-  /**
-   * Initializes the test with runtime properties.
-   */
+  /** Initializes the test with runtime properties. */
   @BeforeClass(alwaysRun = true)
   public void before() {
     validator = new Validator(booleanProperty("test.exhaustive"));
@@ -57,8 +50,7 @@ public abstract class BaseTest extends Assert {
   /* ---------------- Logging methods -------------- */
 
   protected void info(String message, Object... args) {
-    System.out.printf(message, args);
-    System.out.println();
+    System.out.printf(message + "\n", args);
   }
 
   protected void debug(String message, Object... args) {
@@ -67,58 +59,37 @@ public abstract class BaseTest extends Assert {
     }
   }
 
-  /* ---------------- Factory methods -------------- */
+  /* ---------------- Testing aspects -------------- */
 
-  <K, V> Builder<K, V> builder() {
-    return new Builder<K, V>().maximumWeightedCapacity(capacity);
+  private ConcurrentLinkedHashMap<?, ?> rawMap;
+
+  /** Provides a guarded map for test methods. */
+  @DataProvider(name = "guarded")
+  public Object[][] providesGuardedMap() {
+    rawMap = newGuarded();
+    return new Object[][] {{ rawMap }};
   }
 
-  protected <K, V> ConcurrentLinkedHashMap<K, V> create() {
-    return create(capacity);
-  }
-
-  protected <K, V> ConcurrentLinkedHashMap<K, V> create(int size) {
+  /** Creates a map that fails if an eviction occurs. */
+  protected <K, V> ConcurrentLinkedHashMap<K, V> newGuarded() {
     return new Builder<K, V>()
-        .maximumWeightedCapacity(size)
+        .listener(new GuardingListener<K, V>())
+        .maximumWeightedCapacity(capacity())
         .build();
   }
 
-  protected <K, V> ConcurrentLinkedHashMap<K, V> createGuarded() {
-    return create(EvictionMonitor.<K, V>newGuard());
+  /** Provides a warmed map for test methods. */
+  @DataProvider(name = "warmed")
+  public Object[][] providesWarmedMap() {
+    rawMap = newWarmedMap();
+    return new Object[][] {{ rawMap }};
   }
 
-  protected <K, V> ConcurrentLinkedHashMap<K, V> create(EvictionListener<K, V> listener) {
-    return create(capacity, listener);
-  }
-
-  protected <K, V> ConcurrentLinkedHashMap<K, V> create(int size, EvictionListener<K, V> listener) {
-    return new Builder<K, V>()
-        .maximumWeightedCapacity(size)
-        .listener(listener)
+  protected ConcurrentLinkedHashMap<Integer, Integer> newWarmedMap() {
+    ConcurrentLinkedHashMap<Integer, Integer> map = new Builder<Integer, Integer>()
+        .maximumWeightedCapacity(capacity())
         .build();
-  }
-
-  /* ---------------- Warming methods -------------- */
-
-  protected ConcurrentLinkedHashMap<Integer, Integer> createWarmedMap() {
-    return createWarmedMap(capacity);
-  }
-
-  protected ConcurrentLinkedHashMap<Integer, Integer> createWarmedMap(
-      EvictionListener<Integer, Integer> listener) {
-    return createWarmedMap(capacity, listener);
-  }
-
-  protected ConcurrentLinkedHashMap<Integer, Integer> createWarmedMap(
-      int size, EvictionListener<Integer, Integer> listener) {
-    ConcurrentLinkedHashMap<Integer, Integer> map = create(size, listener);
-    warmUp(map, 0, size);
-    return map;
-  }
-
-  protected ConcurrentLinkedHashMap<Integer, Integer> createWarmedMap(int size) {
-    ConcurrentLinkedHashMap<Integer, Integer> map = create(size);
-    warmUp(map, 0, size);
+    warmUp(map, 0, capacity());
     return map;
   }
 
@@ -128,37 +99,62 @@ public abstract class BaseTest extends Assert {
     }
   }
 
+  /** Validates the state of a provided map. */
+  @AfterMethod(inheritGroups = true)
+  public void verifyValidState(ITestResult result) {
+    if (rawMap == null) { // dataProvider not used
+      return;
+    }
+    try {
+      validator.checkValidState(rawMap);
+    } catch (Throwable caught) {
+      fail("Test: " + result.getMethod().getMethodName(), caught);
+    }
+  }
+
   /* ---------------- Listener support -------------- */
 
-  /**
-   * A listener that either aggregates the results or fails if invoked.
-   */
-  protected static final class EvictionMonitor<K, V>
-      implements EvictionListener<K, V>, Serializable {
+  private EvictionListener<?, ?> rawListener;
+
+  /** Provides a listener that fails on eviction. */
+  @DataProvider(name = "guardingListener")
+  public Object[][] providesGuardedListener() {
+    rawListener = new GuardingListener<Object, Object>();
+    return new Object[][] {{ rawListener }};
+  }
+
+  /** Provides a listener that collects evicted entries. */
+  @DataProvider(name = "collectingListener")
+  public Object[][] providesMonitorableListener() {
+    rawListener = new CollectingListener<Object, Object>();
+    return new Object[][] {{ rawListener }};
+  }
+
+  /** A listener that fails if invoked. */
+  private static final class GuardingListener<K, V>
+    implements EvictionListener<K, V>, Serializable {
+
+    @Override public void onEviction(Object key, Object value) {
+      fail(String.format("Evicted %s=%s", key, value));
+    }
 
     private static final long serialVersionUID = 1L;
-    final Collection<Entry<K, V>> evicted;
-    final boolean isAllowed;
+  }
 
-    private EvictionMonitor(boolean isAllowed) {
-      this.isAllowed = isAllowed;
+  /** A listener that either collects the evicted entries. */
+  protected static final class CollectingListener<K, V>
+      implements EvictionListener<K, V>, Serializable {
+    final Collection<Entry<K, V>> evicted;
+
+    private CollectingListener() {
       this.evicted = new ConcurrentLinkedQueue<Entry<K, V>>();
     }
 
-    public static <K, V> EvictionMonitor<K, V> newMonitor() {
-      return new EvictionMonitor<K, V>(true);
-    }
-
-    public static <K, V> EvictionMonitor<K, V> newGuard() {
-      return new EvictionMonitor<K, V>(false);
-    }
-
-    public void onEviction(K key, V value) {
-      if (!isAllowed) {
-        throw new IllegalStateException("Eviction should not have occured");
-      }
+    @Override public void onEviction(K key, V value) {
       evicted.add(new SimpleImmutableEntry<K, V>(key, value));
     }
+
+    private static final long serialVersionUID = 1L;
   }
 
   /* ---------------- Node List support -------------- */

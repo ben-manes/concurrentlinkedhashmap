@@ -1,5 +1,6 @@
 package com.googlecode.concurrentlinkedhashmap;
 
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 import com.googlecode.concurrentlinkedhashmap.caches.Cache;
 import com.googlecode.concurrentlinkedhashmap.distribution.Distribution;
 
@@ -21,8 +22,9 @@ public final class EfficiencyTest extends BaseTest {
   private Distribution distribution;
   private int size;
 
-  public EfficiencyTest() {
-    super(intProperty("efficiency.maximumCapacity"));
+  @Override
+  protected int capacity() {
+    return intProperty("efficiency.maximumCapacity");
   }
 
   @BeforeClass(groups = "efficiency")
@@ -34,10 +36,12 @@ public final class EfficiencyTest extends BaseTest {
 
   @Test(groups = "development")
   public void efficiency_lru() {
-    ConcurrentLinkedHashMap<Long, Long> actual = create(capacity);
-    Map<Long, Long> expected = Cache.SYNC_LRU.create(capacity, 1);
+    ConcurrentLinkedHashMap<Long, Long> actual = new Builder<Long, Long>()
+        .maximumWeightedCapacity(capacity())
+        .build();
+    Map<Long, Long> expected = Cache.SYNC_LRU.create(capacity(), 1);
 
-    List<Long> workingSet = createWorkingSet(Distribution.EXPONENTIAL, 10 * capacity);
+    List<Long> workingSet = createWorkingSet(Distribution.EXPONENTIAL, 10 * capacity());
     float hitExpected = determineEfficiency(expected, workingSet);
     float hitActual = determineEfficiency(actual, workingSet);
     assertTrue(hitExpected > 0);
@@ -57,7 +61,7 @@ public final class EfficiencyTest extends BaseTest {
     List<Long> workingSet = createWorkingSet(distribution, size);
     debug("WorkingSet:\n%s", workingSet);
     for (Cache type : Cache.values()) {
-      Map<Long, Long> cache = type.create(capacity, 1);
+      Map<Long, Long> cache = type.create(capacity(), 1);
       double hits = determineEfficiency(cache, workingSet);
       double misses = size - hits;
       info("%s: hits=%s (%s percent), misses=%s (%s percent)", type,

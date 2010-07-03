@@ -215,9 +215,6 @@
         <sysproperty key="efficiency.distribution.poisson.mean" value="${efficiency.distribution.poisson.mean}"/>
         <sysproperty key="efficiency.distribution.zipfian.skew" value="${efficiency.distribution.zipfian.skew}"/>
 
-        <!-- Single-threaded tests -->
-        <sysproperty key="singleThreaded.maximumCapacity" value="${singleThreaded.maximumCapacity}"/>
-
         <!-- Multi-threaded tests -->
         <sysproperty key="multiThreaded.maximumCapacity" value="${multiThreaded.maximumCapacity}"/>
         <sysproperty key="multiThreaded.nThreads" value="${multiThreaded.nThreads}"/>

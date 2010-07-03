@@ -119,7 +119,6 @@
             <efficiency.distribution.gaussian.sigma>${efficiency.distribution.gaussian.sigma}</efficiency.distribution.gaussian.sigma>
             <efficiency.distribution.poisson.mean>${efficiency.distribution.poisson.mean}</efficiency.distribution.poisson.mean>
             <efficiency.distribution.zipfian.skew>${efficiency.distribution.zipfian.skew}</efficiency.distribution.zipfian.skew>
-            <singleThreaded.maximumCapacity>${singleThreaded.maximumCapacity}</singleThreaded.maximumCapacity>
 
             <!-- Multi-threaded tests -->
             <multiThreaded.maximumCapacity>${multiThreaded.maximumCapacity}</multiThreaded.maximumCapacity>
