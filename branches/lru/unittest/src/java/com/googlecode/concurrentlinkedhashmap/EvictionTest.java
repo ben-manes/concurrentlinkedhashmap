@@ -35,7 +35,6 @@ public final class EvictionTest extends BaseTest {
     map.setCapacity(newMaxCapacity);
     assertEquals(map.capacity(), newMaxCapacity);
     assertEquals(map, expected);
-    validator.checkValidState(map);
   }
 
   @Test(dataProvider = "warmed")
@@ -45,7 +44,6 @@ public final class EvictionTest extends BaseTest {
     assertEquals(map.capacity(), newMaxCapacity);
     assertEquals(map.size(), newMaxCapacity);
     assertEquals(map.weightedSize(), newMaxCapacity);
-    validator.checkValidState(map);
   }
 
   @Test(dataProvider = "warmed")
@@ -55,7 +53,6 @@ public final class EvictionTest extends BaseTest {
     assertEquals(map.capacity(), newMaxCapacity);
     assertEquals(map.size(), newMaxCapacity);
     assertEquals(map.weightedSize(), newMaxCapacity);
-    validator.checkValidState(map);
   }
 
   @Test(dataProvider = "warmed")
