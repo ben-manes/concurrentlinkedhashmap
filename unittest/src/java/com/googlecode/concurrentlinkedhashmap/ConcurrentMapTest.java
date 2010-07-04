@@ -37,7 +37,7 @@ public final class ConcurrentMapTest extends BaseTest {
     return 100;
   }
 
-  @Test(groups = "development", dataProvider = "guarded")
+  @Test(dataProvider = "guarded")
   public void clear_whenEmpty(ConcurrentLinkedHashMap<Integer, Integer> map) {
     map.clear();
     validator.checkEmpty(map);

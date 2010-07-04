@@ -53,8 +53,8 @@ import java.util.concurrent.locks.ReentrantLock;
  * singleton weigher algorithm assigns each value a weight of <tt>1</tt> to
  * bound the map by the number of key-value pairs. A map that holds collections
  * may chose to weigh values by the number of elements in the collection and
- * bound the map by the total number of elements it contains. A change to a
- * value that modifies its weight requires that an update operation is
+ * bound the map by the total number of elements that it contains. A change to
+ * a value that modifies its weight requires that an update operation is
  * performed on the map.
  * <p>
  * An {@link EvictionListener} may be supplied for notification when an entry
@@ -270,7 +270,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   void evict() {
     // Attempts to evict entries from the map if it exceeds the maximum
     // capacity. If the eviction fails due to a concurrent removal of the
-    // victim, that removal cancels out the addition that triggered this
+    // victim, that removal may cancel out the addition that triggered this
     // eviction. The victim is eagerly unlinked before the removal task so
     // that if there are other pending prior additions then a new victim
     // will be chosen for removal.
@@ -389,14 +389,14 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     // While the queue is being drained it may be concurrently appended to. The
     // number of elements removed are tracked so that the length can be
     // decremented by the delta rather than set to zero.
-    int delta = 0;
     Node node;
+    int delta = 0;
     Queue<Node> queue = recencyQueue[segment];
     while ((node = queue.poll()) != null) {
       // An entry may be in the recency queue despite it having been previously
       // removed. This can occur when the entry was concurrently read while a
-      // writer is removing it from the segment. If the entry is no longer in
-      // the available then it does not need to be processed.
+      // writer is removing it from the segment. If the entry is no longer
+      // linked then it does not need to be processed.
       if (node.isLinked()) {
         node.moveToTail();
       }
@@ -786,7 +786,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     // perform outside of lock
     if (node != null) {
       if (oldWeightedValue != null) {
-        writeQueue.add(new UpdateTask(newWeightedValue.weight - oldWeightedValue.weight));
+        int weightedDifference = weight - oldWeightedValue.weight;
+        writeQueue.add(new UpdateTask(weightedDifference));
       }
       delayReorder = addToRecencyQueue(node);
     }
