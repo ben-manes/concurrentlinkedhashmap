@@ -22,6 +22,16 @@
     </fileset>
   </path>
 
+  <!-- Caliper -->
+  <path id="caliper.compile.path">
+    <fileset dir="${external.dir}/caliper/0.0">
+      <include name="caliper.jar"/>
+    </fileset>
+  </path>
+  <path id="caliper.deploy.path">
+    <path refid="caliper.compile.path"/>
+  </path>
+
   <!-- Cobertura -->
   <path id="cobertura.compile.path">
     <fileset dir="${external.dir}/cobertura/1.9.4.1">
@@ -114,6 +124,16 @@
    classname="edu.umd.cs.findbugs.anttask.FindBugsTask"
    classpathref="findbugs.compile.path"
   />
+	
+  <!-- Guava -->
+  <path id="guava.compile.path">
+    <fileset dir="${external.dir}/guava/r05">
+      <include name="guava-r05.jar"/>
+    </fileset>
+  </path>
+  <path id="guava.deploy.path">
+    <path refid="guava.compile.path"/>
+  </path>
 
   <!-- JBoss Cache 2.1.0 -->
   <path id="jboss.cache-2.1.0.compile.path">

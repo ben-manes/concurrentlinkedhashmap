@@ -1,5 +1,8 @@
 package com.googlecode.concurrentlinkedhashmap;
 
+import static com.google.common.collect.Maps.immutableEntry;
+import static com.google.common.collect.Sets.newSetFromMap;
+
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Node;
 
@@ -10,9 +13,7 @@ import org.testng.annotations.BeforeClass;
 import org.testng.annotations.DataProvider;
 
 import java.io.Serializable;
-import java.util.AbstractMap.SimpleImmutableEntry;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -47,6 +48,10 @@ public abstract class BaseTest extends Assert {
     return Boolean.valueOf(System.getProperty(property));
   }
 
+  protected static <E extends Enum<E>> E enumProperty(String property, Class<E> clazz) {
+    return Enum.valueOf(clazz, System.getProperty(property).toUpperCase());
+  }
+
   /* ---------------- Logging methods -------------- */
 
   protected void info(String message, Object... args) {
@@ -63,8 +68,37 @@ public abstract class BaseTest extends Assert {
 
   private ConcurrentLinkedHashMap<?, ?> rawMap;
 
+  /** Validates the state of a provided map. */
+  @AfterMethod(inheritGroups = true)
+  public void verifyValidState(ITestResult result) {
+    if (rawMap == null) { // dataProvider not used
+      return;
+    }
+    try {
+      validator.checkValidState(rawMap);
+    } catch (Throwable caught) {
+      fail("Test: " + result.getMethod().getMethodName(), caught);
+    }
+  }
+
+  /* ---------------- Map providers -------------- */
+
+  /** Provides an empty map for test methods. */
+  @DataProvider(name = "emptyMap")
+  public Object[][] providesEmptyMap() {
+    rawMap = newEmptyMap();
+    return new Object[][] {{ rawMap }};
+  }
+
+  /** Creates a map with the default capacity. */
+  protected <K, V> ConcurrentLinkedHashMap<K, V> newEmptyMap() {
+    return new Builder<K, V>()
+        .maximumWeightedCapacity(capacity())
+        .build();
+  }
+
   /** Provides a guarded map for test methods. */
-  @DataProvider(name = "guarded")
+  @DataProvider(name = "guardedMap")
   public Object[][] providesGuardedMap() {
     rawMap = newGuarded();
     return new Object[][] {{ rawMap }};
@@ -79,40 +113,67 @@ public abstract class BaseTest extends Assert {
   }
 
   /** Provides a warmed map for test methods. */
-  @DataProvider(name = "warmed")
+  @DataProvider(name = "warmedMap")
   public Object[][] providesWarmedMap() {
     rawMap = newWarmedMap();
     return new Object[][] {{ rawMap }};
   }
 
+  /** Creates a map with warmed to capacity. */
   protected ConcurrentLinkedHashMap<Integer, Integer> newWarmedMap() {
-    ConcurrentLinkedHashMap<Integer, Integer> map = new Builder<Integer, Integer>()
-        .maximumWeightedCapacity(capacity())
-        .build();
+    ConcurrentLinkedHashMap<Integer, Integer> map = newEmptyMap();
     warmUp(map, 0, capacity());
     return map;
   }
 
+  /**
+   * Populates the map with the half-closed interval [start, end) where the
+   * value is the negation of the key.
+   */
   protected void warmUp(Map<Integer, Integer> map, int start, int end) {
     for (Integer i = start; i < end; i++) {
       assertNull(map.put(i, -i));
     }
   }
 
-  /** Validates the state of a provided map. */
-  @AfterMethod(inheritGroups = true)
-  public void verifyValidState(ITestResult result) {
-    if (rawMap == null) { // dataProvider not used
-      return;
-    }
-    try {
-      validator.checkValidState(rawMap);
-    } catch (Throwable caught) {
-      fail("Test: " + result.getMethod().getMethodName(), caught);
-    }
+  /* ---------------- Weigher providers -------------- */
+
+  @DataProvider(name = "singletonWeigher")
+  public Object[][] providesSingletonWeigher() {
+    return new Object[][] {{ Weighers.singleton() }};
   }
 
-  /* ---------------- Listener support -------------- */
+  @DataProvider(name = "byteArrayWeigher")
+  public Object[][] providesByteArrayWeigher() {
+    return new Object[][] {{ Weighers.byteArray() }};
+  }
+
+  @DataProvider(name = "iterableWeigher")
+  public Object[][] providesIterableWeigher() {
+    return new Object[][] {{ Weighers.iterable() }};
+  }
+
+  @DataProvider(name = "collectionWeigher")
+  public Object[][] providesCollectionWeigher() {
+    return new Object[][] {{ Weighers.collection() }};
+  }
+
+  @DataProvider(name = "listWeigher")
+  public Object[][] providesListWeigher() {
+    return new Object[][] {{ Weighers.list() }};
+  }
+
+  @DataProvider(name = "setWeigher")
+  public Object[][] providesSetWeigher() {
+    return new Object[][] {{ Weighers.set() }};
+  }
+
+  @DataProvider(name = "mapWeigher")
+  public Object[][] providesMapWeigher() {
+    return new Object[][] {{ Weighers.map() }};
+  }
+
+  /* ---------------- Listener providers -------------- */
 
   private EvictionListener<?, ?> rawListener;
 
@@ -151,13 +212,13 @@ public abstract class BaseTest extends Assert {
     }
 
     @Override public void onEviction(K key, V value) {
-      evicted.add(new SimpleImmutableEntry<K, V>(key, value));
+      evicted.add(immutableEntry(key, value));
     }
 
     private static final long serialVersionUID = 1L;
   }
 
-  /* ---------------- Node List support -------------- */
+  /* ---------------- List/Node utilities -------------- */
 
   protected static String listForwardToString(ConcurrentLinkedHashMap<?, ?> map) {
     return listToString(map, true);
@@ -171,18 +232,18 @@ public abstract class BaseTest extends Assert {
   private static String listToString(ConcurrentLinkedHashMap<?, ?> map, boolean forward) {
     map.evictionLock.lock();
     try {
-        Set<Node> seen = Collections.newSetFromMap(new IdentityHashMap<Node, Boolean>());
-        StringBuilder buffer = new StringBuilder("\n");
-        Node current = forward ? map.sentinel.next : map.sentinel.prev;
-        while (current != map.sentinel) {
-          buffer.append(nodeToString(current)).append("\n");
-          if (seen.add(current)) {
-            buffer.append("Failure: Loop detected\n");
-            break;
-          }
-          current = forward ? current.next : current.next.prev;
+      Set<Node> seen = newSetFromMap(new IdentityHashMap<Node, Boolean>());
+      StringBuilder buffer = new StringBuilder("\n");
+      Node current = forward ? map.sentinel.next : map.sentinel.prev;
+      while (current != map.sentinel) {
+        buffer.append(nodeToString(current)).append("\n");
+        if (seen.add(current)) {
+          buffer.append("Failure: Loop detected\n");
+          break;
         }
-        return buffer.toString();
+        current = forward ? current.next : current.next.prev;
+      }
+      return buffer.toString();
     } finally {
       map.evictionLock.unlock();
     }

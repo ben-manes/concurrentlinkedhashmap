@@ -1,5 +1,7 @@
 package com.googlecode.concurrentlinkedhashmap;
 
+import static com.google.common.collect.Lists.newArrayList;
+import static com.google.common.collect.Lists.newArrayListWithCapacity;
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentTestHarness.timeTasks;
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
@@ -8,7 +10,6 @@ import org.apache.commons.lang.SerializationUtils;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -48,8 +49,8 @@ public final class MultiThreadedTest extends BaseTest {
     nThreads = intProperty("multiThreaded.nThreads");
     timeout = intProperty("multiThreaded.timeout");
     failures = new ConcurrentLinkedQueue<String>();
-    keys = new ArrayList<Integer>();
     Random random = new Random();
+    keys = newArrayList();
     for (int i = 0; i < iterations; i++) {
       keys.add(random.nextInt(iterations / 100));
     }
@@ -67,14 +68,14 @@ public final class MultiThreadedTest extends BaseTest {
     info(WARNING);
 
     class Listener implements EvictionListener<Integer, Integer> {
+      AtomicInteger calls = new AtomicInteger();
       ConcurrentLinkedHashMap<?, ?> cache;
-      volatile int calls;
 
       @Override
       public void onEviction(Integer key, Integer value) {
-        calls++;
+        calls.incrementAndGet();
 
-        if ((calls % ITERATIONS) == 0) {
+        if ((calls.get() % ITERATIONS) == 0) {
           long reorders = 0;
           for (Queue<?> queue : cache.recencyQueue) {
             reorders += queue.size();
@@ -122,15 +123,14 @@ public final class MultiThreadedTest extends BaseTest {
     final List<List<Integer>> sets = shuffle(nThreads, keys);
     ThreadPoolExecutor es =
         new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS,
-                               new LinkedBlockingQueue<Runnable>());
+            new LinkedBlockingQueue<Runnable>());
     final ConcurrentLinkedHashMap<Integer, Integer> cache =
         new Builder<Integer, Integer>()
             .maximumWeightedCapacity(capacity())
             .concurrencyLevel(nThreads)
             .build();
     Future<Long> future = es.submit(new Callable<Long>() {
-      @Override
-      public Long call() throws Exception {
+      @Override public Long call() throws Exception {
         return timeTasks(nThreads, new Thrasher(cache, sets));
       }
     });
@@ -173,9 +173,9 @@ public final class MultiThreadedTest extends BaseTest {
    * @param workingSet the base working set to build from
    */
   private <T> List<List<T>> shuffle(int samples, Collection<T> workingSet) {
-    List<List<T>> sets = new ArrayList<List<T>>(samples);
+    List<List<T>> sets = newArrayListWithCapacity(samples);
     for (int i = 0; i < samples; i++) {
-      List<T> set = new ArrayList<T>(workingSet);
+      List<T> set = newArrayList(workingSet);
       Collections.shuffle(set);
       sets.add(set);
     }
@@ -208,14 +208,14 @@ public final class MultiThreadedTest extends BaseTest {
           operation.execute(cache, key);
         } catch (RuntimeException e) {
           String error =
-              String.format("Failed: key %s on operation %s for node %s", key, operation,
-                            nodeToString(findNode(key, cache)));
+              String.format("Failed: key %s on operation %s for node %s",
+                  key, operation, nodeToString(findNode(key, cache)));
           failures.add(error);
           throw e;
         } catch (Throwable thr) {
           String error =
-              String.format("Halted: key %s on operation %s for node %s", key, operation,
-                            nodeToString(findNode(key, cache)));
+              String.format("Halted: key %s on operation %s for node %s",
+                  key, operation, nodeToString(findNode(key, cache)));
           failures.add(error);
         }
       }

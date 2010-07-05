@@ -1,13 +1,15 @@
 package com.googlecode.concurrentlinkedhashmap;
 
 import static java.lang.String.format;
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
+import static java.util.Collections.newSetFromMap;
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Node;
 
 import org.testng.Assert;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Set;
@@ -53,10 +55,9 @@ public final class Validator extends Assert {
     }
     assertTrue(map.listenerQueue.isEmpty());
 
-    assertEquals(map.capacity(), map.maximumWeightedSize, "Tracked capacity != reported capacity");
-    assertEquals(map.data.size(), map.size(), "Internal size != reported size");
-    assertEquals(map.weightedSize(), map.weightedSize,
-        "Tracked weighted size != reported weighted size");
+    assertEquals(map.data.size(), map.size());
+    assertEquals(map.weightedSize(), map.weightedSize);
+    assertEquals(map.capacity(), map.maximumWeightedSize);
     assertTrue(map.maximumWeightedSize >= map.weightedSize());
     assertNotNull(map.sentinel.prev);
     assertNotNull(map.sentinel.next.next);
@@ -83,10 +84,9 @@ public final class Validator extends Assert {
     checkEmpty(map.keySet());
     checkEmpty(map.values());
     checkEmpty(map.entrySet());
-    assertEquals(map, Collections.emptyMap(), "Not equal to empty map");
-    assertEquals(map.hashCode(), Collections.emptyMap().hashCode(), "Not equal hash codes");
-    assertEquals(map.toString(), Collections.emptyMap().toString(),
-        "Not equal string representations");
+    assertEquals(map, emptyMap(), "Not equal to empty map");
+    assertEquals(map.hashCode(), emptyMap().hashCode());
+    assertEquals(map.toString(), emptyMap().toString());
   }
 
   public void checkEmpty(Collection<?> collection) {
@@ -96,9 +96,9 @@ public final class Validator extends Assert {
     assertEquals(0, collection.toArray().length);
     assertEquals(0, collection.toArray(new Object[0]).length);
     if (collection instanceof Set<?>) {
-      checkEqualsAndHashCode(Collections.emptySet(), collection);
+      checkEqualsAndHashCode(emptySet(), collection);
     } else if (collection instanceof List<?>) {
-      checkEqualsAndHashCode(Collections.emptySet(), collection);
+      checkEqualsAndHashCode(emptySet(), collection);
     }
   }
 
@@ -111,13 +111,14 @@ public final class Validator extends Assert {
   }
 
   /**
-   * Validates that the doubly-linked list running through the map is in a correct state.
+   * Validates that the doubly-linked list running through the map is in a
+   * correct state.
    */
   @SuppressWarnings("unchecked")
   private void links(ConcurrentLinkedHashMap<?, ?> map) {
     assertSentinel(map);
 
-    Set<Node> seen = Collections.newSetFromMap(new IdentityHashMap<Node, Boolean>());
+    Set<Node> seen = newSetFromMap(new IdentityHashMap<Node, Boolean>());
     Node current = map.sentinel.next;
     while (current != map.sentinel) {
       assertTrue(seen.add(current), format("Loop detected: %s, saw %s in %s", current, seen, map));
