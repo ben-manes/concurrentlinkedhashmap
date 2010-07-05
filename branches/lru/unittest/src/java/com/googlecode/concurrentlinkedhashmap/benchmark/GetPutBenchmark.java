@@ -4,9 +4,7 @@ import static com.google.common.base.Preconditions.checkArgument;
 
 import com.google.caliper.Param;
 import com.google.caliper.Runner;
-import com.google.common.collect.MapMaker;
 
-import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 import com.googlecode.concurrentlinkedhashmap.caches.Cache;
 
 import java.util.Map;
@@ -17,9 +15,8 @@ import java.util.Map;
  * @author ben.manes@gmail.com (Ben Manes)
  */
 public class GetPutBenchmark extends ConcurrentBenchmark {
-  private Map<Integer, Integer> clhm;
-  private Map<Integer, Integer> chm;
-  private Map<Integer, Integer> lhm;
+  @Param({"CONCURRENT_LINKED_HASH_MAP", "CONCURRENT_HASH_MAP", "SYNC_LRU"})
+  Cache cache;
 
   @Param int numberOfThreads;
   @Param int initialCapacity;
@@ -27,48 +24,21 @@ public class GetPutBenchmark extends ConcurrentBenchmark {
   @Param int concurrencyLevel;
   @Param int readRatio;
 
+  private Map<Integer, Integer> map;
+
   // TODO(bmanes): Add read/write ratio, generate working set, etc.
 
   @Override
   protected void benchmarkSetUp() {
     checkArgument((readRatio >= 0) && (readRatio <= 100), "Read ratio must between zero and 100%");
-    clhm = new Builder<Integer, Integer>()
-        .initialCapacity(initialCapacity)
-        .concurrencyLevel(concurrencyLevel)
-        .maximumWeightedCapacity(maximumCapacity)
-        .build();
-    chm = new MapMaker()
-        .concurrencyLevel(concurrencyLevel)
-        .initialCapacity(initialCapacity)
-        .makeMap();
-    lhm = Cache.SYNC_LRU.create(maximumCapacity, concurrencyLevel);
+    map = cache.create(maximumCapacity, concurrencyLevel);
   }
 
-  public void timeConcurrentLinkedHashMap(final int reps) {
+  public void timeReadWrite(final int reps) {
     concurrent(new Runnable() {
       @Override public void run() {
         for (int i = 0; i < reps; i++) {
-          clhm.get(i);
-        }
-      }
-    });
-  }
-
-  public void timeConcurrentHashMap(final int reps) {
-    concurrent(new Runnable() {
-      @Override public void run() {
-        for (int i = 0; i < reps; i++) {
-          chm.get(i);
-        }
-      }
-    });
-  }
-
-  public void timeLinkedHashMap(final int reps) {
-    concurrent(new Runnable() {
-      @Override public void run() {
-        for (int i = 0; i < reps; i++) {
-          lhm.get(i);
+          map.get(i);
         }
       }
     });
