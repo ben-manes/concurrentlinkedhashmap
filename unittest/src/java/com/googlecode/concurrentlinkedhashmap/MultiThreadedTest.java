@@ -1,8 +1,8 @@
 package com.googlecode.concurrentlinkedhashmap;
 
 import static com.google.common.collect.Lists.newArrayList;
-import static com.google.common.collect.Lists.newArrayListWithCapacity;
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentTestHarness.timeTasks;
+import static com.googlecode.concurrentlinkedhashmap.benchmark.Benchmarks.shuffle;
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 
@@ -10,8 +10,6 @@ import org.apache.commons.lang.SerializationUtils;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
-import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map.Entry;
 import java.util.Queue;
@@ -164,22 +162,6 @@ public final class MultiThreadedTest extends BaseTest {
       fail("Spun forever", e);
     }
     debug("concurrent: END");
-  }
-
-  /**
-   * Based on the passed in working set, creates N shuffled variants.
-   *
-   * @param samples the number of variants to create
-   * @param workingSet the base working set to build from
-   */
-  private <T> List<List<T>> shuffle(int samples, Collection<T> workingSet) {
-    List<List<T>> sets = newArrayListWithCapacity(samples);
-    for (int i = 0; i < samples; i++) {
-      List<T> set = newArrayList(workingSet);
-      Collections.shuffle(set);
-      sets.add(set);
-    }
-    return sets;
   }
 
   /**

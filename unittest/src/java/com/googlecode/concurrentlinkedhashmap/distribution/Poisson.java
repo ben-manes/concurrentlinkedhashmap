@@ -1,16 +1,16 @@
 package com.googlecode.concurrentlinkedhashmap.distribution;
 
+import com.google.common.base.Supplier;
+
 import org.apache.commons.math.random.RandomData;
 import org.apache.commons.math.random.RandomDataImpl;
-
-import java.util.concurrent.Callable;
 
 /**
  * Creates a Poisson distribution.
  *
  * @author ben.manes@gmail.com (Ben Manes)
  */
-final class Poisson implements Callable<Double> {
+final class Poisson implements Supplier<Double> {
   private final RandomData random = new RandomDataImpl();
   private final double mean;
 
@@ -26,7 +26,8 @@ final class Poisson implements Callable<Double> {
   /**
    * Random value with expected mean value.
    */
-  public Double call() {
+  @Override
+  public Double get() {
     return (double) random.nextPoisson(mean);
   }
 }

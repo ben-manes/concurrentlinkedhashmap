@@ -1,6 +1,6 @@
 package com.googlecode.concurrentlinkedhashmap.distribution;
 
-import java.util.concurrent.Callable;
+import com.google.common.base.Supplier;
 
 /**
  * The distributions to create working sets.
@@ -11,7 +11,7 @@ public enum Distribution {
 
   UNIFORM() {
     @Override
-    public Callable<Double> getAlgorithm() {
+    public Supplier<Double> getAlgorithm() {
       double lower = Double.valueOf(System.getProperty("efficiency.distribution.uniform.lower"));
       double upper = Double.valueOf(System.getProperty("efficiency.distribution.uniform.upper"));
       return new Uniform(lower, upper);
@@ -19,14 +19,14 @@ public enum Distribution {
   },
   EXPONENTIAL() {
     @Override
-    public Callable<Double> getAlgorithm() {
+    public Supplier<Double> getAlgorithm() {
       double mean = Double.valueOf(System.getProperty("efficiency.distribution.exponential.mean"));
       return new Exponential(mean);
     }
   },
   GAUSSIAN() {
     @Override
-    public Callable<Double> getAlgorithm() {
+    public Supplier<Double> getAlgorithm() {
       double mean = Double.valueOf(System.getProperty("efficiency.distribution.gaussian.mean"));
       double sigma = Double.valueOf(System.getProperty("efficiency.distribution.gaussian.sigma"));
       return new Gaussian(mean, sigma);
@@ -34,14 +34,14 @@ public enum Distribution {
   },
   POISSON() {
     @Override
-    public Callable<Double> getAlgorithm() {
+    public Supplier<Double> getAlgorithm() {
       double mean = Double.valueOf(System.getProperty("efficiency.distribution.poisson.mean"));
       return new Poisson(mean);
     }
   },
   ZIPFIAN() {
     @Override
-    public Callable<Double> getAlgorithm() {
+    public Supplier<Double> getAlgorithm() {
       double skew = Double.valueOf(System.getProperty("efficiency.distribution.zipfian.skew"));
       return new Zipfian(skew);
     }
@@ -50,5 +50,5 @@ public enum Distribution {
   /**
    * Retrieves a new distribution, based on the required system property values.
    */
-  public abstract Callable<Double> getAlgorithm();
+  public abstract Supplier<Double> getAlgorithm();
 }
