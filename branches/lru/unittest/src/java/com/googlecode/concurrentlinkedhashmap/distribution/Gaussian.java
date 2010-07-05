@@ -1,16 +1,16 @@
 package com.googlecode.concurrentlinkedhashmap.distribution;
 
+import com.google.common.base.Supplier;
+
 import org.apache.commons.math.random.RandomData;
 import org.apache.commons.math.random.RandomDataImpl;
-
-import java.util.concurrent.Callable;
 
 /**
  * Creates a Gaussian distribution.
  *
  * @author ben.manes@gmail.com (Ben Manes)
  */
-final class Gaussian implements Callable<Double> {
+final class Gaussian implements Supplier<Double> {
   private final RandomData random = new RandomDataImpl();
   private final double sigma;
   private final double mean;
@@ -29,7 +29,8 @@ final class Gaussian implements Callable<Double> {
   /**
    * Random value with the given mean and standard deviation.
    */
-  public Double call() {
+  @Override
+  public Double get() {
     return random.nextGaussian(mean, sigma);
   }
 }

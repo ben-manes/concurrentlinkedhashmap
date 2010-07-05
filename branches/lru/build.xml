@@ -271,6 +271,34 @@
 	</target>
 
 	<target
+		name="run-caliper"
+	  depends="compile"
+    description="Runs micro-benchmarks over the build artifacts."
+	>	
+    <java
+     classname="com.googlecode.concurrentlinkedhashmap.benchmark.${caliper.scenario}Benchmark"
+     classpathref="test.path"
+     fork="true"
+     maxmemory="${caliper.heap}"
+    >
+      <arg value="--warmupMillis"/>
+    	<arg value="${caliper.warmupMillis}"/>
+    	
+    	<arg value="--runMillis"/>
+      <arg value="${caliper.runMillis}"/>
+    	
+    	<arg value="--timeUnit"/>
+      <arg value="${caliper.timeUnit}"/>
+    	
+    	<arg value="-DconcurrencyLevel=${caliper.benchmark.concurrencyLevel}"/>
+    	<arg value="-DinitialCapacity=${caliper.benchmark.initialCapacity}"/>
+    	<arg value="-DmaximumCapacity=${caliper.benchmark.maximumCapacity}"/>
+  		<arg value="-DnumberOfThreads=${caliper.benchmark.numberOfThreads}"/>
+    	<arg value="-DreadRatio=${caliper.scenario.getPut.readRatio}"/>
+    </java>
+	</target>
+	
+	<target
    name="run-benchmarks"
    depends="compile"
    description="Runs micro-benchmarks over the build artifacts."

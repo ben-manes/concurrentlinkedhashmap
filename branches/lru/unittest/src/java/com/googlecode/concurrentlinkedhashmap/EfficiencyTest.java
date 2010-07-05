@@ -1,6 +1,7 @@
 package com.googlecode.concurrentlinkedhashmap;
 
-import static com.google.common.collect.Lists.newArrayListWithCapacity;
+import static com.googlecode.concurrentlinkedhashmap.benchmark.Benchmarks.createWorkingSet;
+import static com.googlecode.concurrentlinkedhashmap.benchmark.Benchmarks.determineEfficiency;
 
 import com.googlecode.concurrentlinkedhashmap.caches.Cache;
 import com.googlecode.concurrentlinkedhashmap.distribution.Distribution;
@@ -11,7 +12,6 @@ import org.testng.annotations.Test;
 import java.text.NumberFormat;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Callable;
 
 /**
  * A unit-test and benchmark for evaluating the cache's hit rate.
@@ -66,44 +66,5 @@ public final class EfficiencyTest extends BaseTest {
            NumberFormat.getInstance().format(misses),
            NumberFormat.getPercentInstance().format(misses / size));
     }
-  }
-
-  /**
-   * Creates a random working set based on the distribution.
-   *
-   * @param distribution the distribution type to use
-   * @param size the size of the working set
-   * @return a random working set
-   */
-  private List<Long> createWorkingSet(Distribution distribution, int size) {
-    Callable<Double> algorithm = distribution.getAlgorithm();
-    List<Long> workingSet = newArrayListWithCapacity(size);
-    for (int i = 0; i < size; i++) {
-      try {
-        workingSet.add(Math.round(algorithm.call()));
-      } catch (Exception e) {
-        throw new RuntimeException(e);
-      }
-    }
-    return workingSet;
-  }
-
-  /**
-   * Determines the hit-rate of the cache.
-   *
-   * @param cache the self-evicting map
-   * @param workingSet the request working set
-   * @return the hit-rate
-   */
-  private int determineEfficiency(Map<Long, Long> cache, List<Long> workingSet) {
-    int hits = 0;
-    for (Long key : workingSet) {
-      if (cache.get(key) == null) {
-        cache.put(key, 0L);
-      } else {
-        hits++;
-      }
-    }
-    return hits;
   }
 }

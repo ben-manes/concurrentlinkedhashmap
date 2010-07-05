@@ -1,18 +1,19 @@
 package com.googlecode.concurrentlinkedhashmap.distribution;
 
-import java.util.Date;
-import java.util.concurrent.Callable;
-
 import cern.jet.random.Distributions;
 import cern.jet.random.engine.MersenneTwister;
 import cern.jet.random.engine.RandomEngine;
+
+import com.google.common.base.Supplier;
+
+import java.util.Date;
 
 /**
  * Creates a Zipfian distribution.
  *
  * @author ben.manes@gmail.com (Ben Manes)
  */
-final class Zipfian implements Callable<Double> {
+final class Zipfian implements Supplier<Double> {
   private final double skew;
   private final RandomEngine random;
 
@@ -29,7 +30,8 @@ final class Zipfian implements Callable<Double> {
   /**
    * Random value with given skew.
    */
-  public Double call() {
+  @Override
+  public Double get() {
     return (double) Distributions.nextZipfInt(skew, random);
   }
 }
