@@ -273,7 +273,7 @@
 	<target
 		name="run-caliper"
 	  depends="compile"
-    description="Runs micro-benchmarks over the build artifacts."
+    description="Runs Caliper micro-benchmarks over the build artifacts."
 	>	
     <java
      classname="com.googlecode.concurrentlinkedhashmap.benchmark.${caliper.scenario}Benchmark"
@@ -301,7 +301,7 @@
 	<target
    name="run-benchmarks"
    depends="compile"
-   description="Runs micro-benchmarks over the build artifacts."
+   description="Runs JBoss Cache micro-benchmarks over the build artifacts."
   >
 		<mkdir dir="${benchmark.report.dir}"/>
 
@@ -329,7 +329,7 @@
 
 	<target
    name="run-reports"
-   description="Runs the report generator for micro-benchmark visualization."
+   description="Runs the report generator for JBoss Cache micro-benchmark visualization."
   >
 		<java
      classname="org.cachebench.reportgenerators.ChartGenerator"

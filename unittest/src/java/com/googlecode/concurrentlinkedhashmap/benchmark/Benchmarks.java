@@ -13,7 +13,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * A benchmark of comparing the read/write performance at different ratios.
+ * A set of utilities for writing benchmarks.
  *
  * @author ben.manes@gmail.com (Ben Manes)
  */
