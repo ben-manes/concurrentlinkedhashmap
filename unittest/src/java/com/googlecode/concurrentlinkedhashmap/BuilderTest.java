@@ -48,13 +48,13 @@ public final class BuilderTest extends BaseTest {
   }
 
   @Test(dataProvider = "builder", expectedExceptions = IllegalArgumentException.class)
-  public void concurrencyLevel_withNegative(Builder<?, ?> builder) {
-    builder.concurrencyLevel(-100);
+  public void concurrencyLevel_withZero(Builder<?, ?> builder) {
+    builder.concurrencyLevel(0);
   }
 
   @Test(dataProvider = "builder", expectedExceptions = IllegalArgumentException.class)
-  public void concurrencyLevel_withZero(Builder<?, ?> builder) {
-    builder.concurrencyLevel(0);
+  public void concurrencyLevel_withNegative(Builder<?, ?> builder) {
+    builder.concurrencyLevel(-100);
   }
 
   @Test(dataProvider = "builder")

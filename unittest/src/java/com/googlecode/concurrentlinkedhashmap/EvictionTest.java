@@ -1,7 +1,9 @@
 package com.googlecode.concurrentlinkedhashmap;
 
 import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableMap;
+
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Node;
@@ -9,7 +11,6 @@ import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Node;
 import org.testng.annotations.Test;
 
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -27,9 +28,9 @@ public final class EvictionTest extends BaseTest {
     return 100;
   }
 
-  @Test(dataProvider = "warmed")
+  @Test(dataProvider = "warmedMap")
   public void capacity_increase(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    Map<Integer, Integer> expected = unmodifiableMap(newWarmedMap());
+    Map<Integer, Integer> expected = ImmutableMap.copyOf(newWarmedMap());
 
     int newMaxCapacity = 2 * capacity();
     map.setCapacity(newMaxCapacity);
@@ -37,7 +38,7 @@ public final class EvictionTest extends BaseTest {
     assertEquals(map, expected);
   }
 
-  @Test(dataProvider = "warmed")
+  @Test(dataProvider = "warmedMap")
   public void capacity_decrease(ConcurrentLinkedHashMap<Integer, Integer> map) {
     int newMaxCapacity = capacity() / 2;
     map.setCapacity(newMaxCapacity);
@@ -46,7 +47,7 @@ public final class EvictionTest extends BaseTest {
     assertEquals(map.weightedSize(), newMaxCapacity);
   }
 
-  @Test(dataProvider = "warmed")
+  @Test(dataProvider = "warmedMap")
   public void capacity_decreaseToMinimum(ConcurrentLinkedHashMap<Integer, Integer> map) {
     int newMaxCapacity = 0;
     map.setCapacity(newMaxCapacity);
@@ -55,12 +56,12 @@ public final class EvictionTest extends BaseTest {
     assertEquals(map.weightedSize(), newMaxCapacity);
   }
 
-  @Test(dataProvider = "warmed")
+  @Test(dataProvider = "warmedMap")
   public void capacity_decreaseBelowMinimum(ConcurrentLinkedHashMap<Integer, Integer> map) {
     try {
       map.setCapacity(-1);
       fail("Capacity must be positive");
-    } catch (Exception e) {
+    } catch (IllegalArgumentException e) {
       assertEquals(map.capacity(), capacity());
     }
   }
@@ -71,9 +72,7 @@ public final class EvictionTest extends BaseTest {
         .maximumWeightedCapacity(0)
         .listener(listener)
         .build();
-    for (int i=0; i<100; i++) {
-      assertNull(map.put(i, i));
-    }
+    warmUp(map, 0, 100);
     assertEquals(listener.evicted.size(), 100);
   }
 
@@ -83,9 +82,7 @@ public final class EvictionTest extends BaseTest {
         .maximumWeightedCapacity(10)
         .listener(listener)
         .build();
-    for (int i=0; i<20; i++) {
-      map.put(i, i);
-    }
+    warmUp(map, 0, 20);
     assertEquals(map.size(), 10);
     assertEquals(map.weightedSize(), 10);
     assertEquals(listener.evicted.size(), 10);
@@ -141,7 +138,7 @@ public final class EvictionTest extends BaseTest {
       map.get(i);
       map.tryToDrainEvictionQueues(false);
     }
-    assertEquals(map.keySet(), new HashSet<Integer>(asList(expect)));
+    assertEquals(map.keySet(), ImmutableSet.copyOf(expect));
   }
 
   private void checkEvict(ConcurrentLinkedHashMap<Integer, Integer> map,
@@ -154,10 +151,10 @@ public final class EvictionTest extends BaseTest {
   }
 
   private <E> void assertSetEquals(Set<E> set, E... other) {
-    assertEquals(set, new HashSet<E>(asList(other)));
+    assertEquals(set, ImmutableSet.copyOf(other));
   }
 
-  @Test(dataProvider = "warmed")
+  @Test(dataProvider = "warmedMap")
   public void updateRecency_onGet(final ConcurrentLinkedHashMap<Integer, Integer> map) {
     final ConcurrentLinkedHashMap<Integer, Integer>.Node originalHead = map.sentinel.next;
     updateRecency(map, new Runnable() {
@@ -167,7 +164,7 @@ public final class EvictionTest extends BaseTest {
     });
   }
 
-  @Test(dataProvider = "warmed")
+  @Test(dataProvider = "warmedMap")
   public void updateRecency_onPutIfAbsent(final ConcurrentLinkedHashMap<Integer, Integer> map) {
     final ConcurrentLinkedHashMap<Integer, Integer>.Node originalHead = map.sentinel.next;
     updateRecency(map, new Runnable() {
@@ -177,7 +174,7 @@ public final class EvictionTest extends BaseTest {
     });
   }
 
-  @Test(dataProvider = "warmed")
+  @Test(dataProvider = "warmedMap")
   public void updateRecency_onPut(final ConcurrentLinkedHashMap<Integer, Integer> map) {
     final ConcurrentLinkedHashMap<Integer, Integer>.Node originalHead = map.sentinel.next;
     updateRecency(map, new Runnable() {
@@ -187,7 +184,7 @@ public final class EvictionTest extends BaseTest {
     });
   }
 
-  @Test(dataProvider = "warmed")
+  @Test(dataProvider = "warmedMap")
   public void updateRecency_onReplace(final ConcurrentLinkedHashMap<Integer, Integer> map) {
     final ConcurrentLinkedHashMap<Integer, Integer>.Node originalHead = map.sentinel.next;
     updateRecency(map, new Runnable() {
@@ -197,7 +194,7 @@ public final class EvictionTest extends BaseTest {
     });
   }
 
-  @Test(dataProvider = "warmed")
+  @Test(dataProvider = "warmedMap")
   public void updateRecency_onReplaceConditionally(
       final ConcurrentLinkedHashMap<Integer, Integer> map) {
     final ConcurrentLinkedHashMap<Integer, Integer>.Node originalHead = map.sentinel.next;

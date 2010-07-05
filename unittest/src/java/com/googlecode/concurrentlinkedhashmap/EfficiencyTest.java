@@ -1,6 +1,7 @@
 package com.googlecode.concurrentlinkedhashmap;
 
-import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
+import static com.google.common.collect.Lists.newArrayListWithCapacity;
+
 import com.googlecode.concurrentlinkedhashmap.caches.Cache;
 import com.googlecode.concurrentlinkedhashmap.distribution.Distribution;
 
@@ -8,7 +9,6 @@ import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
 import java.text.NumberFormat;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
@@ -29,16 +29,12 @@ public final class EfficiencyTest extends BaseTest {
 
   @BeforeClass(groups = "efficiency")
   public void beforeEfficiency() {
-    size = Integer.valueOf(System.getProperty("efficiency.workingSetSize"));
-    distribution =
-        Distribution.valueOf(System.getProperty("efficiency.distribution").toUpperCase());
+    size = intProperty("efficiency.workingSetSize");
+    distribution = enumProperty("efficiency.distribution", Distribution.class);
   }
 
-  @Test(groups = "development")
-  public void efficiency_lru() {
-    ConcurrentLinkedHashMap<Long, Long> actual = new Builder<Long, Long>()
-        .maximumWeightedCapacity(capacity())
-        .build();
+  @Test(groups = "development", dataProvider = "emptyMap")
+  public void efficiency_lru(ConcurrentLinkedHashMap<Long, Long> actual) {
     Map<Long, Long> expected = Cache.SYNC_LRU.create(capacity(), 1);
 
     List<Long> workingSet = createWorkingSet(Distribution.EXPONENTIAL, 10 * capacity());
@@ -75,13 +71,13 @@ public final class EfficiencyTest extends BaseTest {
   /**
    * Creates a random working set based on the distribution.
    *
-   * @param distribution The distribution type to use.
-   * @param size         The size of the working set.
-   * @return A random working set.
+   * @param distribution the distribution type to use
+   * @param size the size of the working set
+   * @return a random working set
    */
   private List<Long> createWorkingSet(Distribution distribution, int size) {
     Callable<Double> algorithm = distribution.getAlgorithm();
-    List<Long> workingSet = new ArrayList<Long>(size);
+    List<Long> workingSet = newArrayListWithCapacity(size);
     for (int i = 0; i < size; i++) {
       try {
         workingSet.add(Math.round(algorithm.call()));
@@ -95,9 +91,9 @@ public final class EfficiencyTest extends BaseTest {
   /**
    * Determines the hit-rate of the cache.
    *
-   * @param cache      The self-evicting map.
-   * @param workingSet The request working set.
-   * @return The hit-rate.
+   * @param cache the self-evicting map
+   * @param workingSet the request working set
+   * @return the hit-rate
    */
   private int determineEfficiency(Map<Long, Long> cache, List<Long> workingSet) {
     int hits = 0;

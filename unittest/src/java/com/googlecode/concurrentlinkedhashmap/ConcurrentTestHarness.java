@@ -1,6 +1,7 @@
 package com.googlecode.concurrentlinkedhashmap;
 
-import java.util.ArrayList;
+import static com.google.common.collect.Lists.newArrayListWithCapacity;
+
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
@@ -80,12 +81,11 @@ public final class ConcurrentTestHarness {
     final CountDownLatch endGate = new CountDownLatch(nThreads);
     final AtomicReferenceArray<T> results = new AtomicReferenceArray<T>(nThreads);
 
-    List<Thread> threads = new ArrayList<Thread>(nThreads);
+    List<Thread> threads = newArrayListWithCapacity(nThreads);
     for (int i = 0; i < nThreads; i++) {
       final int index = i;
       Thread thread = new Thread(baseThreadName + "-" + i) {
-        @Override
-        public void run() {
+        @Override public void run() {
           try {
             startGate.await();
             try {
@@ -113,7 +113,6 @@ public final class ConcurrentTestHarness {
       throw e;
     }
     long end = System.nanoTime();
-
     return new TestResult<T>(end - start, toList(results));
   }
 
@@ -125,7 +124,7 @@ public final class ConcurrentTestHarness {
    * @return the per-thread results as a standard collection
    */
   private static <T> List<T> toList(AtomicReferenceArray<T> data) {
-    List<T> list = new ArrayList<T>(data.length());
+    List<T> list = newArrayListWithCapacity(data.length());
     for (int i = 0; i < data.length(); i++) {
       list.add(data.get(i));
     }
