@@ -55,10 +55,7 @@ public final class ValidState extends TypeSafeDiagnosingMatcher<ConcurrentLinked
     return matches;
   }
 
-  /**
-   * Validates that the doubly-linked list running through the map is in a
-   * correct state.
-   */
+  /** Validates that the doubly-linked list. */
   @SuppressWarnings("unchecked")
   private boolean checkLinks(ConcurrentLinkedHashMap<?, ?> map, Description description) {
     boolean matches = true;
@@ -68,7 +65,7 @@ public final class ValidState extends TypeSafeDiagnosingMatcher<ConcurrentLinked
     while (current != map.sentinel) {
       matches &= check(seen.add(current),
           String.format("Loop detected: %s, saw %s in %s", current, seen, map), description);
-      matches &= assertDataNode(map, current, description);
+      matches &= checkDataNode(map, current, description);
       current = current.next;
     }
     matches &= check(map.size() == seen.size(), "Size != list length", description);
@@ -89,7 +86,7 @@ public final class ValidState extends TypeSafeDiagnosingMatcher<ConcurrentLinked
 
   /** Validates the the data node is in a proper state. */
   @SuppressWarnings("unchecked")
-  private boolean assertDataNode(ConcurrentLinkedHashMap<?, ?> map, Node node,
+  private boolean checkDataNode(ConcurrentLinkedHashMap<?, ?> map, Node node,
       Description description) {
     boolean matches = true;
     matches &= check(node.key != null, "null key", description);
