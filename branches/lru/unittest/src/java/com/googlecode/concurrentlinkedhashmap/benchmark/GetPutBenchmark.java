@@ -10,7 +10,7 @@ import com.googlecode.concurrentlinkedhashmap.caches.Cache;
 import java.util.Map;
 
 /**
- * A benchmark of comparing the read/write performance at different ratios.
+ * A benchmark comparing the read/write performance at different ratios.
  *
  * @author ben.manes@gmail.com (Ben Manes)
  */

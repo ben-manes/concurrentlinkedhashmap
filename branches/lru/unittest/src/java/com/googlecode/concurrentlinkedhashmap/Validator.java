@@ -4,10 +4,15 @@ import static java.lang.String.format;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.newSetFromMap;
+import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertFalse;
+import static org.testng.Assert.assertNotNull;
+import static org.testng.Assert.assertNotSame;
+import static org.testng.Assert.assertNull;
+import static org.testng.Assert.assertSame;
+import static org.testng.Assert.assertTrue;
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Node;
-
-import org.testng.Assert;
 
 import java.util.Collection;
 import java.util.IdentityHashMap;
@@ -21,29 +26,19 @@ import java.util.concurrent.locks.ReentrantLock;
  *
  * @author ben.manes@gmail.com (Ben Manes)
  */
-public final class Validator extends Assert {
-  private final boolean exhaustive;
+public final class Validator {
+  private static final boolean exhaustive;
 
-  /**
-   * A validator for the {@link ConcurrentLinkedHashMap}.
-   *
-   * @param exhaustive Whether to perform deep validations.
-   */
-  public Validator(boolean exhaustive) {
-    this.exhaustive = exhaustive;
+  static {
+    exhaustive = BaseTest.booleanProperty("test.exhaustive");
   }
 
-  /**
-   * @return Whether in exhaustive validation mode.
-   */
-  public boolean isExhaustive() {
-    return exhaustive;
-  }
+  private Validator() {}
 
   /**
    * Validates that the map is in a correct state.
    */
-  public void checkValidState(ConcurrentLinkedHashMap<?, ?> map) {
+  public static void checkValidState(ConcurrentLinkedHashMap<?, ?> map) {
     map.tryToDrainEvictionQueues(false);
     assertTrue(map.writeQueue.isEmpty());
     for (int i=0; i<map.recencyQueue.length; i++) {
@@ -71,7 +66,7 @@ public final class Validator extends Assert {
   /**
    * Validates that the linked map is empty.
    */
-  public void checkEmpty(ConcurrentLinkedHashMap<?, ?> map) {
+  public static void checkEmpty(ConcurrentLinkedHashMap<?, ?> map) {
     assertTrue(map.isEmpty(), "Not empty");
     assertTrue(map.data.isEmpty(), "Internal not empty");
 
@@ -89,7 +84,7 @@ public final class Validator extends Assert {
     assertEquals(map.toString(), emptyMap().toString());
   }
 
-  public void checkEmpty(Collection<?> collection) {
+  public static void checkEmpty(Collection<?> collection) {
     assertTrue(collection.isEmpty());
     assertEquals(0, collection.size());
     assertFalse(collection.iterator().hasNext());
@@ -102,7 +97,7 @@ public final class Validator extends Assert {
     }
   }
 
-  public void checkEqualsAndHashCode(Object o1, Object o2) {
+  public static void checkEqualsAndHashCode(Object o1, Object o2) {
     assertEquals(o1, o2);
     assertEquals(o2, o1);
     if (o1 != null) {
@@ -115,7 +110,7 @@ public final class Validator extends Assert {
    * correct state.
    */
   @SuppressWarnings("unchecked")
-  private void links(ConcurrentLinkedHashMap<?, ?> map) {
+  private static void links(ConcurrentLinkedHashMap<?, ?> map) {
     assertSentinel(map);
 
     Set<Node> seen = newSetFromMap(new IdentityHashMap<Node, Boolean>());
@@ -131,7 +126,7 @@ public final class Validator extends Assert {
   /**
    * Validates that the sentinel node is in a proper state.
    */
-  public void assertSentinel(ConcurrentLinkedHashMap<?, ?> map) {
+  public static void assertSentinel(ConcurrentLinkedHashMap<?, ?> map) {
     assertNull(map.sentinel.key);
     assertNull(map.sentinel.weightedValue);
     assertEquals(map.sentinel.segment, -1);
@@ -146,7 +141,7 @@ public final class Validator extends Assert {
    * @param node The data node.
    */
   @SuppressWarnings("unchecked")
-  private void assertDataNode(ConcurrentLinkedHashMap<?, ?> map, Node node) {
+  private static void assertDataNode(ConcurrentLinkedHashMap<?, ?> map, Node node) {
     assertNotNull(node.key);
     assertNotNull(node.weightedValue);
     assertNotNull(node.weightedValue.value);

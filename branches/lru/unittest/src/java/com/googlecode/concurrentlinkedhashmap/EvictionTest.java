@@ -1,9 +1,15 @@
 package com.googlecode.concurrentlinkedhashmap;
 
 import static java.util.Arrays.asList;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.testng.Assert.fail;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Node;
@@ -13,7 +19,6 @@ import org.testng.annotations.Test;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * A unit-test for the page replacement algorithm and its public methods.
@@ -34,26 +39,26 @@ public final class EvictionTest extends BaseTest {
 
     int newMaxCapacity = 2 * capacity();
     map.setCapacity(newMaxCapacity);
-    assertEquals(map.capacity(), newMaxCapacity);
-    assertEquals(map, expected);
+    assertThat(map.capacity(), is(equalTo(newMaxCapacity)));
+    assertThat(map, is(equalTo(expected)));
   }
 
   @Test(dataProvider = "warmedMap")
   public void capacity_decrease(ConcurrentLinkedHashMap<Integer, Integer> map) {
     int newMaxCapacity = capacity() / 2;
     map.setCapacity(newMaxCapacity);
-    assertEquals(map.capacity(), newMaxCapacity);
-    assertEquals(map.size(), newMaxCapacity);
-    assertEquals(map.weightedSize(), newMaxCapacity);
+    assertThat(map.capacity(), is(equalTo(newMaxCapacity)));
+    assertThat(map.size(), is(equalTo(newMaxCapacity)));
+    assertThat(map.weightedSize(), is(equalTo(newMaxCapacity)));
   }
 
   @Test(dataProvider = "warmedMap")
   public void capacity_decreaseToMinimum(ConcurrentLinkedHashMap<Integer, Integer> map) {
     int newMaxCapacity = 0;
     map.setCapacity(newMaxCapacity);
-    assertEquals(map.capacity(), newMaxCapacity);
-    assertEquals(map.size(), newMaxCapacity);
-    assertEquals(map.weightedSize(), newMaxCapacity);
+    assertThat(map.capacity(), is(equalTo(newMaxCapacity)));
+    assertThat(map.size(), is(equalTo(newMaxCapacity)));
+    assertThat(map.weightedSize(), is(equalTo(newMaxCapacity)));
   }
 
   @Test(dataProvider = "warmedMap")
@@ -62,7 +67,7 @@ public final class EvictionTest extends BaseTest {
       map.setCapacity(-1);
       fail("Capacity must be positive");
     } catch (IllegalArgumentException e) {
-      assertEquals(map.capacity(), capacity());
+      assertThat(map.capacity(), is(equalTo(capacity())));
     }
   }
 
@@ -73,7 +78,7 @@ public final class EvictionTest extends BaseTest {
         .listener(listener)
         .build();
     warmUp(map, 0, 100);
-    assertEquals(listener.evicted.size(), 100);
+    assertThat(listener.evicted, hasSize(100));
   }
 
   @Test(dataProvider = "collectingListener")
@@ -83,9 +88,9 @@ public final class EvictionTest extends BaseTest {
         .listener(listener)
         .build();
     warmUp(map, 0, 20);
-    assertEquals(map.size(), 10);
-    assertEquals(map.weightedSize(), 10);
-    assertEquals(listener.evicted.size(), 10);
+    assertThat(map.size(), is(10));
+    assertThat(map.weightedSize(), is(10));
+    assertThat(listener.evicted, hasSize(10));
   }
 
   @Test
@@ -99,16 +104,16 @@ public final class EvictionTest extends BaseTest {
     map.put(1, asList(1, 2));
     map.put(2, asList(3, 4, 5, 6, 7));
     map.put(3, asList(8, 9, 10));
-    assertEquals(map.weightedSize(), 10);
+    assertThat(map.weightedSize(), is(10));
 
     // evict (1)
     map.put(4, asList(11));
-    assertFalse(map.containsKey(1));
-    assertEquals(map.weightedSize(), 9);
+    assertThat(map.containsKey(1), is(false));
+    assertThat(map.weightedSize(), is(9));
 
     // evict (2, 3)
     map.put(5, asList(12, 13, 14, 15, 16, 17, 18, 19, 20));
-    assertEquals(map.weightedSize(), 10, map.toString());
+    assertThat(map.weightedSize(), is(10));
   }
 
   @Test
@@ -117,7 +122,7 @@ public final class EvictionTest extends BaseTest {
         .maximumWeightedCapacity(10)
         .build();
     warmUp(map, 0, 10);
-    assertSetEquals(map.keySet(), 0, 1, 2, 3, 4, 5, 6, 7, 8, 9);
+    assertThat(map.keySet(), containsInAnyOrder(0, 1, 2, 3, 4, 5, 6, 7, 8, 9));
 
     // re-order
     checkReorder(map, asList(0, 1, 2), 3, 4, 5, 6, 7, 8, 9, 0, 1, 2);
@@ -138,7 +143,7 @@ public final class EvictionTest extends BaseTest {
       map.get(i);
       map.tryToDrainEvictionQueues(false);
     }
-    assertEquals(map.keySet(), ImmutableSet.copyOf(expect));
+    assertThat(map.keySet(), containsInAnyOrder(expect));
   }
 
   private void checkEvict(ConcurrentLinkedHashMap<Integer, Integer> map,
@@ -147,11 +152,7 @@ public final class EvictionTest extends BaseTest {
       map.put(i, i);
       map.tryToDrainEvictionQueues(false);
     }
-    assertSetEquals(map.keySet(), expect);
-  }
-
-  private <E> void assertSetEquals(Set<E> set, E... other) {
-    assertEquals(set, ImmutableSet.copyOf(other));
+    assertThat(map.keySet(), containsInAnyOrder(expect));
   }
 
   @Test(dataProvider = "warmedMap")
@@ -214,9 +215,9 @@ public final class EvictionTest extends BaseTest {
     operation.run();
     map.drainRecencyQueues();
 
-    assertNotSame(map.sentinel.next, originalHead);
-    assertSame(map.sentinel.prev, originalHead);
-    assertEquals(listLength(map), length);
-    assertEquals(map.size(), size);
+    assertThat(map.sentinel.next, is(not(originalHead)));
+    assertThat(map.sentinel.prev, is(originalHead));
+    assertThat(listLength(map), is(equalTo(length)));
+    assertThat(map.size(), is(equalTo(size)));
   }
 }

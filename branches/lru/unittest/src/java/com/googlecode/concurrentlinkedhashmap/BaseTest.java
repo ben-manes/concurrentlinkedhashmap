@@ -2,11 +2,15 @@ package com.googlecode.concurrentlinkedhashmap;
 
 import static com.google.common.collect.Maps.immutableEntry;
 import static com.google.common.collect.Sets.newSetFromMap;
+import static com.googlecode.concurrentlinkedhashmap.Validator.checkValidState;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
+import static org.testng.Assert.fail;
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Node;
 
-import org.testng.Assert;
 import org.testng.ITestResult;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeClass;
@@ -25,8 +29,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
  *
  * @author ben.manes@gmail.com (Ben Manes)
  */
-public abstract class BaseTest extends Assert {
-  protected Validator validator;
+public abstract class BaseTest {
   private boolean debug;
 
   /** Retrieves the maximum weighted capacity to build maps with. */
@@ -35,7 +38,6 @@ public abstract class BaseTest extends Assert {
   /** Initializes the test with runtime properties. */
   @BeforeClass(alwaysRun = true)
   public void before() {
-    validator = new Validator(booleanProperty("test.exhaustive"));
     debug = booleanProperty("test.debugMode");
     info("\nRunning %s...\n", getClass().getSimpleName());
   }
@@ -69,15 +71,20 @@ public abstract class BaseTest extends Assert {
   private ConcurrentLinkedHashMap<?, ?> rawMap;
 
   /** Validates the state of a provided map. */
-  @AfterMethod(inheritGroups = true)
+  @AfterMethod(alwaysRun = true)
   public void verifyValidState(ITestResult result) {
-    if (rawMap == null) { // dataProvider not used
-      return;
-    }
+    boolean successful = result.isSuccess();
     try {
-      validator.checkValidState(rawMap);
+      if (rawMap != null) { // dataProvider used
+        checkValidState(rawMap);
+      }
     } catch (Throwable caught) {
+      successful = false;
       fail("Test: " + result.getMethod().getMethodName(), caught);
+    } finally {
+      if (!successful) {
+        info(" * %s: Failed", result.getMethod().getMethodName());
+      }
     }
   }
 
@@ -132,7 +139,7 @@ public abstract class BaseTest extends Assert {
    */
   protected void warmUp(Map<Integer, Integer> map, int start, int end) {
     for (Integer i = start; i < end; i++) {
-      assertNull(map.put(i, -i));
+      assertThat(map.put(i, -i), is(nullValue()));
     }
   }
 

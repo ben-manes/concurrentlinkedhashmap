@@ -1,7 +1,11 @@
 package com.googlecode.concurrentlinkedhashmap;
 
+import static com.googlecode.concurrentlinkedhashmap.Validator.checkValidState;
 import static com.googlecode.concurrentlinkedhashmap.benchmark.Benchmarks.createWorkingSet;
 import static com.googlecode.concurrentlinkedhashmap.benchmark.Benchmarks.determineEfficiency;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.is;
 
 import com.googlecode.concurrentlinkedhashmap.caches.Cache;
 import com.googlecode.concurrentlinkedhashmap.distribution.Distribution;
@@ -40,9 +44,9 @@ public final class EfficiencyTest extends BaseTest {
     List<Long> workingSet = createWorkingSet(Distribution.EXPONENTIAL, 10 * capacity());
     float hitExpected = determineEfficiency(expected, workingSet);
     float hitActual = determineEfficiency(actual, workingSet);
-    assertTrue(hitExpected > 0);
-    assertTrue(hitActual > 0);
-    validator.checkValidState(actual);
+    assertThat((int) hitExpected, is(greaterThan(0)));
+    assertThat((int) hitActual, is(greaterThan(0)));
+    checkValidState(actual);
 
     float expectedRate = 100 * hitActual/workingSet.size();
     float actualRate =  100 * hitActual/workingSet.size();
