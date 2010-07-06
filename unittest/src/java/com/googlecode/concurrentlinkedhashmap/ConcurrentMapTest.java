@@ -2,23 +2,33 @@ package com.googlecode.concurrentlinkedhashmap;
 
 import static com.google.common.collect.Maps.immutableEntry;
 import static com.google.common.collect.Maps.newHashMap;
+import static com.googlecode.concurrentlinkedhashmap.IsEqualToClone.isEqualToClone;
+import static com.googlecode.concurrentlinkedhashmap.Validator.checkEmpty;
+import static com.googlecode.concurrentlinkedhashmap.Validator.checkEqualsAndHashCode;
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
+import static org.apache.commons.lang.StringUtils.countMatches;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 import com.google.common.collect.ImmutableMap;
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 
 import org.apache.commons.lang.SerializationUtils;
-import org.apache.commons.lang.StringUtils;
 import org.testng.annotations.Test;
 
 import java.io.Serializable;
-import java.util.AbstractMap.SimpleEntry;
 import java.util.Collection;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.NoSuchElementException;
@@ -41,75 +51,73 @@ public final class ConcurrentMapTest extends BaseTest {
   @Test(dataProvider = "guardedMap")
   public void clear_whenEmpty(ConcurrentLinkedHashMap<Integer, Integer> map) {
     map.clear();
-    validator.checkEmpty(map);
+    checkEmpty(map);
   }
 
   @Test(dataProvider = "warmedMap")
   public void clear_whenPopulated(ConcurrentLinkedHashMap<Integer, Integer> map) {
     map.clear();
-    validator.checkEmpty(map);
+    checkEmpty(map);
   }
 
   @Test(dataProvider = "guardedMap")
   public void size_whenEmpty(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    assertEquals(map.size(), 0);
+    assertThat(map.size(), is(0));
   }
 
   @Test(dataProvider = "warmedMap")
   public void size_whenPopulated(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    assertEquals(map.size(), capacity());
+    assertThat(map.size(), is(equalTo(capacity())));
   }
 
   @Test(dataProvider = "guardedMap")
   public void isEmpty_whenEmpty(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    assertTrue(map.isEmpty());
-    validator.checkEmpty(map);
+    checkEmpty(map);
   }
 
   @Test(dataProvider = "warmedMap")
   public void isEmpty_whenPopulated(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    assertFalse(map.isEmpty());
+    assertThat(map.isEmpty(), is(false));
   }
 
   @Test(dataProvider = "warmedMap")
   public void equals_withNull(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    assertFalse(map.equals(null));
+    assertThat(map, is(not(equalTo(null))));
   }
 
   @Test(dataProvider = "warmedMap")
   public void equals_withSelf(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    assertEquals(map, map);
+    assertThat(map, is(equalTo(map)));
   }
 
   @Test(dataProvider = "guardedMap")
-  public void equals_whenEmpty(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    assertEquals(map, emptyMap());
-    assertEquals(emptyMap(), map);
+  public void equals_whenEmpty(Map<Object, Object> map) {
+    assertThat(map, is(equalTo(emptyMap())));
+    assertThat(emptyMap(), is(equalTo(map)));
   }
 
   @Test(dataProvider = "warmedMap")
-  public void equals_whenPopulated(ConcurrentLinkedHashMap<Integer, Integer> map) {
+  public void equals_whenPopulated(Map<Integer, Integer> map) {
     Map<Integer, Integer> expected = ImmutableMap.copyOf(newWarmedMap());
-    assertEquals(map, expected);
-    assertEquals(expected, map);
+    assertThat(map, is(equalTo(expected)));
+    assertThat(expected, is(equalTo(map)));
   }
 
   @Test(dataProvider = "warmedMap")
   public void hashCode_withSelf(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    assertEquals(map.hashCode(), map.hashCode());
+    assertThat(map.hashCode(), is(equalTo(map.hashCode())));
   }
 
   @Test(dataProvider = "guardedMap")
   public void hashCode_withEmpty(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    assertEquals(map.hashCode(), emptyMap().hashCode());
+    assertThat(map.hashCode(), is(equalTo(emptyMap().hashCode())));
   }
 
-  @Test(dataProvider = "guardedMap")
+  @Test(dataProvider = "warmedMap")
   public void hashCode_whenPopulated(ConcurrentLinkedHashMap<Integer, Integer> map) {
     Map<Integer, Integer> other = newHashMap();
-    warmUp(map, 0, 50);
-    warmUp(other, 0, 50);
-    assertEquals(map.hashCode(), other.hashCode());
+    warmUp(other, 0, capacity());
+    assertThat(map.hashCode(), is(equalTo(other.hashCode())));
   }
 
   @Test
@@ -127,14 +135,14 @@ public final class ConcurrentMapTest extends BaseTest {
 
   private void checkEqualsAndHashCodeNotEqual(Map<Integer, Integer> first,
       Map<Integer, Integer> second, String errorMsg) {
-    ConcurrentLinkedHashMap<Integer, Integer> map = newGuarded();
+    Map<Integer, Integer> map = newGuarded();
     Map<Integer, Integer> other = newHashMap();
     map.putAll(first);
     other.putAll(second);
 
-    assertFalse(map.equals(other), errorMsg);
-    assertFalse(other.equals(map), errorMsg);
-    assertFalse(map.hashCode() == other.hashCode(), errorMsg);
+    assertThat(errorMsg, map, is(not(equalTo(other))));
+    assertThat(errorMsg, other, is(not(equalTo(map))));
+    assertThat(errorMsg, map.hashCode(), is(not(equalTo(other.hashCode()))));
   }
 
   @Test(dataProvider = "guardedMap", expectedExceptions = NullPointerException.class)
@@ -142,16 +150,14 @@ public final class ConcurrentMapTest extends BaseTest {
     map.containsKey(null);
   }
 
-  @Test(dataProvider = "guardedMap")
+  @Test(dataProvider = "warmedMap")
   public void containsKey_whenFound(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    map.put(1, 2);
-    assertTrue(map.containsKey(1));
+    assertThat(map.containsKey(1), is(true));
   }
 
-  @Test(dataProvider = "guardedMap")
+  @Test(dataProvider = "warmedMap")
   public void containsKey_whenNotFound(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    map.put(1, 2);
-    assertFalse(map.containsKey(2));
+    assertThat(map.containsKey(-1), is(false));
   }
 
   @Test(dataProvider = "guardedMap", expectedExceptions = NullPointerException.class)
@@ -159,16 +165,14 @@ public final class ConcurrentMapTest extends BaseTest {
     map.containsValue(null);
   }
 
-  @Test(dataProvider = "guardedMap")
+  @Test(dataProvider = "warmedMap")
   public void containsValue_whenFound(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    map.put(1, 2);
-    assertTrue(map.containsValue(2));
+    assertThat(map.containsValue(-1), is(true));
   }
 
-  @Test(dataProvider = "guardedMap")
+  @Test(dataProvider = "warmedMap")
   public void containsValue_whenNotFound(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    map.put(1, 2);
-    assertFalse(map.containsValue(1));
+    assertThat(map.containsValue(1), is(false));
   }
 
   @Test(dataProvider = "guardedMap", expectedExceptions = NullPointerException.class)
@@ -176,16 +180,14 @@ public final class ConcurrentMapTest extends BaseTest {
     map.get(null);
   }
 
-  @Test(dataProvider = "guardedMap")
+  @Test(dataProvider = "warmedMap")
   public void get_whenFound(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    map.put(1, 2);
-    assertEquals(map.get(1), Integer.valueOf(2));
+    assertThat(map.get(1), is(-1));
   }
 
-  @Test(dataProvider = "guardedMap")
+  @Test(dataProvider = "warmedMap")
   public void get_whenNotFound(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    map.put(1, 2);
-    assertNull(map.get(2));
+    assertThat(map.get(-1), is(nullValue()));
   }
 
   @Test(dataProvider = "guardedMap", expectedExceptions = NullPointerException.class)
@@ -205,10 +207,10 @@ public final class ConcurrentMapTest extends BaseTest {
 
   @Test(dataProvider = "guardedMap")
   public void put(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    assertNull(map.put(1, 2));
-    assertEquals(map.put(1, 3), Integer.valueOf(2));
-    assertEquals(map.get(1), Integer.valueOf(3));
-    assertEquals(1, map.size());
+    assertThat(map.put(1, 2), is(nullValue()));
+    assertThat(map.put(1, 3), is(2));
+    assertThat(map.get(1), is(3));
+    assertThat(map.size(), is(1));
   }
 
   @Test(dataProvider = "guardedMap", expectedExceptions = NullPointerException.class)
@@ -219,8 +221,7 @@ public final class ConcurrentMapTest extends BaseTest {
   @Test(dataProvider = "guardedMap")
   public void putAll_withEmpty(ConcurrentLinkedHashMap<Integer, Integer> map) {
     map.putAll(ImmutableMap.<Integer, Integer>of());
-    assertEquals(map, emptyMap());
-    validator.checkEmpty(map);
+    checkEmpty(map);
   }
 
   @Test(dataProvider = "guardedMap")
@@ -228,7 +229,7 @@ public final class ConcurrentMapTest extends BaseTest {
     Map<Integer, Integer> data = newHashMap();
     warmUp(data, 0, 50);
     map.putAll(data);
-    assertEquals(map, data);
+    assertThat(map, is(equalTo(data)));
   }
 
   @Test(dataProvider = "guardedMap", expectedExceptions = NullPointerException.class)
@@ -249,11 +250,11 @@ public final class ConcurrentMapTest extends BaseTest {
   @Test(dataProvider = "guardedMap")
   public void putIfAbsent(ConcurrentLinkedHashMap<Integer, Integer> map) {
     for (Integer i = 0; i < capacity(); i++) {
-      assertNull(map.putIfAbsent(i, i));
-      assertEquals(map.putIfAbsent(i, -1), i);
-      assertEquals(map.get(i), i);
+      assertThat(map.putIfAbsent(i, i), is(nullValue()));
+      assertThat(map.putIfAbsent(i, 1), is(i));
+      assertThat(map.get(i), is(i));
     }
-    assertEquals(map.size(), capacity());
+    assertThat(map.size(), is(equalTo(capacity())));
   }
 
   @Test(dataProvider = "guardedMap", expectedExceptions = NullPointerException.class)
@@ -263,18 +264,18 @@ public final class ConcurrentMapTest extends BaseTest {
 
   @Test(dataProvider = "guardedMap")
   public void remove_whenEmpty(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    assertNull(map.remove(1));
-    validator.checkEmpty(map);
+    assertThat(map.remove(1), is(nullValue()));
   }
 
   @Test(dataProvider = "guardedMap")
   public void remove(ConcurrentLinkedHashMap<Integer, Integer> map) {
     map.put(1, 2);
-    assertEquals(map.remove(1), Integer.valueOf(2));
-    assertNull(map.remove(1));
-    assertNull(map.get(1));
-    assertFalse(map.containsKey(1));
-    validator.checkEmpty(map);
+    assertThat(map.remove(1), is(2));
+    assertThat(map.remove(1), is(nullValue()));
+    assertThat(map.get(1), is(nullValue()));
+    assertThat(map.containsKey(1), is(false));
+    assertThat(map.containsValue(2), is(false));
+    checkEmpty(map);
   }
 
   @Test(dataProvider = "guardedMap", expectedExceptions = NullPointerException.class)
@@ -294,18 +295,18 @@ public final class ConcurrentMapTest extends BaseTest {
 
   @Test(dataProvider = "guardedMap")
   public void removeConditionally_whenEmpty(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    assertFalse(map.remove(1, 2));
-    validator.checkEmpty(map);
+    assertThat(map.remove(1, 2), is(false));
   }
 
   @Test(dataProvider = "guardedMap")
   public void removeConditionally(ConcurrentLinkedHashMap<Integer, Integer> map) {
     map.put(1, 2);
-    assertFalse(map.remove(1, -2));
-    assertTrue(map.remove(1, 2));
-    assertNull(map.get(1));
-    assertFalse(map.containsKey(1));
-    validator.checkEmpty(map);
+    assertThat(map.remove(1, -2), is(false));
+    assertThat(map.remove(1, 2), is(true));
+    assertThat(map.get(1), is(nullValue()));
+    assertThat(map.containsKey(1), is(false));
+    assertThat(map.containsValue(2), is(false));
+    checkEmpty(map);
   }
 
   @Test(dataProvider = "guardedMap", expectedExceptions = NullPointerException.class)
@@ -325,16 +326,15 @@ public final class ConcurrentMapTest extends BaseTest {
 
   @Test(dataProvider = "guardedMap")
   public void replace_whenEmpty(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    assertNull(map.replace(1, 2));
-    validator.checkEmpty(map);
+    assertThat(map.replace(1, 2), is(nullValue()));
   }
 
   @Test(dataProvider = "guardedMap")
   public void replace_whenPopulated(ConcurrentLinkedHashMap<Integer, Integer> map) {
     map.put(1, 2);
-    assertEquals(Integer.valueOf(2), map.replace(1, 3));
-    assertEquals(Integer.valueOf(3), map.get(1));
-    assertEquals(1, map.size());
+    assertThat(map.replace(1, 3), is(2));
+    assertThat(map.get(1), is(3));
+    assertThat(map.size(), is(1));
   }
 
   @Test(dataProvider = "guardedMap", expectedExceptions = NullPointerException.class)
@@ -380,42 +380,40 @@ public final class ConcurrentMapTest extends BaseTest {
 
   @Test(dataProvider = "guardedMap")
   public void replaceConditionally_whenEmpty(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    assertFalse(map.replace(1, 2, 3));
-    validator.checkEmpty(map);
+    assertThat(map.replace(1, 2, 3), is(false));
   }
 
   @Test(dataProvider = "guardedMap")
   public void replaceConditionally_whenPopulated(ConcurrentLinkedHashMap<Integer, Integer> map) {
     map.put(1, 2);
-    assertFalse(map.replace(1, 3, 4));
-    assertTrue(map.replace(1, 2, 3));
-    assertEquals(map.get(1), Integer.valueOf(3));
-    assertEquals(map.size(), 1);
+    assertThat(map.replace(1, 3, 4), is(false));
+    assertThat(map.replace(1, 2, 3), is(true));
+    assertThat(map.get(1), is(3));
+    assertThat(map.size(), is(1));
   }
 
   @Test(dataProvider = "guardedMap")
   public void toString_whenempty(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    assertEquals(map.toString(), emptyMap().toString());
+    assertThat(map, hasToString(emptyMap().toString()));
   }
 
   @Test(dataProvider = "guardedMap")
   public void toString_whenPopulated(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    warmUp(map, 0, 5);
-    String str = map.toString();
-    for (int i=1; i < 5; i++) {
-      assertEquals(StringUtils.countMatches(str, i + "=" + -i), 1);
+    warmUp(map, 0, 10);
+    String toString = map.toString();
+    for (Entry<Integer, Integer> entry : map.entrySet()) {
+      assertThat(countMatches(toString, entry.toString()), is(equalTo(1)));
     }
   }
 
   @Test(dataProvider = "guardedMap")
   public void serialization_whenEmpty(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    ConcurrentLinkedHashMap<Integer, Integer> copy = cloneAndAssert(map);
-    validator.checkEmpty(copy);
+    assertThat(map, isEqualToClone());
   }
 
   @Test(dataProvider = "warmedMap")
   public void serialization_whenPopulated(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    cloneAndAssert(map);
+    assertThat(map, isEqualToClone());
   }
 
   @Test(dataProvider = "guardingListener")
@@ -430,22 +428,7 @@ public final class ConcurrentMapTest extends BaseTest {
           .listener(listener)
           .build();
     map.put(1, singletonList(2));
-    cloneAndAssert(map);
-  }
-
-  @SuppressWarnings("unchecked")
-  private <K, V> ConcurrentLinkedHashMap<K, V> cloneAndAssert(
-      ConcurrentLinkedHashMap<K, V> map) {
-    ConcurrentLinkedHashMap<K, V> copy =
-      (ConcurrentLinkedHashMap<K, V>) SerializationUtils.clone(map);
-    assertEquals(copy.maximumWeightedSize, map.maximumWeightedSize);
-    assertEquals(copy.listener.getClass(), map.listener.getClass());
-    assertEquals(copy.weigher.getClass(), map.weigher.getClass());
-    assertEquals(copy.concurrencyLevel, map.concurrencyLevel);
-    validator.checkEqualsAndHashCode(map, copy);
-    validator.checkValidState(map);
-    validator.checkValidState(copy);
-    return copy;
+    assertThat(map, isEqualToClone());
   }
 
   /* ---------------- Key Set -------------- */
@@ -457,70 +440,64 @@ public final class ConcurrentMapTest extends BaseTest {
 
   @Test(dataProvider = "guardedMap")
   public void keySetToArray_whenEmpty(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    assertEquals(map.keySet().toArray(new Integer[0]).length, 0);
-    assertEquals(map.keySet().toArray().length, 0);
+    assertThat(map.keySet().toArray(new Integer[0]).length, is(equalTo(0)));
+    assertThat(map.keySet().toArray().length, is(equalTo(0)));
   }
 
   @Test(dataProvider = "warmedMap")
   public void keySetToArray_whenPopulated(ConcurrentLinkedHashMap<Integer, Integer> map) {
     Set<Integer> keys = map.keySet();
-
-    List<Object> expectedArray = asList(newHashMap(map).keySet().toArray());
-    assertTrue(asList(keys.toArray(new Integer[map.size()])).containsAll(expectedArray));
-    assertEquals(keys.size(), keys.toArray(new Integer[map.size()]).length);
-    assertTrue(asList(keys.toArray()).containsAll(expectedArray));
-    assertEquals(keys.size(), keys.toArray().length);
+    Object[] array1 = keys.toArray();
+    Object[] array2 = keys.toArray(new Integer[map.size()]);
+    Object[] expected = newHashMap(map).keySet().toArray();
+    for (Object[] array : asList(array1, array2)) {
+      assertThat(array.length, is(equalTo(keys.size())));
+      assertThat(asList(array), containsInAnyOrder(expected));
+    }
   }
 
   @Test(dataProvider = "guardedMap")
   public void keySet_whenEmpty(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    validator.checkEmpty(map.keySet());
+    checkEmpty(map.keySet());
   }
 
   @Test(dataProvider = "guardedMap", expectedExceptions = UnsupportedOperationException.class)
   public void keySet_addNotSupported(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    assertFalse(map.keySet().add(1));
+    map.keySet().add(1);
   }
 
-  @Test(dataProvider = "guardedMap")
+  @Test(dataProvider = "warmedMap")
   public void keySet_withClear(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    Set<Integer> keys = map.keySet();
-    keys.clear();
-    validator.checkEmpty(keys);
-    validator.checkEmpty(map);
+    map.keySet().clear();
+    checkEmpty(map);
   }
 
   @Test(dataProvider = "warmedMap")
   public void keySet_whenPopulated(ConcurrentLinkedHashMap<Integer, Integer> map) {
     Set<Integer> keys = map.keySet();
-    int size = map.size();
-
-    assertFalse(keys.contains(new Object()));
-    assertFalse(keys.remove(new Object()));
-    assertEquals(keys.size(), size);
-    for (int i=0; i<size; i++) {
-      assertTrue(keys.contains(i));
-      assertTrue(keys.remove(i));
-      assertFalse(keys.remove(i));
-      assertFalse(keys.contains(i));
+    assertThat(keys.contains(new Object()), is(false));
+    assertThat(keys.remove(new Object()), is(false));
+    assertThat(keys, hasSize(capacity()));
+    for (int i = 0; i < capacity(); i++) {
+      assertThat(keys.contains(i), is(true));
+      assertThat(keys.remove(i), is(true));
+      assertThat(keys.remove(i), is(false));
+      assertThat(keys.contains(i), is(false));
     }
-    validator.checkEmpty(keys);
-    validator.checkEmpty(map);
+    checkEmpty(map);
   }
 
   @Test(dataProvider = "warmedMap")
   public void keySet_iterator(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    Set<Integer> keys = map.keySet();
-    int size = map.size();
-
     int iterations = 0;
-    for (Iterator<Integer> i=map.keySet().iterator(); i.hasNext();) {
-      map.containsKey(i.next());
-      i.remove();
+    Set<Integer> keys = map.keySet();
+    for (Iterator<Integer> i = map.keySet().iterator(); i.hasNext();) {
+      assertThat(map.containsKey(i.next()), is(true));
       iterations++;
+      i.remove();
     }
-    assertEquals(iterations, size);
-    validator.checkEmpty(map);
+    assertThat(iterations, is(equalTo(capacity())));
+    checkEmpty(map);
   }
 
   @Test(dataProvider = "guardedMap", expectedExceptions = IllegalStateException.class)
@@ -542,69 +519,64 @@ public final class ConcurrentMapTest extends BaseTest {
 
   @Test(dataProvider = "guardedMap")
   public void valuesToArray_whenEmpty(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    assertEquals(map.values().toArray(new Integer[0]).length, 0);
-    assertEquals(map.values().toArray().length, 0);
+    assertThat(map.values().toArray(new Integer[0]).length, is(equalTo(0)));
+    assertThat(map.values().toArray().length, is(equalTo(0)));
   }
 
   @Test(dataProvider = "warmedMap")
   public void valuesToArray_whenPopulated(ConcurrentLinkedHashMap<Integer, Integer> map) {
     Collection<Integer> values = map.values();
-    List<Object> expectedArray = asList(newHashMap(map).values().toArray());
-    assertTrue(asList(values.toArray(new Integer[map.size()])).containsAll(expectedArray));
-    assertEquals(values.size(), values.toArray(new Integer[map.size()]).length);
-    assertTrue(asList(values.toArray()).containsAll(expectedArray));
-    assertEquals(values.size(), values.toArray().length);
+    Object[] array1 = values.toArray();
+    Object[] array2 = values.toArray(new Integer[map.size()]);
+    Object[] expected = newHashMap(map).values().toArray();
+    for (Object[] array : asList(array1, array2)) {
+      assertThat(array.length, is(equalTo(values.size())));
+      assertThat(asList(array), containsInAnyOrder(expected));
+    }
   }
 
   @Test(dataProvider = "guardedMap")
   public void values_whenEmpty(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    validator.checkEmpty(map.values());
+    checkEmpty(map.values());
   }
 
   @Test(dataProvider = "guardedMap", expectedExceptions = UnsupportedOperationException.class)
   public void values_addNotSupported(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    assertFalse(map.values().add(1));
+    map.values().add(1);
   }
 
   @Test(dataProvider = "warmedMap")
   public void values_withClear(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    Collection<Integer> values = map.values();
-    values.clear();
-    validator.checkEmpty(values);
-    validator.checkEmpty(map);
+    map.values().clear();
+    checkEmpty(map);
   }
 
   @Test(dataProvider = "warmedMap")
   public void values_whenPopulated(ConcurrentLinkedHashMap<Integer, Integer> map) {
     Collection<Integer> values = map.values();
-    int size = map.size();
-
-    assertFalse(values.contains(new Object()));
-    assertFalse(values.remove(new Object()));
-    assertEquals(values.size(), size);
-    for (int i=0; i<size; i++) {
-      assertTrue(values.contains(-i));
-      assertTrue(values.remove(-i));
-      assertFalse(values.remove(-i));
-      assertFalse(values.contains(-i));
+    assertThat(values.contains(new Object()), is(false));
+    assertThat(values.remove(new Object()), is(false));
+    assertThat(values, hasSize(capacity()));
+    for (int i = 0; i < capacity(); i++) {
+      assertThat(values.contains(-i), is(true));
+      assertThat(values.remove(-i), is(true));
+      assertThat(values.remove(-i), is(false));
+      assertThat(values.contains(-i), is(false));
     }
-    validator.checkEmpty(values);
-    validator.checkEmpty(map);
+    checkEmpty(map);
   }
 
   @Test(dataProvider = "warmedMap")
   public void valueIterator(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    Collection<Integer> values = map.values();
-    int size = map.size();
-
     int iterations = 0;
-    for (Iterator<Integer> i=map.values().iterator(); i.hasNext();) {
-      map.containsValue(i.next());
-      i.remove();
+    Collection<Integer> values = map.values();
+    for (Iterator<Integer> i = map.values().iterator(); i.hasNext();) {
+      assertThat(map.containsValue(i.next()), is(true));
       iterations++;
+      i.remove();
     }
-    assertEquals(iterations, size);
-    validator.checkEmpty(map);
+    assertThat(iterations, is(equalTo(capacity())));
+    checkEmpty(map);
   }
 
   @Test(dataProvider = "guardedMap", expectedExceptions = IllegalStateException.class)
@@ -626,78 +598,71 @@ public final class ConcurrentMapTest extends BaseTest {
 
   @Test(dataProvider = "guardedMap")
   public void entrySetToArray_whenEmpty(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    assertEquals(map.entrySet().toArray(new Integer[0]).length, 0);
-    assertEquals(map.entrySet().toArray().length, 0);
+    assertThat(map.entrySet().toArray(new Integer[0]).length, is(equalTo(0)));
+    assertThat(map.entrySet().toArray().length, is(equalTo(0)));
   }
 
   @Test(dataProvider = "warmedMap")
   public void entrySetToArray_whenPopulated(ConcurrentLinkedHashMap<Integer, Integer> map) {
     Set<Entry<Integer, Integer>> entries = map.entrySet();
-
-    List<Object> expectedArray = asList(newHashMap(map).entrySet().toArray());
-    assertTrue(asList(entries.toArray(new Entry[map.size()])).containsAll(expectedArray));
-    assertEquals(entries.size(), entries.toArray(new Entry[map.size()]).length);
-    assertTrue(asList(entries.toArray()).containsAll(expectedArray));
-    assertEquals(entries.size(), entries.toArray().length);
+    Object[] array1 = entries.toArray();
+    Object[] array2 = entries.toArray(new Entry[map.size()]);
+    Object[] expected = newHashMap(map).entrySet().toArray();
+    for (Object[] array : asList(array1, array2)) {
+      assertThat(array.length, is(equalTo(entries.size())));
+      assertThat(asList(array), containsInAnyOrder(expected));
+    }
   }
 
   @Test(dataProvider = "guardedMap")
   public void entrySet_whenEmpty(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    validator.checkEmpty(map.entrySet());
+    checkEmpty(map.entrySet());
   }
 
   @Test(dataProvider = "guardedMap")
   public void entrySet_addIsSupported(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    assertTrue(map.entrySet().add(immutableEntry(1, 2)));
-    assertFalse(map.entrySet().add(immutableEntry(1, 2)));
-    assertEquals(map.entrySet().size(), 1);
-    assertEquals(map.size(), 1);
+    assertThat(map.entrySet().add(immutableEntry(1, 2)), is(true));
+    assertThat(map.entrySet().add(immutableEntry(1, 2)), is(false));
+    assertThat(map.entrySet().size(), is(1));
+    assertThat(map.size(), is(1));
   }
 
   @Test(dataProvider = "warmedMap")
   public void entrySet_withClear(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    Set<Entry<Integer, Integer>> entries = map.entrySet();
-    entries.clear();
-    validator.checkEmpty(entries);
-    validator.checkEmpty(map);
+    map.entrySet().clear();
+    checkEmpty(map);
   }
 
   @Test(dataProvider = "warmedMap")
   public void entrySet_whenPopulated(ConcurrentLinkedHashMap<Integer, Integer> map) {
     Set<Entry<Integer, Integer>> entries = map.entrySet();
-    int size = map.size();
-
     Entry<Integer, Integer> entry = map.entrySet().iterator().next();
-    assertFalse(entries.contains(
-        new SimpleEntry<Integer, Integer>(entry.getKey(), entry.getValue() + 1)));
-    assertFalse(entries.contains(new Object()));
-    assertFalse(entries.remove(new Object()));
-    assertEquals(entries.size(), size);
-    for (int i=0; i<size; i++) {
+    assertThat(entries.contains(immutableEntry(entry.getKey(), entry.getValue() + 1)), is(false));
+    assertThat(entries.contains(new Object()), is(false));
+    assertThat(entries.remove(new Object()), is(false));
+    assertThat(entries, hasSize(capacity()));
+    for (int i = 0; i < capacity(); i++) {
       Entry<Integer, Integer> newEntry = immutableEntry(i, -i);
-      assertTrue(entries.contains(newEntry));
-      assertTrue(entries.remove(newEntry));
-      assertFalse(entries.remove(newEntry));
-      assertFalse(entries.contains(newEntry));
+      assertThat(entries.contains(newEntry), is(true));
+      assertThat(entries.remove(newEntry), is(true));
+      assertThat(entries.remove(newEntry), is(false));
+      assertThat(entries.contains(newEntry), is(false));
     }
-
-    validator.checkEmpty(entries);
-    validator.checkEmpty(map);
+    checkEmpty(map);
   }
 
   @Test(dataProvider = "warmedMap")
   public void entryIterator(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    Set<Entry<Integer, Integer>> entries = map.entrySet();
-    int size = map.size();
-
     int iterations = 0;
-    for (Iterator<Entry<Integer, Integer>> i=map.entrySet().iterator(); i.hasNext();) {
-      map.containsValue(i.next());
-      i.remove();
+    Set<Entry<Integer, Integer>> entries = map.entrySet();
+    for (Iterator<Entry<Integer, Integer>> i = map.entrySet().iterator(); i.hasNext();) {
+      Entry<Integer, Integer> entry = i.next();
+      assertThat(map, hasEntry(entry.getKey(), entry.getValue()));
       iterations++;
+      i.remove();
     }
-    assertEquals(iterations, size);
-    validator.checkEmpty(map);
+    assertThat(iterations, is(equalTo(capacity())));
+    checkEmpty(map);
   }
 
   @Test(dataProvider = "guardedMap", expectedExceptions = IllegalStateException.class)
@@ -716,25 +681,22 @@ public final class ConcurrentMapTest extends BaseTest {
     Entry<Integer, Integer> entry = map.entrySet().iterator().next();
 
     map.remove(1);
-    assertTrue(map.isEmpty());
+    checkEmpty(map);
 
     entry.setValue(3);
-    assertEquals(1, map.size());
-    assertEquals(Integer.valueOf(3), map.get(1));
+    assertThat(map.size(), is(1));
+    assertThat(map.get(1), is(3));
   }
 
-  @Test(dataProvider = "guardedMap", expectedExceptions = NullPointerException.class)
+  @Test(dataProvider = "warmedMap", expectedExceptions = NullPointerException.class)
   public void writeThroughEntry_withNull(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    map.put(1, 2);
-    Entry<Integer, Integer> entry = map.entrySet().iterator().next();
-    entry.setValue(null);
+    map.entrySet().iterator().next().setValue(null);
   }
 
-  @Test(dataProvider = "guardedMap")
+  @Test(dataProvider = "warmedMap")
   public void writeThroughEntry_serialize(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    map.put(1, 2);
     Entry<Integer, Integer> entry = map.entrySet().iterator().next();
     Object copy = SerializationUtils.clone((Serializable) entry);
-    validator.checkEqualsAndHashCode(entry, copy);
+    checkEqualsAndHashCode(entry, copy);
   }
 }

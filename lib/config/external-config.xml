@@ -134,6 +134,16 @@
   <path id="guava.deploy.path">
     <path refid="guava.compile.path"/>
   </path>
+	
+  <!-- Hamcrest -->
+  <path id="hamcrest.compile.path">
+    <fileset dir="${external.dir}/hamcrest/1.3.0rc1">
+      <include name="hamcrest-all.jar"/>
+    </fileset>
+  </path>
+  <path id="hamcrest.deploy.path">
+    <path refid="hamcrest.compile.path"/>
+  </path>
 
   <!-- JBoss Cache 2.1.0 -->
   <path id="jboss.cache-2.1.0.compile.path">

@@ -22,7 +22,6 @@ public abstract class ConcurrentBenchmark extends SimpleBenchmark {
     startGate = new CountDownLatch(1);
     endGate = new CountDownLatch(getNumberOfThreads());
     for (int i = 0; i < getNumberOfThreads(); i++) {
-      final int index = i;
       Thread thread = new Thread() {
         @Override public void run() {
           try {

@@ -1,5 +1,12 @@
 package com.googlecode.concurrentlinkedhashmap;
 
+import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder.DEFAULT_CONCURRENCY_LEVEL;
+import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder.DEFAULT_INITIAL_CAPACITY;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.sameInstance;
+
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.DiscardingListener;
 
@@ -30,9 +37,14 @@ public final class BuilderTest extends BaseTest {
   }
 
   @Test(dataProvider = "builder")
-  public void initialCapacity(Builder<?, ?> builder) {
-    builder.initialCapacity(100);
-    assertEquals(builder.initialCapacity, 100);
+  public void initialCapacity_withDefault(Builder<?, ?> builder) {
+    assertThat(builder.initialCapacity, is(equalTo(DEFAULT_INITIAL_CAPACITY)));
+    builder.build(); // can't check, so just assert that it builds
+  }
+
+  @Test(dataProvider = "builder")
+  public void initialCapacity_withCustom(Builder<?, ?> builder) {
+    assertThat(builder.initialCapacity(100).initialCapacity, is(equalTo(100)));
     builder.build(); // can't check, so just assert that it builds
   }
 
@@ -43,8 +55,7 @@ public final class BuilderTest extends BaseTest {
 
   @Test(dataProvider = "builder")
   public void maximumWeightedCapacity(Builder<?, ?> builder) {
-    ConcurrentLinkedHashMap<?, ?> map = builder.build();
-    assertEquals(map.capacity(), capacity());
+    assertThat(builder.build().capacity(), is(equalTo(capacity())));
   }
 
   @Test(dataProvider = "builder", expectedExceptions = IllegalArgumentException.class)
@@ -58,9 +69,13 @@ public final class BuilderTest extends BaseTest {
   }
 
   @Test(dataProvider = "builder")
-  public void concurrencyLevel(Builder<?, ?> builder) {
-    assertEquals(builder.build().concurrencyLevel, Builder.DEFAULT_CONCURRENCY_LEVEL);
-    assertEquals(builder.concurrencyLevel(32).build().concurrencyLevel, 32);
+  public void concurrencyLevel_withDefault(Builder<?, ?> builder) {
+    assertThat(builder.build().concurrencyLevel, is(equalTo(DEFAULT_CONCURRENCY_LEVEL)));
+  }
+
+  @Test(dataProvider = "builder")
+  public void concurrencyLevel_withCustom(Builder<?, ?> builder) {
+    assertThat(builder.concurrencyLevel(32).build().concurrencyLevel, is(32));
   }
 
   @Test(dataProvider = "builder", expectedExceptions = NullPointerException.class)
@@ -68,12 +83,18 @@ public final class BuilderTest extends BaseTest {
     builder.listener(null);
   }
 
+  @Test(dataProvider = "builder")
+  public void listener_withDefault(Builder<Object, Object> builder) {
+    EvictionListener<Object, Object> listener = DiscardingListener.INSTANCE;
+    assertThat(builder.build().listener, is(sameInstance(listener)));
+  }
+
   @Test(dataProvider = "guardingListener")
-  public void listener(EvictionListener<Object, Object> listener) {
+  public void listener_withCustom(EvictionListener<Object, Object> listener) {
     Builder<Object, Object> builder = new Builder<Object, Object>()
-        .maximumWeightedCapacity(capacity());
-    assertSame(builder.build().listener, DiscardingListener.INSTANCE);
-    assertSame(builder.listener(listener).build().listener, listener);
+        .maximumWeightedCapacity(capacity())
+        .listener(listener);
+    assertThat(builder.build().listener, is(sameInstance(listener)));
   }
 
   @Test(dataProvider = "builder", expectedExceptions = NullPointerException.class)
@@ -83,15 +104,13 @@ public final class BuilderTest extends BaseTest {
 
   @Test(dataProvider = "builder")
   public void weigher_withDefault(Builder<Integer, byte[]> builder) {
-    assertSame(builder.build().weigher, Weighers.singleton());
+    assertThat(builder.build().weigher, is(sameInstance(Weighers.<byte[]>singleton())));
   }
 
   @Test(dataProvider = "builder")
   public void weigher_withCustom(Builder<Integer, byte[]> builder) {
-    ConcurrentLinkedHashMap<Integer, byte[]> map = builder
-        .weigher(Weighers.byteArray())
-        .build();
-    assertSame(map.weigher, Weighers.byteArray());
+    builder.weigher(Weighers.byteArray());
+    assertThat(builder.build().weigher, is(sameInstance(Weighers.byteArray())));
   }
 
   /** Provides a builder with the capacity set. */
