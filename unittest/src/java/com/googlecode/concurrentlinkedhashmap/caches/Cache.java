@@ -3,6 +3,7 @@ package com.googlecode.concurrentlinkedhashmap.caches;
 import static java.util.Collections.synchronizedMap;
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
+import com.googlecode.concurrentlinkedhashmap.caches.ProductionMap.EvictionPolicy;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -15,9 +16,9 @@ import java.util.concurrent.ConcurrentHashMap;
 public enum Cache {
 
   /**
-   * A concurrent linked hashmap, using LRU eviction.
+   * A concurrent linked hash map.
    */
-  CONCURRENT_LINKED_HASH_MAP() {
+  ConcurrentLinkedHashMap() {
     @Override
     public <K, V> Map<K, V>  create(int capacity, int concurrencyLevel) {
       return new Builder<K, V>()
@@ -29,40 +30,39 @@ public enum Cache {
   },
 
   /**
-   * ConcurrentMap and ConcurrentQueue, using FIFO eviction.
+   * A concurrent map using a first-in, first-out eviction policy.
    */
-  CONCURRENT_FIFO() {
+  Concurrent_Fifo() {
     @Override
     public <K, V> Map<K, V>  create(int capacity, int concurrencyLevel) {
-      return new ConcurrentFifoMap<K, V>(capacity);
+      return ProductionMap.create(EvictionPolicy.FIFO, capacity, concurrencyLevel);
     }
   },
 
   /**
-   * ConcurrentMap and ConcurrentQueue, using second-chance FIFO eviction.
+   * A concurrent map using a second chance first-in, first-out eviction policy.
    */
-  SECOND_CHANCE() {
+  Concurrent_SecondChanceFifo() {
     @Override
     public <K, V> Map<K, V>  create(int capacity, int concurrencyLevel) {
-      return new SecondChanceMap<K, V>(capacity);
+      return ProductionMap.create(EvictionPolicy.SECOND_CHANCE, capacity, concurrencyLevel);
     }
   },
 
   /**
-   * ConcurrentMap and ConcurrentQueue and key-value links, using second-chance
-   * FIFO eviction
+   * A concurrent map using an eager lock-based LRU eviction policy.
    */
-  SECOND_CHANCE_LINKED() {
+  Concurrent_Lru() {
     @Override
     public <K, V> Map<K, V>  create(int capacity, int concurrencyLevel) {
-      return new SecondChanceLinkedMap<K, V>(capacity, concurrencyLevel);
+      return ProductionMap.create(EvictionPolicy.LRU, capacity, concurrencyLevel);
     }
   },
 
   /**
    * LinkedHashMap in FIFO eviction, guarded by read/write lock.
    */
-  RW_FIFO() {
+  LinkedHashMap_Fifo_Lock() {
     @Override
     public <K, V> Map<K, V>  create(int capacity, int concurrencyLevel) {
       return new LockMap<K, V>(false, capacity);
@@ -72,7 +72,7 @@ public enum Cache {
   /**
    * LinkedHashMap in LRU eviction, guarded by lock.
    */
-  LOCK_LRU() {
+  LinkedHashMap_Lru_Lock() {
     @Override
     public <K, V> Map<K, V>  create(int capacity, int concurrencyLevel) {
       return new LockMap<K, V>(true, capacity);
@@ -82,7 +82,7 @@ public enum Cache {
   /**
    * LinkedHashMap in FIFO eviction, guarded by synchronized monitor.
    */
-  SYNC_FIFO() {
+  LinkedHashMap_Fifo_Sync() {
     @Override
     public <K, V> Map<K, V>  create(int capacity, int concurrencyLevel) {
       return synchronizedMap(new UnsafeMap<K, V>(false, capacity));
@@ -92,7 +92,7 @@ public enum Cache {
   /**
    * LinkedHashMap in LRU eviction, guarded by synchronized monitor.
    */
-  SYNC_LRU() {
+  LinkedHashMap_Lru_Sync() {
     @Override
     public <K, V> Map<K, V>  create(int capacity, int concurrencyLevel) {
       return synchronizedMap(new UnsafeMap<K, V>(true, capacity));
@@ -100,9 +100,9 @@ public enum Cache {
   },
 
   /**
-   * ConcurrentMap with no eviction policy.
+   * ConcurrentMap with no eviction policy (unbounded).
    */
-  CONCURRENT_HASH_MAP() {
+  ConcurrentHashMap() {
     @Override
     public <K, V> Map<K, V>  create(int capacity, int concurrencyLevel) {
       return new ConcurrentHashMap<K, V>(capacity, 0.75f, concurrencyLevel);
@@ -112,7 +112,7 @@ public enum Cache {
   /**
    * Ehcache, using FIFO eviction.
    */
-  EHCACHE_FIFO() {
+  Ehcache_Fifo() {
     @Override
     public <K, V> Map<K, V>  create(int capacity, int concurrencyLevel) {
       return new EhcacheMap<K, V>(false, capacity);
@@ -122,7 +122,7 @@ public enum Cache {
   /**
    * Ehcache, using LRU eviction.
    */
-  EHCACHE_LRU() {
+  Ehcache_Lru() {
     @Override
     public <K, V> Map<K, V>  create(int capacity, int concurrencyLevel) {
       return new EhcacheMap<K, V>(true, capacity);

@@ -22,7 +22,7 @@
     <path refid="commons.math.deploy.path"/>
     <path refid="ehcache.deploy.path"/>
     <path refid="guava.deploy.path" />
-  	<path refid="hamcrest.deploy.path" />
+    <path refid="hamcrest.deploy.path" />
     <path refid="testng.deploy.path" />
   </path>
 
