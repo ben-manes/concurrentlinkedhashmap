@@ -2,7 +2,7 @@ package com.googlecode.concurrentlinkedhashmap;
 
 import static com.google.common.collect.Maps.immutableEntry;
 import static com.google.common.collect.Sets.newSetFromMap;
-import static com.googlecode.concurrentlinkedhashmap.Validator.checkValidState;
+import static com.googlecode.concurrentlinkedhashmap.ValidState.valid;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -76,7 +76,7 @@ public abstract class BaseTest {
     boolean successful = result.isSuccess();
     try {
       if (rawMap != null) { // dataProvider used
-        checkValidState(rawMap);
+        assertThat(rawMap, is(valid()));
       }
     } catch (Throwable caught) {
       successful = false;
