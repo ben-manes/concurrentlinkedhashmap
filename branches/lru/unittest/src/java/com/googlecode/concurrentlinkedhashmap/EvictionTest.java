@@ -1,5 +1,6 @@
 package com.googlecode.concurrentlinkedhashmap;
 
+import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.RECENCY_THRESHOLD;
 import static java.util.Arrays.asList;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -219,5 +220,16 @@ public final class EvictionTest extends BaseTest {
     assertThat(map.sentinel.prev, is(originalHead));
     assertThat(listLength(map), is(equalTo(length)));
     assertThat(map.size(), is(equalTo(size)));
+  }
+
+  @Test(dataProvider = "warmedMap")
+  public void drainRecencyQueue(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    int segment = map.segmentFor(1);
+    for (int i = 0; i < RECENCY_THRESHOLD; i++) {
+      map.get(1);
+    }
+    assertThat(map.recencyQueueLength.get(segment), is(equalTo(RECENCY_THRESHOLD)));
+    map.get(1);
+    assertThat(map.recencyQueueLength.get(segment), is(equalTo(0)));
   }
 }
