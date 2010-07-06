@@ -18,7 +18,7 @@ public final class LHMCacheWrapper extends AbstractCacheWrapper {
   @Override
   public void initialize(Map<String, String> params) {
     capacity = Integer.parseInt(params.get(MAX_CAPACITY_PARAM));
-    cache = Cache.SYNC_LRU.create(capacity, 1);
+    cache = Cache.LinkedHashMap_Lru_Sync.create(capacity, 1);
   }
 
   @Override

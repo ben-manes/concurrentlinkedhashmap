@@ -21,7 +21,7 @@ public final class CLHMCacheWrapper extends AbstractCacheWrapper {
   public void initialize(Map<String, String> params) {
     capacity = Integer.parseInt(params.get(MAX_CAPACITY_PARAM));
     int concurrencyLevel = Integer.parseInt(params.get(CONCURRENCY_LEVEL_PARAM));
-    cache = Cache.CONCURRENT_LINKED_HASH_MAP.create(capacity, concurrencyLevel);
+    cache = Cache.ConcurrentLinkedHashMap.create(capacity, concurrencyLevel);
   }
 
   @Override

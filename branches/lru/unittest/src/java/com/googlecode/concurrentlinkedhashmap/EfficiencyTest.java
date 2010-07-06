@@ -39,7 +39,7 @@ public final class EfficiencyTest extends BaseTest {
 
   @Test(groups = "development", dataProvider = "emptyMap")
   public void efficiency_lru(ConcurrentLinkedHashMap<Long, Long> map) {
-    Map<Long, Long> expected = Cache.SYNC_LRU.create(capacity(), 1);
+    Map<Long, Long> expected = Cache.LinkedHashMap_Lru_Sync.create(capacity(), 1);
 
     List<Long> workingSet = createWorkingSet(Distribution.EXPONENTIAL, 10 * capacity());
     float hitExpected = determineEfficiency(expected, workingSet);

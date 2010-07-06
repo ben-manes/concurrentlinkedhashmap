@@ -15,7 +15,10 @@ import java.util.Map;
  * @author ben.manes@gmail.com (Ben Manes)
  */
 public class GetPutBenchmark extends ConcurrentBenchmark {
-  @Param({"CONCURRENT_LINKED_HASH_MAP", "CONCURRENT_HASH_MAP", "SYNC_LRU"})
+  @Param({
+    "ConcurrentLinkedHashMap",
+    "ConcurrentHashMap",
+    "LinkedHashMap_Lru_Sync"})
   Cache cache;
 
   @Param int numberOfThreads;

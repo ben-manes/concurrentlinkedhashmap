@@ -19,7 +19,7 @@ public final class CHMCacheWrapper extends AbstractCacheWrapper {
   public void initialize(Map<String, String> params) {
     int initialCapacity = Integer.parseInt(params.get(INITIAL_CAPACITY_PARAM));
     int concurrencyLevel = Integer.parseInt(params.get(CONCURRENCY_LEVEL_PARAM));
-    cache = Cache.CONCURRENT_HASH_MAP.create(initialCapacity, concurrencyLevel);
+    cache = Cache.ConcurrentHashMap.create(initialCapacity, concurrencyLevel);
   }
 
   @Override
