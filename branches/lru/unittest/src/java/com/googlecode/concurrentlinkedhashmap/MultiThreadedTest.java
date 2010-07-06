@@ -2,8 +2,10 @@ package com.googlecode.concurrentlinkedhashmap;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentTestHarness.timeTasks;
-import static com.googlecode.concurrentlinkedhashmap.Validator.checkValidState;
+import static com.googlecode.concurrentlinkedhashmap.ValidState.valid;
 import static com.googlecode.concurrentlinkedhashmap.benchmark.Benchmarks.shuffle;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.is;
 import static org.testng.Assert.fail;
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
@@ -137,7 +139,7 @@ public final class MultiThreadedTest extends BaseTest {
     try {
       long timeNS = future.get(timeout, TimeUnit.SECONDS);
       debug("\nExecuted in %d second(s)", TimeUnit.NANOSECONDS.toSeconds(timeNS));
-      checkValidState(cache);
+      assertThat(cache, is(valid()));
     } catch (ExecutionException e) {
       fail("Exception during test: " + e.toString(), e);
     } catch (TimeoutException e) {

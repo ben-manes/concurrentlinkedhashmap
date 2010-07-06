@@ -1,6 +1,6 @@
 package com.googlecode.concurrentlinkedhashmap;
 
-import static com.googlecode.concurrentlinkedhashmap.Validator.checkValidState;
+import static com.googlecode.concurrentlinkedhashmap.ValidState.valid;
 import static com.googlecode.concurrentlinkedhashmap.benchmark.Benchmarks.createWorkingSet;
 import static com.googlecode.concurrentlinkedhashmap.benchmark.Benchmarks.determineEfficiency;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -38,15 +38,15 @@ public final class EfficiencyTest extends BaseTest {
   }
 
   @Test(groups = "development", dataProvider = "emptyMap")
-  public void efficiency_lru(ConcurrentLinkedHashMap<Long, Long> actual) {
+  public void efficiency_lru(ConcurrentLinkedHashMap<Long, Long> map) {
     Map<Long, Long> expected = Cache.SYNC_LRU.create(capacity(), 1);
 
     List<Long> workingSet = createWorkingSet(Distribution.EXPONENTIAL, 10 * capacity());
     float hitExpected = determineEfficiency(expected, workingSet);
-    float hitActual = determineEfficiency(actual, workingSet);
+    float hitActual = determineEfficiency(map, workingSet);
     assertThat((int) hitExpected, is(greaterThan(0)));
     assertThat((int) hitActual, is(greaterThan(0)));
-    checkValidState(actual);
+    assertThat(map, is(valid()));
 
     float expectedRate = 100 * hitActual/workingSet.size();
     float actualRate =  100 * hitActual/workingSet.size();
