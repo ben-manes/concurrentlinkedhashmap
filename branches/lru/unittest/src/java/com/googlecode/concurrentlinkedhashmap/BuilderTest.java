@@ -10,7 +10,6 @@ import static org.hamcrest.Matchers.sameInstance;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.DiscardingListener;
 
-import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 /**
@@ -111,13 +110,5 @@ public final class BuilderTest extends BaseTest {
   public void weigher_withCustom(Builder<Integer, byte[]> builder) {
     builder.weigher(Weighers.byteArray());
     assertThat(builder.build().weigher, is(sameInstance(Weighers.byteArray())));
-  }
-
-  /** Provides a builder with the capacity set. */
-  @DataProvider(name = "builder")
-  public Object[][] providesBuilder() {
-    return new Object[][] {{
-      new Builder<Object, Object>().maximumWeightedCapacity(capacity())
-    }};
   }
 }

@@ -6,6 +6,7 @@ import com.google.caliper.Param;
 import com.google.caliper.Runner;
 
 import com.googlecode.concurrentlinkedhashmap.caches.Cache;
+import com.googlecode.concurrentlinkedhashmap.caches.CacheBuilder;
 
 import java.util.Map;
 
@@ -34,7 +35,11 @@ public class GetPutBenchmark extends ConcurrentBenchmark {
   @Override
   protected void benchmarkSetUp() {
     checkArgument((readRatio >= 0) && (readRatio <= 100), "Read ratio must between zero and 100%");
-    map = cache.create(maximumCapacity, concurrencyLevel);
+    map = new CacheBuilder()
+        .concurrencyLevel(concurrencyLevel)
+        .initialCapacity(initialCapacity)
+        .maximumCapacity(maximumCapacity)
+        .makeCache(cache);
   }
 
   public void timeReadWrite(final int reps) {

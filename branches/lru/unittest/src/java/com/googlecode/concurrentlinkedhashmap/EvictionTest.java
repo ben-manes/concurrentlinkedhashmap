@@ -210,16 +210,12 @@ public final class EvictionTest extends BaseTest {
   @SuppressWarnings("unchecked")
   private void updateRecency(ConcurrentLinkedHashMap<?, ?> map, Runnable operation) {
     Node originalHead = map.sentinel.next;
-    int length = listLength(map);
-    int size = map.size();
 
     operation.run();
     map.drainRecencyQueues();
 
     assertThat(map.sentinel.next, is(not(originalHead)));
     assertThat(map.sentinel.prev, is(originalHead));
-    assertThat(listLength(map), is(equalTo(length)));
-    assertThat(map.size(), is(equalTo(size)));
   }
 
   @Test(dataProvider = "warmedMap")

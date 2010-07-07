@@ -59,7 +59,7 @@ import java.util.concurrent.locks.ReentrantLock;
  * </ul>
  *
  * @author <a href="mailto:ben.manes@reardencommerce.com">Ben Manes</a>
- * @see http://code.google.com/p/concurrentlinkedhashmap/
+ * @see http://code.google.com/p/concurrentlinkedhashmap/wiki/ProductionVersion
  */
 public final class ProductionMap<K, V> extends AbstractMap<K, V> implements ConcurrentMap<
     K, V>, Serializable {
@@ -77,101 +77,16 @@ public final class ProductionMap<K, V> extends AbstractMap<K, V> implements Conc
   final Node<K, V> sentinel;
   final Lock lock;
 
-  /**
-   * Creates a map with the specified eviction policy, maximum capacity, and at
-   * the default concurrency level.
-   *
-   * @param policy The eviction policy to apply when the size exceeds the
-   *        maximum capacity.
-   * @param maximumCapacity The maximum capacity to coerces to. The size may
-   *        exceed it temporarily.
-   */
   @SuppressWarnings("unchecked")
-  public static <K, V> ProductionMap<K, V> create(
-      EvictionPolicy policy, int maximumCapacity) {
-    return create(policy, maximumCapacity, 16, (EvictionListener<K, V>) nullListener);
-  }
-
-  /**
-   * Creates a map with the specified eviction policy, maximum capacity,
-   * eviction listener, and at the default concurrency level.
-   *
-   * @param policy The eviction policy to apply when the size exceeds the
-   *        maximum capacity.
-   * @param maximumCapacity The maximum capacity to coerces to. The size may
-   *        exceed it temporarily.
-   * @param listener The listener registered for notification when an entry is
-   *        evicted.
-   */
-  public static <K, V> ProductionMap<K, V> create(
-      EvictionPolicy policy, int maximumCapacity, EvictionListener<K, V> listener) {
-    return create(policy, maximumCapacity, 16, listener);
-  }
-
-  /**
-   * Creates a map with the specified eviction policy, maximum capacity, and
-   * concurrency level.
-   *
-   * @param policy The eviction policy to apply when the size exceeds the
-   *        maximum capacity.
-   * @param maximumCapacity The maximum capacity to coerces to. The size may
-   *        exceed it temporarily.
-   * @param concurrencyLevel The estimated number of concurrently updating
-   *        threads. The implementation performs internal sizing to try to
-   *        accommodate this many threads.
-   */
-  @SuppressWarnings("unchecked")
-  public static <K, V> ProductionMap<K, V> create(
-      EvictionPolicy policy, int maximumCapacity, int concurrencyLevel) {
-    return create(policy, maximumCapacity, concurrencyLevel, (EvictionListener<K, V>) nullListener);
-  }
-
-  /**
-   * Creates a map with the specified eviction policy, maximum capacity,
-   * eviction listener, and concurrency level.
-   *
-   * @param policy The eviction policy to apply when the size exceeds the
-   *        maximum capacity.
-   * @param maximumCapacity The maximum capacity to coerces to. The size may
-   *        exceed it temporarily.
-   * @param concurrencyLevel The estimated number of concurrently updating
-   *        threads. The implementation performs internal sizing to try to
-   *        accommodate this many threads.
-   * @param listener The listener registered for notification when an entry is
-   *        evicted.
-   */
-  public static <K, V> ProductionMap<K, V> create(EvictionPolicy policy,
-      int maximumCapacity, int concurrencyLevel, EvictionListener<K, V> listener) {
-    return new ProductionMap<K, V>(policy, maximumCapacity, concurrencyLevel, listener);
-  }
-
-  /**
-   * Creates a map with the specified eviction policy, maximum capacity,
-   * eviction listener, and concurrency level.
-   *
-   * @param policy The eviction policy to apply when the size exceeds the
-   *        maximum capacity.
-   * @param maximumCapacity The maximum capacity to coerces to. The size may
-   *        exceed it temporarily.
-   * @param concurrencyLevel The estimated number of concurrently updating
-   *        threads. The implementation performs internal sizing to try to
-   *        accommodate this many threads.
-   * @param listener The listener registered for notification when an entry is
-   *        evicted.
-   */
-  private ProductionMap(EvictionPolicy policy, int maximumCapacity, int concurrencyLevel,
-      EvictionListener<K, V> listener) {
-    if ((policy == null) || (maximumCapacity < 0) || (concurrencyLevel <= 0)
-        || (listener == null)) {
-      throw new IllegalArgumentException();
-    }
-    this.data = new ConcurrentHashMap<K, Node<K, V>>(maximumCapacity, 0.75f, concurrencyLevel);
-    this.capacity = new AtomicInteger(maximumCapacity);
+  public ProductionMap(EvictionPolicy policy, CacheBuilder builder) {
+    this.data = new ConcurrentHashMap<K, Node<K, V>>(
+        builder.initialCapacity,  0.75f, builder.concurrencyLevel);
+    this.capacity = new AtomicInteger(builder.maximumCapacity);
+    this.listener = (EvictionListener<K, V>) nullListener;
     this.length = new AtomicInteger();
-    this.listener = listener;
-    this.policy = policy;
     this.lock = new ReentrantLock();
     this.sentinel = new Node<K, V>(lock);
+    this.policy = policy;
   }
 
   /**
