@@ -1,7 +1,6 @@
 package com.googlecode.concurrentlinkedhashmap;
 
 import static com.google.common.collect.Maps.immutableEntry;
-import static com.google.common.collect.Sets.newSetFromMap;
 import static com.googlecode.concurrentlinkedhashmap.ValidState.valid;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
@@ -9,7 +8,6 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.testng.Assert.fail;
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
-import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Node;
 
 import org.testng.ITestResult;
 import org.testng.annotations.AfterMethod;
@@ -18,10 +16,8 @@ import org.testng.annotations.DataProvider;
 
 import java.io.Serializable;
 import java.util.Collection;
-import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
@@ -89,6 +85,14 @@ public abstract class BaseTest {
   }
 
   /* ---------------- Map providers -------------- */
+
+  /** Provides a builder with the capacity set. */
+  @DataProvider(name = "builder")
+  public Object[][] providesBuilder() {
+    return new Object[][] {{
+      new Builder<Object, Object>().maximumWeightedCapacity(capacity())
+    }};
+  }
 
   /** Provides an empty map for test methods. */
   @DataProvider(name = "emptyMap")
@@ -223,78 +227,5 @@ public abstract class BaseTest {
     }
 
     private static final long serialVersionUID = 1L;
-  }
-
-  /* ---------------- List/Node utilities -------------- */
-
-  protected static String listForwardToString(ConcurrentLinkedHashMap<?, ?> map) {
-    return listToString(map, true);
-  }
-
-  protected static String listBackwardsToString(ConcurrentLinkedHashMap<?, ?> map) {
-    return listToString(map, false);
-  }
-
-  @SuppressWarnings("unchecked")
-  private static String listToString(ConcurrentLinkedHashMap<?, ?> map, boolean forward) {
-    map.evictionLock.lock();
-    try {
-      Set<Node> seen = newSetFromMap(new IdentityHashMap<Node, Boolean>());
-      StringBuilder buffer = new StringBuilder("\n");
-      Node current = forward ? map.sentinel.next : map.sentinel.prev;
-      while (current != map.sentinel) {
-        buffer.append(nodeToString(current)).append("\n");
-        if (seen.add(current)) {
-          buffer.append("Failure: Loop detected\n");
-          break;
-        }
-        current = forward ? current.next : current.next.prev;
-      }
-      return buffer.toString();
-    } finally {
-      map.evictionLock.unlock();
-    }
-  }
-
-  @SuppressWarnings("unchecked")
-  protected static String nodeToString(Node node) {
-    if (node == null) {
-      return "null";
-    } else if (node.segment == -1) {
-      return "setinel";
-    }
-    return node.key + "=" + node.weightedValue.value;
-  }
-
-  /** Finds the node in the map by walking the list. Returns null if not found. */
-  @SuppressWarnings("unchecked")
-  protected static Node findNode(Object key, ConcurrentLinkedHashMap<?, ?> map) {
-    map.evictionLock.lock();
-    try {
-      Node current = map.sentinel;
-      while (current != map.sentinel) {
-        if (current.equals(key)) {
-          return current;
-        }
-      }
-      return null;
-    } finally {
-      map.evictionLock.unlock();
-    }
-  }
-
-  @SuppressWarnings("unchecked")
-  protected static int listLength(ConcurrentLinkedHashMap<?, ?> map) {
-    map.evictionLock.lock();
-    try {
-      int length = 0;
-      Node current = map.sentinel;
-      while (current != map.sentinel) {
-        length++;
-      }
-      return length;
-    } finally {
-      map.evictionLock.unlock();
-    }
   }
 }

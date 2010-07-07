@@ -1,13 +1,14 @@
 package com.googlecode.concurrentlinkedhashmap;
 
-import static com.googlecode.concurrentlinkedhashmap.ValidState.valid;
 import static com.googlecode.concurrentlinkedhashmap.benchmark.Benchmarks.createWorkingSet;
 import static com.googlecode.concurrentlinkedhashmap.benchmark.Benchmarks.determineEfficiency;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 import com.googlecode.concurrentlinkedhashmap.caches.Cache;
+import com.googlecode.concurrentlinkedhashmap.caches.CacheBuilder;
 import com.googlecode.concurrentlinkedhashmap.distribution.Distribution;
 
 import org.testng.annotations.BeforeClass;
@@ -37,16 +38,16 @@ public final class EfficiencyTest extends BaseTest {
     distribution = enumProperty("efficiency.distribution", Distribution.class);
   }
 
-  @Test(groups = "development", dataProvider = "emptyMap")
-  public void efficiency_lru(ConcurrentLinkedHashMap<Long, Long> map) {
-    Map<Long, Long> expected = Cache.LinkedHashMap_Lru_Sync.create(capacity(), 1);
-
+  @Test(groups = "development", dataProvider = "builder")
+  public void efficiency_lru(Builder<Long, Long> builder) {
+    Map<Long, Long> expected = new CacheBuilder()
+        .maximumCapacity(capacity())
+        .makeCache(Cache.LinkedHashMap_Lru_Sync);
     List<Long> workingSet = createWorkingSet(Distribution.EXPONENTIAL, 10 * capacity());
     float hitExpected = determineEfficiency(expected, workingSet);
-    float hitActual = determineEfficiency(map, workingSet);
+    float hitActual = determineEfficiency(builder.build(), workingSet);
     assertThat((int) hitExpected, is(greaterThan(0)));
     assertThat((int) hitActual, is(greaterThan(0)));
-    assertThat(map, is(valid()));
 
     float expectedRate = 100 * hitActual/workingSet.size();
     float actualRate =  100 * hitActual/workingSet.size();
@@ -60,11 +61,13 @@ public final class EfficiencyTest extends BaseTest {
   public void efficency_compareAlgorithms() {
     List<Long> workingSet = createWorkingSet(distribution, size);
     debug("WorkingSet:\n%s", workingSet);
-    for (Cache type : Cache.values()) {
-      Map<Long, Long> cache = type.create(capacity(), 1);
-      double hits = determineEfficiency(cache, workingSet);
+    for (Cache cache : Cache.values()) {
+      Map<Long, Long> map = new CacheBuilder()
+          .maximumCapacity(capacity())
+          .makeCache(cache);
+      double hits = determineEfficiency(map, workingSet);
       double misses = size - hits;
-      info("%s: hits=%s (%s percent), misses=%s (%s percent)", type,
+      info("%s: hits=%s (%s percent), misses=%s (%s percent)", cache,
            NumberFormat.getInstance().format(hits),
            NumberFormat.getPercentInstance().format(hits / size),
            NumberFormat.getInstance().format(misses),

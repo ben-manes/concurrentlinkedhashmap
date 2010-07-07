@@ -20,7 +20,6 @@ import java.util.concurrent.locks.ReentrantLock;
  * @author ben.manes@gmail.com (Ben Manes)
  */
 public final class ValidState extends TypeSafeDiagnosingMatcher<ConcurrentLinkedHashMap<?, ?>> {
-  private static final boolean exhaustive = BaseTest.booleanProperty("test.exhaustive");
 
   @Override
   public void describeTo(Description description) {
@@ -49,9 +48,7 @@ public final class ValidState extends TypeSafeDiagnosingMatcher<ConcurrentLinked
     matches &= check(map.sentinel.prev != null, "link corruption", description);
     matches &= check(map.sentinel.next != null, "link corruption", description);
 
-    if (exhaustive) {
-      matches &= checkLinks(map, description);
-    }
+    matches &= checkLinks(map, description);
     return matches;
   }
 

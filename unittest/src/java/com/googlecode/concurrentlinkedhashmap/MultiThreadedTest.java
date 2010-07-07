@@ -1,6 +1,7 @@
 package com.googlecode.concurrentlinkedhashmap;
 
 import static com.google.common.collect.Lists.newArrayList;
+import static com.google.common.collect.Sets.newSetFromMap;
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentTestHarness.timeTasks;
 import static com.googlecode.concurrentlinkedhashmap.ValidState.valid;
 import static com.googlecode.concurrentlinkedhashmap.benchmark.Benchmarks.shuffle;
@@ -9,21 +10,25 @@ import static org.hamcrest.Matchers.is;
 import static org.testng.Assert.fail;
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Node;
 
 import org.apache.commons.lang.SerializationUtils;
 import org.testng.annotations.BeforeClass;
+import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map.Entry;
 import java.util.Queue;
 import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -104,7 +109,7 @@ public final class MultiThreadedTest extends BaseTest {
       @Override
       public void run() {
         int current = (int) Math.random();
-        for (int i=1; ; i++) {
+        for (int i = 1;; i++) {
           cache.put(current, current);
           cache.get(current);
           current++;
@@ -117,55 +122,61 @@ public final class MultiThreadedTest extends BaseTest {
     });
   }
 
-  /**
-   * Tests that the cache is in the correct test after a read-write load.
-   */
-  @Test(groups = "development")
-  public void concurrent() throws InterruptedException {
-    final List<List<Integer>> sets = shuffle(nThreads, keys);
-    ThreadPoolExecutor es =
-        new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS,
-            new LinkedBlockingQueue<Runnable>());
-    final ConcurrentLinkedHashMap<Integer, Integer> cache =
-        new Builder<Integer, Integer>()
-            .maximumWeightedCapacity(capacity())
-            .concurrencyLevel(nThreads)
-            .build();
+  /** Provides the map, working sets, and executor for the concurrency test. */
+  @DataProvider(name = "concurrentTestProvider")
+  public Object[][] provideForConcurrentTest() {
+    ConcurrentLinkedHashMap<?, ?> map = new Builder<Object, Object>()
+        .maximumWeightedCapacity(capacity())
+        .concurrencyLevel(nThreads)
+        .build();
+    List<List<Integer>> sets = shuffle(nThreads, keys);
+    ExecutorService es = Executors.newSingleThreadExecutor();
+    return new Object[][] {{ map, sets, es }};
+  }
+
+  /** Tests that the map is in a valid state after a read-write load. */
+  @Test(groups = "development", dataProvider = "concurrentTestProvider")
+  public void concurrent(final ConcurrentLinkedHashMap<Integer, Integer> map,
+      final List<List<Integer>> sets, ExecutorService es) throws InterruptedException {
     Future<Long> future = es.submit(new Callable<Long>() {
       @Override public Long call() throws Exception {
-        return timeTasks(nThreads, new Thrasher(cache, sets));
+        return timeTasks(nThreads, new Thrasher(map, sets));
       }
     });
     try {
       long timeNS = future.get(timeout, TimeUnit.SECONDS);
       debug("\nExecuted in %d second(s)", TimeUnit.NANOSECONDS.toSeconds(timeNS));
-      assertThat(cache, is(valid()));
+      assertThat(map, is(valid()));
     } catch (ExecutionException e) {
       fail("Exception during test: " + e.toString(), e);
     } catch (TimeoutException e) {
-      for (StackTraceElement[] trace : Thread.getAllStackTraces().values()) {
-        for (StackTraceElement element : trace) {
-          info("\tat " + element);
-        }
-        if (trace.length > 0) {
-          info("------");
-        }
-      }
-      es.shutdownNow();
-      while (es.getPoolSize() > 0) { /* spin until terminated */ }
-
-      // Print the state of the cache
-      debug("Cached Elements: %s", cache.toString());
-      debug("List Forward:\n%s", listForwardToString(cache));
-      debug("List Backward:\n%s", listBackwardsToString(cache));
-
-      // Print the recorded failures
-      for (String failure : failures) {
-        debug(failure);
-      }
-      fail("Spun forever", e);
+      handleTimout(es, e, map);
     }
-    debug("concurrent: END");
+  }
+
+  private void handleTimout(ExecutorService es, TimeoutException e,
+      ConcurrentLinkedHashMap<Integer, Integer> cache) throws InterruptedException {
+    for (StackTraceElement[] trace : Thread.getAllStackTraces().values()) {
+      for (StackTraceElement element : trace) {
+        info("\tat " + element);
+      }
+      if (trace.length > 0) {
+        info("------");
+      }
+    }
+    es.shutdownNow();
+    es.awaitTermination(10, TimeUnit.SECONDS);
+
+    // Print the state of the cache
+    debug("Cached Elements: %s", cache.toString());
+    debug("List Forward:\n%s", listForwardToString(cache));
+    debug("List Backward:\n%s", listBackwardsToString(cache));
+
+    // Print the recorded failures
+    for (String failure : failures) {
+      debug(failure);
+    }
+    fail("Spun forever", e);
   }
 
   /**
@@ -345,5 +356,62 @@ public final class MultiThreadedTest extends BaseTest {
      * @param key the key to perform the operation with
      */
     abstract void execute(ConcurrentLinkedHashMap<Integer, Integer> cache, Integer key);
+  }
+
+  /* ---------------- List/Node utilities -------------- */
+
+  protected static String listForwardToString(ConcurrentLinkedHashMap<?, ?> map) {
+    return listToString(map, true);
+  }
+
+  protected static String listBackwardsToString(ConcurrentLinkedHashMap<?, ?> map) {
+    return listToString(map, false);
+  }
+
+  private static String listToString(ConcurrentLinkedHashMap<?, ?> map, boolean forward) {
+    map.evictionLock.lock();
+    try {
+      Set<Object> seen = newSetFromMap(new IdentityHashMap<Object, Boolean>());
+      StringBuilder buffer = new StringBuilder("\n");
+      ConcurrentLinkedHashMap<?, ?>.Node current = forward ? map.sentinel.next : map.sentinel.prev;
+      while (current != map.sentinel) {
+        buffer.append(nodeToString(current)).append("\n");
+        if (seen.add(current)) {
+          buffer.append("Failure: Loop detected\n");
+          break;
+        }
+        current = forward ? current.next : current.next.prev;
+      }
+      return buffer.toString();
+    } finally {
+      map.evictionLock.unlock();
+    }
+  }
+
+  @SuppressWarnings("unchecked")
+  protected static String nodeToString(Node node) {
+    if (node == null) {
+      return "null";
+    } else if (node.segment == -1) {
+      return "setinel";
+    }
+    return node.key + "=" + node.weightedValue.value;
+  }
+
+  /** Finds the node in the map by walking the list. Returns null if not found. */
+  protected static ConcurrentLinkedHashMap<?, ?>.Node findNode(
+      Object key, ConcurrentLinkedHashMap<?, ?> map) {
+    map.evictionLock.lock();
+    try {
+      ConcurrentLinkedHashMap<?, ?>.Node current = map.sentinel;
+      while (current != map.sentinel) {
+        if (current.equals(key)) {
+          return current;
+        }
+      }
+      return null;
+    } finally {
+      map.evictionLock.unlock();
+    }
   }
 }

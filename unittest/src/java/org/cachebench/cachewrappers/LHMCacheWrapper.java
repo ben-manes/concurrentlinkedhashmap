@@ -1,6 +1,7 @@
 package org.cachebench.cachewrappers;
 
 import com.googlecode.concurrentlinkedhashmap.caches.Cache;
+import com.googlecode.concurrentlinkedhashmap.caches.CacheBuilder;
 
 import java.util.Map;
 
@@ -10,29 +11,34 @@ import java.util.Map;
  * @author ben.manes@gmail.com (Ben Manes)
  */
 public final class LHMCacheWrapper extends AbstractCacheWrapper {
-  private static final String MAX_CAPACITY_PARAM = "lhm.maximumCapacity";
+  private static final String INITIAL_CAPACITY_PARAM = "lhm.initialCapacity";
+  private static final String MAXIMUM_CAPACITY_PARAM = "lhm.maximumCapacity";
 
-  private Map<Object, Object> cache;
-  private int capacity;
+  private Map<Object, Object> map;
+  private int maximumCapacity;
 
   @Override
   public void initialize(Map<String, String> params) {
-    capacity = Integer.parseInt(params.get(MAX_CAPACITY_PARAM));
-    cache = Cache.LinkedHashMap_Lru_Sync.create(capacity, 1);
+    maximumCapacity = Integer.parseInt(params.get(MAXIMUM_CAPACITY_PARAM));
+    map = new CacheBuilder()
+        .concurrencyLevel(1) // ignored
+        .maximumCapacity(maximumCapacity)
+        .initialCapacity(Integer.parseInt(params.get(INITIAL_CAPACITY_PARAM)))
+        .makeCache(Cache.LinkedHashMap_Lru_Sync);
   }
 
   @Override
   public void setUp() throws Exception {
-    cache.clear();
+    map.clear();
   }
 
   @Override
   protected int capacity() {
-    return capacity;
+    return maximumCapacity;
   }
 
   @Override
   protected Map<Object, Object> delegate() {
-    return cache;
+    return map;
   }
 }
