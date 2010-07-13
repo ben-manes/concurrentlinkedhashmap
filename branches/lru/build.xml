@@ -33,6 +33,13 @@
     <pathelement location="${api.build.dir}"/>
     <pathelement location="${test.build.dir}"/>
   </path>
+	
+  <path id="benchmark.path">
+    <path refid="deploy.path"/>
+    <pathelement location="${api.build.dir}"/>
+    <pathelement location="${test.build.dir}"/>
+  	<pathelement location="${benchmark.build.dir}"/>
+  </path>
 
   <!--
   Do not provide a target with a description attribute unless the target
@@ -88,6 +95,7 @@
 
     <compile.macro srcdir="${api.src.dir}" destdir="${api.build.dir}" pathref="empty.path"/>
     <compile.macro srcdir="${test.src.dir}" destdir="${test.build.dir}" pathref="test.path"/>
+  	<compile.macro srcdir="${benchmark.src.dir}" destdir="${benchmark.build.dir}" pathref="test.path"/>
   </target>
 
   <target
@@ -277,8 +285,8 @@
     description="Runs Caliper micro-benchmarks over the build artifacts."
   >  
     <java
-     classname="com.googlecode.concurrentlinkedhashmap.benchmark.${caliper.scenario}Benchmark"
-     classpathref="test.path"
+     classname="com.googlecode.concurrentlinkedhashmap.${caliper.scenario}Benchmark"
+     classpathref="benchmark.path"
      fork="true"
      maxmemory="${caliper.heap}"
     >
@@ -304,26 +312,26 @@
    depends="compile"
    description="Runs JBoss Cache micro-benchmarks over the build artifacts."
   >
-    <mkdir dir="${benchmark.report.dir}"/>
+    <mkdir dir="${cacheBenchFwk.report.dir}"/>
 
     <java
      classname="org.cachebench.CacheBenchmarkRunner"
-     classpathref="test.path"
+     classpathref="benchmark.path"
      fork="true"
-     maxmemory="${benchmark.test.heap}"
-     dir="${benchmark.report.dir}"
+     maxmemory="${cacheBenchFwk.heap}"
+     dir="${cacheBenchFwk.report.dir}"
     >
       <classpath>
-        <path refid="${benchmark.test.path}"/>
-        <pathelement location="${benchmark.config.dir}"/>
+        <path refid="${cacheBenchFwk.path}"/>
+        <pathelement location="${cacheBenchFwk.config.dir}"/>
       </classpath>
 
-      <jvmarg value="-Xms${benchmark.test.heap}"/>
+      <jvmarg value="-Xms${cacheBenchFwk.heap}"/>
 
-      <sysproperty key="cacheBenchFwk.cacheConfigFile" value="${benchmark.test.config}"/>
-      <sysproperty key="cacheBenchFwk.cacheProductName" value="${benchmark.test.product}"/>
-      <sysproperty key="cacheBenchFwk.cacheWrapperClassName" value="${benchmark.test.wrapper}"/>
-      <sysproperty key="cacheBenchFwk.fwkCfgFile" value="${benchmark.config.file}"/>
+      <sysproperty key="cacheBenchFwk.cacheConfigFile" value="${cacheBenchFwk.config}"/>
+      <sysproperty key="cacheBenchFwk.cacheProductName" value="${cacheBenchFwk.product}"/>
+      <sysproperty key="cacheBenchFwk.cacheWrapperClassName" value="${cacheBenchFwk.wrapper}"/>
+      <sysproperty key="cacheBenchFwk.fwkCfgFile" value="${cacheBenchFwk.config.file}"/>
       <sysproperty key="localOnly" value="true"/>
     </java>
   </target>
@@ -334,16 +342,16 @@
   >
     <java
      classname="org.cachebench.reportgenerators.ChartGenerator"
-     classpathref="test.path"
+     classpathref="benchmark.path"
      fork="true"
-     dir="${benchmark.report.dir}"
+     dir="${cacheBenchFwk.report.dir}"
     >
       <classpath>
-        <pathelement location="${benchmark.config.dir}"/>
+        <pathelement location="${cacheBenchFwk.config.dir}"/>
       </classpath>
 
-      <arg line="-chartType ${benchmark.report.chart}"/>
-      <arg line="-o ${benchmark.report.file}"/>
+      <arg line="-chartType ${cacheBenchFwk.report.chart}"/>
+      <arg line="-o ${cacheBenchFwk.report.file}"/>
       <arg line="-reportDir ."/>
     </java>
   </target>

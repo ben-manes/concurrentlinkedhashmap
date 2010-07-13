@@ -9,7 +9,7 @@ import com.google.common.base.Supplier;
  */
 public enum Distribution {
 
-  UNIFORM() {
+  Uniform() {
     @Override
     public Supplier<Double> getAlgorithm() {
       double lower = Double.valueOf(System.getProperty("efficiency.distribution.uniform.lower"));
@@ -17,14 +17,14 @@ public enum Distribution {
       return new Uniform(lower, upper);
     }
   },
-  EXPONENTIAL() {
+  Exponential() {
     @Override
     public Supplier<Double> getAlgorithm() {
       double mean = Double.valueOf(System.getProperty("efficiency.distribution.exponential.mean"));
       return new Exponential(mean);
     }
   },
-  GAUSSIAN() {
+  Gaussian() {
     @Override
     public Supplier<Double> getAlgorithm() {
       double mean = Double.valueOf(System.getProperty("efficiency.distribution.gaussian.mean"));
@@ -32,14 +32,14 @@ public enum Distribution {
       return new Gaussian(mean, sigma);
     }
   },
-  POISSON() {
+  Poisson() {
     @Override
     public Supplier<Double> getAlgorithm() {
       double mean = Double.valueOf(System.getProperty("efficiency.distribution.poisson.mean"));
       return new Poisson(mean);
     }
   },
-  ZIPFIAN() {
+  Zipfian() {
     @Override
     public Supplier<Double> getAlgorithm() {
       double skew = Double.valueOf(System.getProperty("efficiency.distribution.zipfian.skew"));

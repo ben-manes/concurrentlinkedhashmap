@@ -1,4 +1,4 @@
-package com.googlecode.concurrentlinkedhashmap.benchmark;
+package com.googlecode.concurrentlinkedhashmap;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Lists.newArrayListWithCapacity;

@@ -1,7 +1,7 @@
 package com.googlecode.concurrentlinkedhashmap;
 
-import static com.googlecode.concurrentlinkedhashmap.benchmark.Benchmarks.createWorkingSet;
-import static com.googlecode.concurrentlinkedhashmap.benchmark.Benchmarks.determineEfficiency;
+import static com.googlecode.concurrentlinkedhashmap.Benchmarks.createWorkingSet;
+import static com.googlecode.concurrentlinkedhashmap.Benchmarks.determineEfficiency;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
@@ -43,7 +43,7 @@ public final class EfficiencyTest extends BaseTest {
     Map<Long, Long> expected = new CacheBuilder()
         .maximumCapacity(capacity())
         .makeCache(Cache.LinkedHashMap_Lru_Sync);
-    List<Long> workingSet = createWorkingSet(Distribution.EXPONENTIAL, 10 * capacity());
+    List<Long> workingSet = createWorkingSet(Distribution.Exponential, 10 * capacity());
     float hitExpected = determineEfficiency(expected, workingSet);
     float hitActual = determineEfficiency(builder.build(), workingSet);
     assertThat((int) hitExpected, is(greaterThan(0)));

@@ -1,7 +1,7 @@
 package com.googlecode.concurrentlinkedhashmap;
 
 import static com.google.common.collect.Maps.immutableEntry;
-import static com.googlecode.concurrentlinkedhashmap.ValidState.valid;
+import static com.googlecode.concurrentlinkedhashmap.IsValidState.valid;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -47,7 +47,7 @@ public abstract class BaseTest {
   }
 
   protected static <E extends Enum<E>> E enumProperty(String property, Class<E> clazz) {
-    return Enum.valueOf(clazz, System.getProperty(property).toUpperCase());
+    return Enum.valueOf(clazz, System.getProperty(property));
   }
 
   /* ---------------- Logging methods -------------- */
@@ -71,7 +71,7 @@ public abstract class BaseTest {
   public void verifyValidState(ITestResult result) {
     boolean successful = result.isSuccess();
     try {
-      if (rawMap != null) { // dataProvider used
+      if (successful && (rawMap != null)) { // dataProvider used
         assertThat(rawMap, is(valid()));
       }
     } catch (Throwable caught) {
@@ -213,7 +213,7 @@ public abstract class BaseTest {
     private static final long serialVersionUID = 1L;
   }
 
-  /** A listener that either collects the evicted entries. */
+  /** A listener that collects the evicted entries. */
   protected static final class CollectingListener<K, V>
       implements EvictionListener<K, V>, Serializable {
     final Collection<Entry<K, V>> evicted;

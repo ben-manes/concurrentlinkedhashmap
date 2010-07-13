@@ -15,11 +15,12 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
- * Is the {@link ConcurrentLinkedHashMap} in a valid state?
+ * A matcher that evaluates a {@link ConcurrentLinkedHashMap} to determine if it
+ * is in a valid state.
  *
  * @author ben.manes@gmail.com (Ben Manes)
  */
-public final class ValidState extends TypeSafeDiagnosingMatcher<ConcurrentLinkedHashMap<?, ?>> {
+public final class IsValidState extends TypeSafeDiagnosingMatcher<ConcurrentLinkedHashMap<?, ?>> {
 
   @Override
   public void describeTo(Description description) {
@@ -47,6 +48,9 @@ public final class ValidState extends TypeSafeDiagnosingMatcher<ConcurrentLinked
     matches &= check(map.maximumWeightedSize >= map.weightedSize(), "overflow", description);
     matches &= check(map.sentinel.prev != null, "link corruption", description);
     matches &= check(map.sentinel.next != null, "link corruption", description);
+    if (map.isEmpty()) {
+      matches &= new IsEmptyMap().matchesSafely(map, description);
+    }
 
     matches &= checkLinks(map, description);
     return matches;
@@ -113,9 +117,8 @@ public final class ValidState extends TypeSafeDiagnosingMatcher<ConcurrentLinked
     return expression;
   }
 
-  /** Matches an empty map. */
   @Factory
   public static Matcher<ConcurrentLinkedHashMap<?, ?>> valid() {
-    return new ValidState();
+    return new IsValidState();
   }
 }

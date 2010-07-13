@@ -37,9 +37,10 @@ final class BoundedLinkedHashMap<K, V> extends LinkedHashMap<K, V> implements Co
 
   @Override
   public V putIfAbsent(K key, V value) {
-    return containsKey(key)
-        ? null
-        : put(key, value);
+    V currentValue = get(key);
+    return (currentValue == null)
+        ? put(key, value)
+        : currentValue;
   }
 
   @Override

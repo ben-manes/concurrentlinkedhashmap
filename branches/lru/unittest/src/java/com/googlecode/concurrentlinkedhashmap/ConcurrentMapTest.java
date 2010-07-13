@@ -2,11 +2,10 @@ package com.googlecode.concurrentlinkedhashmap;
 
 import static com.google.common.collect.Maps.immutableEntry;
 import static com.google.common.collect.Maps.newHashMap;
-import static com.googlecode.concurrentlinkedhashmap.IsEmptyCollection.isEmptyCollection;
-import static com.googlecode.concurrentlinkedhashmap.IsEmptyMap.isEmptyMap;
-import static com.googlecode.concurrentlinkedhashmap.IsEqualToClone.isEqualToClone;
+import static com.googlecode.concurrentlinkedhashmap.IsEmptyCollection.emptyCollection;
+import static com.googlecode.concurrentlinkedhashmap.IsEmptyMap.emptyMap;
+import static com.googlecode.concurrentlinkedhashmap.IsEqualToClone.equalToClone;
 import static java.util.Arrays.asList;
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.apache.commons.lang.StringUtils.countMatches;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -51,13 +50,13 @@ public final class ConcurrentMapTest extends BaseTest {
   @Test(dataProvider = "guardedMap")
   public void clear_whenEmpty(ConcurrentLinkedHashMap<Integer, Integer> map) {
     map.clear();
-    assertThat(map, isEmptyMap());
+    assertThat(map, is(emptyMap()));
   }
 
   @Test(dataProvider = "warmedMap")
   public void clear_whenPopulated(ConcurrentLinkedHashMap<Integer, Integer> map) {
     map.clear();
-    assertThat(map, isEmptyMap());
+    assertThat(map, is(emptyMap()));
   }
 
   @Test(dataProvider = "guardedMap")
@@ -72,7 +71,7 @@ public final class ConcurrentMapTest extends BaseTest {
 
   @Test(dataProvider = "guardedMap")
   public void isEmpty_whenEmpty(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    assertThat(map, isEmptyMap());
+    assertThat(map, is(emptyMap()));
   }
 
   @Test(dataProvider = "warmedMap")
@@ -92,8 +91,9 @@ public final class ConcurrentMapTest extends BaseTest {
 
   @Test(dataProvider = "guardedMap")
   public void equals_whenEmpty(Map<Object, Object> map) {
-    assertThat(map, is(equalTo(emptyMap())));
-    assertThat(emptyMap(), is(equalTo(map)));
+    Map<Object, Object> empty = ImmutableMap.of();
+    assertThat(map, is(empty));
+    assertThat(empty, is(equalTo(map)));
   }
 
   @Test(dataProvider = "warmedMap")
@@ -110,7 +110,7 @@ public final class ConcurrentMapTest extends BaseTest {
 
   @Test(dataProvider = "guardedMap")
   public void hashCode_withEmpty(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    assertThat(map.hashCode(), is(equalTo(emptyMap().hashCode())));
+    assertThat(map.hashCode(), is(equalTo(ImmutableMap.of().hashCode())));
   }
 
   @Test(dataProvider = "warmedMap")
@@ -122,9 +122,9 @@ public final class ConcurrentMapTest extends BaseTest {
 
   @Test
   public void equalsAndHashCodeFails() {
+    Map<Integer, Integer> empty = ImmutableMap.of();
     Map<Integer, Integer> data1 = newHashMap();
     Map<Integer, Integer> data2 = newHashMap();
-    Map<Integer, Integer> empty = emptyMap();
     warmUp(data1, 0, 50);
     warmUp(data2, 50, 100);
 
@@ -192,12 +192,12 @@ public final class ConcurrentMapTest extends BaseTest {
 
   @Test(dataProvider = "guardedMap", expectedExceptions = NullPointerException.class)
   public void put_withNullKey(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    map.put(1, null);
+    map.put(null, 2);
   }
 
   @Test(dataProvider = "guardedMap", expectedExceptions = NullPointerException.class)
   public void put_withNullValue(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    map.put(null, 2);
+    map.put(1, null);
   }
 
   @Test(dataProvider = "guardedMap", expectedExceptions = NullPointerException.class)
@@ -221,7 +221,7 @@ public final class ConcurrentMapTest extends BaseTest {
   @Test(dataProvider = "guardedMap")
   public void putAll_withEmpty(ConcurrentLinkedHashMap<Integer, Integer> map) {
     map.putAll(ImmutableMap.<Integer, Integer>of());
-    assertThat(map, isEmptyMap());
+    assertThat(map, is(emptyMap()));
   }
 
   @Test(dataProvider = "guardedMap")
@@ -275,7 +275,7 @@ public final class ConcurrentMapTest extends BaseTest {
     assertThat(map.get(1), is(nullValue()));
     assertThat(map.containsKey(1), is(false));
     assertThat(map.containsValue(2), is(false));
-    assertThat(map, isEmptyMap());
+    assertThat(map, is(emptyMap()));
   }
 
   @Test(dataProvider = "guardedMap", expectedExceptions = NullPointerException.class)
@@ -306,7 +306,7 @@ public final class ConcurrentMapTest extends BaseTest {
     assertThat(map.get(1), is(nullValue()));
     assertThat(map.containsKey(1), is(false));
     assertThat(map.containsValue(2), is(false));
-    assertThat(map, isEmptyMap());
+    assertThat(map, is(emptyMap()));
   }
 
   @Test(dataProvider = "guardedMap", expectedExceptions = NullPointerException.class)
@@ -394,7 +394,7 @@ public final class ConcurrentMapTest extends BaseTest {
 
   @Test(dataProvider = "guardedMap")
   public void toString_whenempty(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    assertThat(map, hasToString(emptyMap().toString()));
+    assertThat(map, hasToString(ImmutableMap.of().toString()));
   }
 
   @Test(dataProvider = "guardedMap")
@@ -408,12 +408,12 @@ public final class ConcurrentMapTest extends BaseTest {
 
   @Test(dataProvider = "guardedMap")
   public void serialization_whenEmpty(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    assertThat(map, isEqualToClone());
+    assertThat(map, is(equalToClone()));
   }
 
   @Test(dataProvider = "warmedMap")
   public void serialization_whenPopulated(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    assertThat(map, isEqualToClone());
+    assertThat(map, is(equalToClone()));
   }
 
   @Test(dataProvider = "guardingListener")
@@ -428,7 +428,7 @@ public final class ConcurrentMapTest extends BaseTest {
           .listener(listener)
           .build();
     map.put(1, singletonList(2));
-    assertThat(map, isEqualToClone());
+    assertThat(map, is(equalToClone()));
   }
 
   /* ---------------- Key Set -------------- */
@@ -458,7 +458,7 @@ public final class ConcurrentMapTest extends BaseTest {
 
   @Test(dataProvider = "guardedMap")
   public void keySet_whenEmpty(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    assertThat(map.keySet(), isEmptyCollection());
+    assertThat(map.keySet(), is(emptyCollection()));
   }
 
   @Test(dataProvider = "guardedMap", expectedExceptions = UnsupportedOperationException.class)
@@ -469,7 +469,7 @@ public final class ConcurrentMapTest extends BaseTest {
   @Test(dataProvider = "warmedMap")
   public void keySet_withClear(ConcurrentLinkedHashMap<Integer, Integer> map) {
     map.keySet().clear();
-    assertThat(map, isEmptyMap());
+    assertThat(map, is(emptyMap()));
   }
 
   @Test(dataProvider = "warmedMap")
@@ -484,7 +484,7 @@ public final class ConcurrentMapTest extends BaseTest {
       assertThat(keys.remove(i), is(false));
       assertThat(keys.contains(i), is(false));
     }
-    assertThat(map, isEmptyMap());
+    assertThat(map, is(emptyMap()));
   }
 
   @Test(dataProvider = "warmedMap")
@@ -497,7 +497,7 @@ public final class ConcurrentMapTest extends BaseTest {
       i.remove();
     }
     assertThat(iterations, is(equalTo(capacity())));
-    assertThat(map, isEmptyMap());
+    assertThat(map, is(emptyMap()));
   }
 
   @Test(dataProvider = "guardedMap", expectedExceptions = IllegalStateException.class)
@@ -537,7 +537,7 @@ public final class ConcurrentMapTest extends BaseTest {
 
   @Test(dataProvider = "guardedMap")
   public void values_whenEmpty(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    assertThat(map.values(), isEmptyCollection());
+    assertThat(map.values(), is(emptyCollection()));
   }
 
   @Test(dataProvider = "guardedMap", expectedExceptions = UnsupportedOperationException.class)
@@ -548,7 +548,7 @@ public final class ConcurrentMapTest extends BaseTest {
   @Test(dataProvider = "warmedMap")
   public void values_withClear(ConcurrentLinkedHashMap<Integer, Integer> map) {
     map.values().clear();
-    assertThat(map, isEmptyMap());
+    assertThat(map, is(emptyMap()));
   }
 
   @Test(dataProvider = "warmedMap")
@@ -563,7 +563,7 @@ public final class ConcurrentMapTest extends BaseTest {
       assertThat(values.remove(-i), is(false));
       assertThat(values.contains(-i), is(false));
     }
-    assertThat(map, isEmptyMap());
+    assertThat(map, is(emptyMap()));
   }
 
   @Test(dataProvider = "warmedMap")
@@ -576,7 +576,7 @@ public final class ConcurrentMapTest extends BaseTest {
       i.remove();
     }
     assertThat(iterations, is(equalTo(capacity())));
-    assertThat(map, isEmptyMap());
+    assertThat(map, is(emptyMap()));
   }
 
   @Test(dataProvider = "guardedMap", expectedExceptions = IllegalStateException.class)
@@ -616,7 +616,7 @@ public final class ConcurrentMapTest extends BaseTest {
 
   @Test(dataProvider = "guardedMap")
   public void entrySet_whenEmpty(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    assertThat(map.entrySet(), isEmptyCollection());
+    assertThat(map.entrySet(), is(emptyCollection()));
   }
 
   @Test(dataProvider = "guardedMap")
@@ -630,7 +630,7 @@ public final class ConcurrentMapTest extends BaseTest {
   @Test(dataProvider = "warmedMap")
   public void entrySet_withClear(ConcurrentLinkedHashMap<Integer, Integer> map) {
     map.entrySet().clear();
-    assertThat(map, isEmptyMap());
+    assertThat(map, is(emptyMap()));
   }
 
   @Test(dataProvider = "warmedMap")
@@ -648,7 +648,7 @@ public final class ConcurrentMapTest extends BaseTest {
       assertThat(entries.remove(newEntry), is(false));
       assertThat(entries.contains(newEntry), is(false));
     }
-    assertThat(map, isEmptyMap());
+    assertThat(map, is(emptyMap()));
   }
 
   @Test(dataProvider = "warmedMap")
@@ -662,7 +662,7 @@ public final class ConcurrentMapTest extends BaseTest {
       i.remove();
     }
     assertThat(iterations, is(equalTo(capacity())));
-    assertThat(map, isEmptyMap());
+    assertThat(map, is(emptyMap()));
   }
 
   @Test(dataProvider = "guardedMap", expectedExceptions = IllegalStateException.class)
@@ -681,7 +681,7 @@ public final class ConcurrentMapTest extends BaseTest {
     Entry<Integer, Integer> entry = map.entrySet().iterator().next();
 
     map.remove(1);
-    assertThat(map, isEmptyMap());
+    assertThat(map, is(emptyMap()));
 
     entry.setValue(3);
     assertThat(map.size(), is(1));
