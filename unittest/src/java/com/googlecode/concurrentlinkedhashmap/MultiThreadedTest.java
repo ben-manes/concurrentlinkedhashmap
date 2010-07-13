@@ -2,9 +2,9 @@ package com.googlecode.concurrentlinkedhashmap;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Sets.newSetFromMap;
+import static com.googlecode.concurrentlinkedhashmap.Benchmarks.shuffle;
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentTestHarness.timeTasks;
-import static com.googlecode.concurrentlinkedhashmap.ValidState.valid;
-import static com.googlecode.concurrentlinkedhashmap.benchmark.Benchmarks.shuffle;
+import static com.googlecode.concurrentlinkedhashmap.IsValidState.valid;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.testng.Assert.fail;
@@ -216,7 +216,6 @@ public final class MultiThreadedTest extends BaseTest {
           failures.add(error);
         }
       }
-      debug("#%d: ENDING", id);
     }
   }
 
@@ -308,7 +307,7 @@ public final class MultiThreadedTest extends BaseTest {
         cache.keySet().toArray(new Integer[cache.size()]);
       }
     },
-    VALUE_SET() {
+    VALUES() {
       @Override void execute(ConcurrentLinkedHashMap<Integer, Integer> cache, Integer key) {
         for (Integer i : cache.values()) {
           if (i == null) {

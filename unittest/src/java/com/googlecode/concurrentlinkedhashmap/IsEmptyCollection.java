@@ -13,7 +13,8 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Is the collection empty throughout its contract?
+ * A matcher that performs an exhaustive empty equality check throughout the
+ * {@link Collection} contract.
  *
  * @author ben.manes@gmail.com (Ben Manes)
  */
@@ -51,9 +52,8 @@ public final class IsEmptyCollection extends TypeSafeDiagnosingMatcher<Collectio
     return expression;
   }
 
-  /** Matches an empty collection. */
   @Factory
-  public static <E> Matcher<Collection<?>> isEmptyCollection() {
+  public static <E> Matcher<Collection<?>> emptyCollection() {
     return new IsEmptyCollection();
   }
 }

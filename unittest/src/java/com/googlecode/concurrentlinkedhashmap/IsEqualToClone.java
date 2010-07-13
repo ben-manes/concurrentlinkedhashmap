@@ -1,8 +1,8 @@
 package com.googlecode.concurrentlinkedhashmap;
 
 import static com.google.common.collect.Maps.newHashMap;
-import static com.googlecode.concurrentlinkedhashmap.IsEmptyMap.isEmptyMap;
-import static com.googlecode.concurrentlinkedhashmap.ValidState.valid;
+import static com.googlecode.concurrentlinkedhashmap.IsEmptyMap.emptyMap;
+import static com.googlecode.concurrentlinkedhashmap.IsValidState.valid;
 
 import org.apache.commons.lang.SerializationUtils;
 import org.apache.commons.lang.builder.EqualsBuilder;
@@ -15,7 +15,8 @@ import java.io.Serializable;
 import java.util.Map;
 
 /**
- * Is a {@link ConcurrentLinkedHashMap} equal to its serialized clone?
+ * A matcher that evaluates a {@link ConcurrentLinkedHashMap} by creating a
+ * serialized clone and checking its equality.
  *
  * @author ben.manes@gmail.com (Ben Manes)
  */
@@ -33,8 +34,8 @@ public final class IsEqualToClone extends TypeSafeMatcher<ConcurrentLinkedHashMa
     return new EqualsBuilder()
         .append(valid().matches(map), true)
         .append(valid().matches(copy), true)
-        .append(isEmptyMap().matches(map), data.isEmpty())
-        .append(isEmptyMap().matches(copy), data.isEmpty())
+        .append(emptyMap().matches(map), data.isEmpty())
+        .append(emptyMap().matches(copy), data.isEmpty())
         .append(copy.maximumWeightedSize, map.maximumWeightedSize)
         .append(copy.listener.getClass(), map.listener.getClass())
         .append(copy.weigher.getClass(), map.weigher.getClass())
@@ -51,9 +52,8 @@ public final class IsEqualToClone extends TypeSafeMatcher<ConcurrentLinkedHashMa
     return (T) SerializationUtils.clone(object);
   }
 
-  /** Is the value equal to a a cloned instance? */
   @Factory
-  public static <K, V> Matcher<ConcurrentLinkedHashMap<?, ?>> isEqualToClone() {
+  public static <K, V> Matcher<ConcurrentLinkedHashMap<?, ?>> equalToClone() {
     return new IsEqualToClone();
   }
 }

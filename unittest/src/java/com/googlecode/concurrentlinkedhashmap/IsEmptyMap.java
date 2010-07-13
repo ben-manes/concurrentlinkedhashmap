@@ -1,6 +1,6 @@
 package com.googlecode.concurrentlinkedhashmap;
 
-import static java.util.Collections.emptyMap;
+import com.google.common.collect.ImmutableMap;
 
 import org.hamcrest.Description;
 import org.hamcrest.Factory;
@@ -10,7 +10,8 @@ import org.hamcrest.TypeSafeDiagnosingMatcher;
 import java.util.Map;
 
 /**
- * Is the map empty throughout its contract?
+ * A matcher that performs an exhaustive equality check throughout the
+ * {@link Map} contract.
  *
  * @author ben.manes@gmail.com (Ben Manes)
  */
@@ -28,9 +29,9 @@ public final class IsEmptyMap extends TypeSafeDiagnosingMatcher<Map<?, ?>> {
     matches &= new IsEmptyCollection().matchesSafely(map.values(), description);
     matches &= new IsEmptyCollection().matchesSafely(map.entrySet(), description);
     matches &= check(map.isEmpty(), "Not empty", description);
-    matches &= check(map.equals(emptyMap()), "Not equal to empty map", description);
-    matches &= check(map.hashCode() == emptyMap().hashCode(), "hashcode", description);
-    matches &= check(map.toString().equals(emptyMap().toString()), "toString", description);
+    matches &= check(map.equals(ImmutableMap.of()), "Not equal to empty map", description);
+    matches &= check(map.hashCode() == ImmutableMap.of().hashCode(), "hashcode", description);
+    matches &= check(map.toString().equals(ImmutableMap.of().toString()), "toString", description);
     if (map instanceof ConcurrentLinkedHashMap<?, ?>) {
       matches &= isEmpty((ConcurrentLinkedHashMap<?, ?>) map, description);
     }
@@ -44,9 +45,9 @@ public final class IsEmptyMap extends TypeSafeDiagnosingMatcher<Map<?, ?>> {
     matches &= check(map.data.size() == 0, "Internal size != 0", description);
     matches &= check(map.weightedSize() == 0, "Weighted size != 0", description);
     matches &= check(map.weightedSize == 0, "Internal weighted size != 0", description);
-    matches &= check(map.equals(emptyMap()), "Not equal to empty map", description);
-    matches &= check(map.hashCode() == emptyMap().hashCode(), "hashcode", description);
-    matches &= check(map.toString().equals(emptyMap().toString()), "toString", description);
+    matches &= check(map.equals(ImmutableMap.of()), "Not equal to empty map", description);
+    matches &= check(map.hashCode() == ImmutableMap.of().hashCode(), "hashcode", description);
+    matches &= check(map.toString().equals(ImmutableMap.of().toString()), "toString", description);
     return matches;
   }
 
@@ -57,9 +58,8 @@ public final class IsEmptyMap extends TypeSafeDiagnosingMatcher<Map<?, ?>> {
     return expression;
   }
 
-  /** Matches an empty map. */
   @Factory
-  public static Matcher<Map<?, ?>> isEmptyMap() {
+  public static Matcher<Map<?, ?>> emptyMap() {
     return new IsEmptyMap();
   }
 }

@@ -1,4 +1,4 @@
-package com.googlecode.concurrentlinkedhashmap.benchmark;
+package com.googlecode.concurrentlinkedhashmap;
 
 import static com.google.common.base.Preconditions.checkArgument;
 
@@ -17,9 +17,9 @@ import java.util.Map;
  */
 public class GetPutBenchmark extends ConcurrentBenchmark {
   @Param({
-    "ConcurrentLinkedHashMap",
     "ConcurrentHashMap",
-    "LinkedHashMap_Lru_Sync"})
+    "LinkedHashMap_Lru_Sync",
+    "ConcurrentLinkedHashMap"})
   Cache cache;
 
   @Param int numberOfThreads;
