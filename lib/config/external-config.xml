@@ -127,8 +127,8 @@
 	
   <!-- Guava -->
   <path id="guava.compile.path">
-    <fileset dir="${external.dir}/guava/r05">
-      <include name="guava-r05.jar"/>
+    <fileset dir="${external.dir}/guava/r06">
+      <include name="guava-r06.jar"/>
     </fileset>
   </path>
   <path id="guava.deploy.path">
