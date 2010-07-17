@@ -498,7 +498,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   }
 
   /**
-   * Returns the weighted size in this map.
+   * Returns the weighted size of this map.
    *
    * @return the combined weight of the values in this map
    */
