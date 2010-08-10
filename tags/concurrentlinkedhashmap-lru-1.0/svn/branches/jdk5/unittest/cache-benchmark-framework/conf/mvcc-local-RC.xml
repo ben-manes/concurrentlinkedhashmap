@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<jbosscache xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="urn:jboss:jbosscache-core:config:3.0">
-    <locking isolationLevel="READ_COMMITTED" lockAcquisitionTimeout="600000" nodeLockingScheme="mvcc"
-             concurrencyLevel="3000"
-             lockParentForChildInsertRemove="false"/>
-    <transaction transactionManagerLookupClass="org.jboss.cache.transaction.GenericTransactionManagerLookup"/>
-</jbosscache>
