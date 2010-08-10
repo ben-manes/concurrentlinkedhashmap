@@ -16,7 +16,7 @@
     </license>
   </licenses>
   <scm>
-    <url>http://concurrentlinkedhashmap.googlecode.com/svn</url>
+    <url>http://concurrentlinkedhashmap.googlecode.com/tags/release-1.0-LRU</url>
     <connection>scm:svn:http://concurrentlinkedhashmap.googlecode.com/svn/</connection>
     <developerConnection>scm:svn:https://concurrentlinkedhashmap.googlecode.com/svn/</developerConnection>
   </scm>
