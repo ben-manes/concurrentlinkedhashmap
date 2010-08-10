@@ -1,0 +1,185 @@
+#summary The algorithmic design of a concurrent linked hash map. (deprecated)
+#labels Phase-Design
+
+*This version is deprecated with release-1.0*
+
+----
+
+= Introduction =
+The following describes the algorithm for a concurrent [http://java.sun.com/javase/6/docs/api/java/util/LinkedHashMap.html LinkedHashMap].
+
+This algorithm has been matured in [Design2].
+
+== Hash Table ==
+The hash table allows for O(1) access to a cached entry. The table associates the key to an element, which is linked in the list. This can be thought of as cursor into the list data structure to allow manipulations in O(1) efficiency.
+
+== Elements ==
+An element is the {key, value} pair, plus any additional information that is useful for the eviction algorithm (e.g. frequency).
+
+== Auxiliaries ==
+In a normal LRU cache a doubly-linked list cross-cuts the hash table. When a removal is performed the two adjacent elements must be updated to unlink the victim element. If a global lock is not used then this structure has a problem as it requires two atomic operations to be performed. As _compare and swap_ operations are not composable, the race conditions of concurrent operations must be handled.
+
+The usage of auxiliary nodes between each element helps to isolate them and removes the requirement of composable atomic operations. This simplifies the per-node locking to avoid deadlock scenarios and allows operations to work with just two elements rather than three.
+
+This technique was originally discovered by John Valois in his 1995 paper [http://citeseerx.ist.psu.edu/viewdoc/summary?doi=10.1.1.41.9506 Lock-Free Linked Lists Using Compare-and-Swap]. The paper discusses a lock-free singly-linked list and attempts to adapt the idea to tree structures. In our usage the idea was rediscovered but for consistency his terminology was adopted (ours was "buffers").
+
+== Locks ==
+A traditional implementation, such as [http://java.sun.com/javase/6/docs/api/java/util/LinkedHashMap.html LinkedHashMap], does not support concurrent access. All operations must be guarded by a single mutex. In this implementation per-node _test-and-test-and-set_ spin locks are used. This provides concurrent access and faster lock acquisitions than the standard approach.
+
+Based on the usage scenario a lock may be acquired as a try-lock or a spin-lock. The element and its auxiliary node can always be operated on directly, which allows for using either a try-lock of spin-lock. An adjacent auxiliary node always requires a traversal first, so a spin-lock is emulated by performing a traversal and try-lock in a loop until the lock is acquired.
+
+== Eviction ==
+This data structure supports insertion and access-order based eviction policies. Each policy determines the ordering of the list so that the victim element is at the beginning.
+
+When an element is added to the list its size field is incremented. If the size exceeds the cache's capacity then an eviction is triggered. The first element is traversed to, the lock is attempted to be acquired, and if successful the removal performed. If the lock could not be acquired then the next element is traversed to and an eviction attempted. If the lock was acquired but a removal from the table was unsuccessful due to a concurrent removal succeeding, the lock is released as the other removal won. The list will be traversed until either an eviction has succeeded or a concurrent operation shrank the size so that it no longer exceeds the capacity.
+
+----
+= 1-1/2 linked list =
+
+The list is tentatively being called a "one and a half linked list". It supports O(1) operations with a forward iterator. Unlike a doubly-linked list it does not support reverse iteration.
+
+== Why not a singly-linked list? ==
+In a singly-linked list using auxiliary nodes the hash table curses to the auxiliary node. A removal is performed by traversing forward to an element and unlinking it by setting the auxiliary->next to element->next. However, this leaves the element's auxiliary node on the list. It cannot be removed as an unknown element points to it, so rather the next element's auxiliary node must be discarded.
+
+The extra auxiliary node can be removed by setting the removed element's auxiliary node to the next element. By using the key, the hash table's entry is updated to no longer reference the discarded node. As this requires a segment lock, it is undesirable for caches that must reorder elements frequently (e.g. LRU).
+
+== Why not a doubly-linked list? ==
+A doubly-linked list using auxiliary nodes is almost identical to the one-and-a-half linked list algorithm, except that an auxiliary knows the previous element. During an insertion the element's back pointer should be in a valid state for a reverse iteration. This can be done by optimistically setting it before acquiring the tail lock, or pessimistically afterwards.
+
+The flaw with this design is that it adds unnecessary complexity. In serial usage the ordering may be desirable for iteration such as by displaying all elements by their insertion order. In concurrent usage, clients should not consider ordering useful or rely upon it. The faster unordered iteration from the hash table's entries can be used instead. This observation means that exposing forward or reverse iteration of the list is not a useful feature and allows for simplication of the algorithm.
+
+----
+== Empty ==
+When the hash table is empty the sentinel element and its auxiliary node are linked together.
+
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/1.5-linked/empty.png]
+----
+== Steady-State ==
+When all of the transients have died away the structure looks like the following if there are three entries.
+
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/1.5-linked/steady-state.png]
+----
+== Retrieval ==
+In an LRU policy when an entry is successfully retrieved from the hash table it is moved to the tail of the list. As it is likely that the element is already at the tail, the removal and insertion operations can be skipped. If the element's lock was acquired then the position is determined and, if necessary, it is moved to the tail.
+
+ # Retrieve from hash table
+ # If found, try to acquire the element's lock
+   * If successful,
+     * If the element is at the tail, unlock and continue
+     * Otherwise, remove and reinsert to the tail of the list
+   * If unsuccessful, continue
+     * A concurrent removal is unlinking it
+     * A concurrent insert or retrieval for the same element is linking it
+ # If found, return the value held by the element. Otherwise null
+----
+== Update ==
+An update corresponds to the _put_ and _replace_ operations on a [http://java.sun.com/javase/6/docs/api/java/util/concurrent/ConcurrentMap.html ConcurrentMap].
+
+ # Perform map operation to retrieve the element
+   * If _put_, this is a _putIfAbsent_ with the element found
+   * If _replace_, this is a _get_ with the element found
+ # E->value = new_value
+   * This may be conditional on a _replace(key, oldValue, newValue)_
+ # Perform _retrieval_ step #2.
+
+----
+== Insertion ==
+The following shows the algorithm for inserting an entry. This corresponds to the _putIfAbsent_ and _put_ operations on a [http://java.sun.com/javase/6/docs/api/java/util/concurrent/ConcurrentMap.html ConcurrentMap]. The _put_ operation performs either an update or insertion based on the state of the map, so it is emulated though usage of the _putIfAbsent_ operation. As the tail node is the primary source of contention, optimizations have been made to free it at the first opportunity.
+
+ # E_new->fwd = aux
+ # aux->fwd = S
+ # Lock E_new
+ # Insert E_new into hash table
+   * If unsuccessful, return current item
+ # Lock S->back
+ # S->back = E_new->fwd
+ # S->back->aux_fwd = E_new
+ # E_new->back = S->back
+ # Unlock E_new->back
+ # Unlock E_new
+
+=== Insert E1 ===
+The following shows the insertion of {K1, E1} into an empty map.
+
+==== Create Bundle ====
+Create the bundle, acquire the element's lock, and set it up for linking. Perform steps #1 - #3.
+
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/1.5-linked/insert_E1_1.png]
+
+==== Insert and Lock Tail ====
+Insert the entry into hash table and obtain the tail's lock. Perform steps #4 - #5.
+
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/1.5-linked/insert_E1_2.png]
+
+==== Link Tail ====
+Update the tail link. Perform step #6.
+
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/1.5-linked/insert_E1_3.png]
+
+==== Link E1 ====
+Insert E1 into list. Perform steps #7 - #8.
+
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/1.5-linked/insert_E1_4.png]
+
+==== Unlock ====
+Unlock. Perform steps #9 - #10.
+
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/1.5-linked/insert_E1_5.png]
+
+=== Insert E2 ===
+The following shows the insertion of {K2, E2} into the above map.
+
+==== Create Bundle ====
+Create the bundle, acquire the element's lock, and set it up for linking. Perform steps #1 - #3.
+
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/1.5-linked/insert_E2_1.png]
+
+==== Insert and Lock Tail ====
+Insert the entry into hash table and obtain the tail's lock. Perform steps #4 - #5.
+
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/1.5-linked/insert_E2_2.png]
+
+==== Link Tail ====
+Update the tail link. Perform step #6.
+
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/1.5-linked/insert_E2_3.png]
+
+==== Link E2 ====
+Insert E2 into list. Perform steps #7 - #8.
+
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/1.5-linked/insert_E2_4.png]
+
+==== Unlock ====
+Unlock. Perform steps #9 - #10.
+
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/1.5-linked/insert_E2_5.png]
+
+----
+== Removal ==
+The following shows the algorithm for removing an entry.
+
+ # Remove entry from hash table
+   * If not found, return
+ # Lock E_old
+ # Lock E_old->bwd (aux)
+ # Lock aux->fwd (aux_next)
+ # E_next->bwd = aux
+ # aux->fwd = E_next
+ # Unlock aux
+
+If E_next is being concurrently linked or removed it will be blocked attempting to retrieve the shared auxiliary's lock. While that operation is waiting its element's back pointer can be updated. When the auxiliary is unlocked the concurrent operation will obtain the lock and perform its task with the list in a valid state. As the removed element and auxiliary nodes are no longer referenced they do not need to be unlocked.
+
+=== Remove And Lock ===
+Remove {K2, E2} from the hash table and obtain locks. Perform steps #1 - #4.
+
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/1.5-linked/remove_E2_1.png]
+
+=== Unlink ===
+Remove E2 from the list. Perform steps #5 - #6.
+
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/1.5-linked/remove_E2_2.png]
+
+=== Unlock ===
+Unlock. Perform step #7.
+
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/1.5-linked/remove_E2_3.png]
