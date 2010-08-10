@@ -1,0 +1,322 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project name="ConcurrentLinkedHashMap" default="package" basedir=".">
+  <description>A concurrent version of java.util.LinkedHashMap</description>
+
+  <!-- Load user overrides -->
+  <property file="${user.home}/.${ant.project.name}-build.properties"/>
+  <property file="${user.home}/.build.properties"/>
+  <property file="build.properties"/>
+
+  <!-- Load environment variables -->
+  <property environment="env"/>
+
+  <!-- Load tool settings -->
+  <import file="${external.import}"/>
+
+  <path id="deploy.path">
+    <path refid="cache.benchmark.deploy.path"/>
+    <path refid="colt.deploy.path"/>
+    <path refid="commons.collections.deploy.path"/>
+    <path refid="commons.lang.deploy.path"/>
+    <path refid="commons.math.deploy.path"/>
+    <path refid="ehcache.deploy.path"/>
+    <path refid="testng.deploy.path"/>
+  </path>
+
+  <path id="empty.path"/>
+
+  <path id="test.path">
+    <path refid="deploy.path"/>
+    <pathelement location="${api.build.dir}"/>
+    <pathelement location="${test.build.dir}"/>
+  </path>
+
+  <!--
+  Do not provide a target with a description attribute unless the target
+  is valid to call from outside the build file.
+  -->
+  <target name="init">
+    <tstamp/>
+    <mkdir dir="${api.build.dir}"/>
+    <mkdir dir="${dist.dir}"/>
+    <mkdir dir="${test.build.dir}"/>
+    <mkdir dir="${tools.build.dir}"/>
+  </target>
+
+  <target name="clean" description="Removes all build artifacts.">
+    <delete dir="${build.dir}"/>
+    <delete dir="${dist.dir}"/>
+  </target>
+
+  <target
+   name="compile"
+   depends="init"
+   description="Compiles Java sources into class files."
+  >
+    <macrodef name="compile.macro">
+      <attribute name="srcdir"/>
+      <attribute name="destdir"/>
+      <attribute name="pathref"/>
+      <sequential>
+        <depend
+         srcDir="@{srcdir}"
+         destDir="@{destdir}"
+         cache="@{destdir}"
+         classpath="${api.build.dir}"
+        />
+
+        <javac
+         srcdir="@{srcdir}"
+         destdir="@{destdir}"
+         classpathref="@{pathref}"
+         debug="${javac.debug}"
+         deprecation="${javac.deprecation}"
+         fork="${javac.fork}"
+         optimize="${javac.optimize}"
+         source="${javac.source}"
+         target="${javac.target}"
+         verbose="${javac.verbose}"
+         includeAntRuntime="false"
+        >
+          <compilerarg value="-Xlint:all,-path" compiler="modern"/>
+        </javac>
+      </sequential>
+    </macrodef>
+
+    <compile.macro srcdir="${api.src.dir}" destdir="${api.build.dir}" pathref="empty.path"/>
+    <compile.macro srcdir="${test.src.dir}" destdir="${test.build.dir}" pathref="test.path"/>
+  </target>
+
+  <target
+   name="document"
+   depends="compile"
+   description="Generates API documentation in HTML format."
+  >
+    <javadoc sourcepath="${api.src.dir}" destdir="${javadoc.build.dir}"/>
+  </target>
+
+  <target
+   name="package"
+   depends="compile"
+   description="Packages build artifacts into a jar."
+  >
+    <macrodef name="package.macro">
+      <attribute name="destfile"/>
+      <attribute name="dir"/>
+      <sequential>
+        <jar destfile="@{destfile}" duplicate="fail">
+          <fileset dir="@{dir}" excludes="dependencies.txt"/>
+          <manifest>
+            <attribute name="Built-By" value="${user.name}"/>
+            <section name="common">
+              <attribute
+               name="Implementation-Title"
+               value="${manifest.impl.title}"
+              />
+              <attribute
+               name="Implementation-URL"
+               value="${manifest.impl.url}"
+              />
+              <attribute
+               name="Implementation-Vendor"
+               value="${manifest.impl.vendor}"
+              />
+              <attribute
+               name="Implementation-Version"
+               value="${manifest.impl.version}"
+              />
+            </section>
+          </manifest>
+        </jar>
+      </sequential>
+    </macrodef>
+
+    <package.macro destfile="${dist.dir}/${manifest.impl.vendor}-${DSTAMP}.jar" dir="${api.build.dir}"/>
+    <package.macro destfile="${dist.dir}/${manifest.impl.vendor}-test-${DSTAMP}.jar" dir="${test.build.dir}"/>
+  </target>
+
+  <!-- Tasks devoted to code reviews. -->
+  <target
+   name="run-analyzers"
+   depends="run-findbugs, run-pmd"
+   description="Runs various code analyzers."
+  />
+
+  <target
+   name="run-findbugs"
+   depends="compile"
+   description="Runs the FindBugs tool."
+  >
+    <findbugs
+     failOnError="${findbugs.failOnError}"
+     home="${findbugs.home}"
+     jvmargs="-Xms128m -Xmx128m"
+     output="html"
+     outputFile="${findbugs.outputFile}"
+     reportLevel="${findbugs.reportLevel}"
+    >
+      <auxClasspath refid="deploy.path"/>
+      <class location="${api.build.dir}"/>
+      <class location="${test.build.dir}"/>
+      <sourcePath path="${api.src.dir}"/>
+      <sourcePath path="${test.src.dir}"/>
+    </findbugs>
+  </target>
+
+  <target
+   name="run-pmd"
+   depends="compile"
+   description="Runs the PMD tool."
+  >
+    <pmd
+     failOnError="${pmd.failOnError}"
+     failOnRuleViolation="${pmd.failOnRuleViolation}"
+     rulesetfiles="${pmd.rulesetfiles}"
+     shortFilenames="${pmd.shortFilenames}"
+     targetjdk="${pmd.targetjdk}"
+    >
+      <fileset dir="${api.src.dir}" includes="**/*.java"/>
+      <fileset dir="${test.src.dir}" includes="**/*.java"/>
+      <formatter type="html" toFile="${pmd.toFile}"/>
+    </pmd>
+  </target>
+
+  <macrodef name="testng.macro">
+    <attribute name="pathref"/>
+    <attribute name="outputdir"/>
+    <element name="args" optional="true"/>
+    <sequential>
+      <testng
+       classpathref="@{pathref}"
+       dumpCommand="${testng.dumpCommand}"
+       groups="${testng.groups}"
+       haltonfailure="${testng.haltonfailure}"
+       haltonskipped="${testng.haltonskipped}"
+       outputdir="@{outputdir}"
+      >
+        <classfileset dir="${test.build.dir}"/>
+        <jvmarg value="-Xms64m"/>
+        <jvmarg value="-Xmx512m"/>
+        <jvmarg value="-Xss1m"/>
+
+        <!-- All tests -->
+        <sysproperty key="test.debugMode" value="${test.debugMode}"/>
+        <sysproperty key="test.exhaustive" value="${test.exhaustive}"/>
+
+        <!-- Efficiency tests -->
+        <sysproperty key="efficiency.maximumCapacity" value="${efficiency.maximumCapacity}"/>
+        <sysproperty key="efficiency.workingSetSize" value="${efficiency.workingSetSize}"/>
+        <sysproperty key="efficiency.distribution" value="${efficiency.distribution}"/>
+        <sysproperty key="efficiency.distribution.uniform.lower" value="${efficiency.distribution.uniform.lower}"/>
+        <sysproperty key="efficiency.distribution.uniform.upper" value="${efficiency.distribution.uniform.upper}"/>
+        <sysproperty key="efficiency.distribution.exponential.mean" value="${efficiency.distribution.exponential.mean}"/>
+        <sysproperty key="efficiency.distribution.gaussian.mean" value="${efficiency.distribution.gaussian.mean}"/>
+        <sysproperty key="efficiency.distribution.gaussian.sigma" value="${efficiency.distribution.gaussian.sigma}"/>
+        <sysproperty key="efficiency.distribution.poisson.mean" value="${efficiency.distribution.poisson.mean}"/>
+        <sysproperty key="efficiency.distribution.zipfian.skew" value="${efficiency.distribution.zipfian.skew}"/>
+
+        <!-- Single-threaded tests -->
+        <sysproperty key="singleThreaded.maximumCapacity" value="${singleThreaded.maximumCapacity}"/>
+
+        <!-- Multi-threaded tests -->
+        <sysproperty key="multiThreaded.maximumCapacity" value="${multiThreaded.maximumCapacity}"/>
+        <sysproperty key="multiThreaded.nThreads" value="${multiThreaded.nThreads}"/>
+        <sysproperty key="multiThreaded.iterations" value="${multiThreaded.iterations}"/>
+        <sysproperty key="multiThreaded.timeout" value="${multiThreaded.timeout}"/>
+        <args/>
+      </testng>
+    </sequential>
+  </macrodef>
+
+  <target
+   name="run-tests"
+   depends="compile"
+   description="Runs unit tests over the build artifacts."
+  >
+    <testng.macro pathref="test.path" outputdir="${testng.outputdir}"/>
+  </target>
+
+  <target
+   name="run-coverage"
+   depends="compile"
+   description="Runs code coverage tests over the build artifacts."
+  >
+    <delete dir="${cobertura.dir}"/>
+    <mkdir dir="${cobertura.dir}"/>
+
+    <cobertura-instrument
+     datafile="${cobertura.datafile}"
+     todir="${cobertura.todir}"
+    >
+      <fileset dir="${api.build.dir}" includes="**/*.class"/>
+    </cobertura-instrument>
+
+    <path id="coverage.path">
+      <pathelement location="${cobertura.todir}"/>
+      <path refid="cobertura.compile.path"/>
+      <path refid="test.path"/>
+    </path>
+
+    <testng.macro pathref="coverage.path" outputdir="${cobertura.dir}/test-output">
+      <args>
+        <sysproperty key="net.sourceforge.cobertura.datafile" file="${cobertura.datafile}"/>
+      </args>
+    </testng.macro>
+
+    <cobertura-report
+     format="${cobertura.format}"
+     datafile="${cobertura.datafile}"
+     destdir="${cobertura.destdir}"
+     srcdir="${api.src.dir}"
+    />
+  </target>
+
+  <target
+   name="run-benchmarks"
+   depends="compile"
+   description="Runs micro-benchmarks over the build artifacts."
+  >
+    <mkdir dir="${benchmark.report.dir}"/>
+
+    <java
+     classname="org.cachebench.CacheBenchmarkRunner"
+     classpathref="test.path"
+     fork="true"
+     maxmemory="${benchmark.test.heap}"
+     dir="${benchmark.report.dir}"
+    >
+      <classpath>
+        <path refid="${benchmark.test.path}"/>
+        <pathelement location="${benchmark.config.dir}"/>
+      </classpath>
+
+      <jvmarg value="-Xms${benchmark.test.heap}"/>
+
+      <sysproperty key="cacheBenchFwk.cacheConfigFile" value="${benchmark.test.config}"/>
+      <sysproperty key="cacheBenchFwk.cacheProductName" value="${benchmark.test.product}"/>
+      <sysproperty key="cacheBenchFwk.cacheWrapperClassName" value="${benchmark.test.wrapper}"/>
+      <sysproperty key="cacheBenchFwk.fwkCfgFile" value="${benchmark.config.file}"/>
+      <sysproperty key="localOnly" value="true"/>
+    </java>
+  </target>
+
+  <target
+   name="run-reports"
+   description="Runs the report generator for micro-benchmark visualization."
+  >
+    <java
+     classname="org.cachebench.reportgenerators.ChartGenerator"
+     classpathref="test.path"
+     fork="true"
+     dir="${benchmark.report.dir}"
+    >
+      <classpath>
+        <pathelement location="${benchmark.config.dir}"/>
+      </classpath>
+
+      <arg line="-chartType ${benchmark.report.chart}"/>
+      <arg line="-o ${benchmark.report.file}"/>
+      <arg line="-reportDir ."/>
+    </java>
+  </target>
+</project>

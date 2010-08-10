@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- ===================================================================== -->
+<!--                                                                       -->
+<!--  Sample for total replication.                               -->
+<!--                                                                       -->
+<!-- ===================================================================== -->
+
+<server>
+
+   <classpath codebase="./lib" archives="jboss-cache.jar, jgroups.jar"/>
+
+
+   <!-- ==================================================================== -->
+   <!-- Defines TreeCache configuration                                      -->
+   <!-- ==================================================================== -->
+
+   <mbean code="org.jboss.cache.jmx.CacheJmxWrapper"
+          name="jboss.cache:service=testTreeCache">
+
+      <depends>jboss:service=Naming</depends>
+      <depends>jboss:service=TransactionManager</depends>
+
+      <!--
+          Configure the TransactionManager
+      -->
+      <attribute name="TransactionManagerLookupClass">org.jboss.cache.transaction.GenericTransactionManagerLookup
+      </attribute>
+
+
+      <!--
+          Node locking level : SERIALIZABLE
+                               REPEATABLE_READ (default)
+                               READ_COMMITTED
+                               READ_UNCOMMITTED
+                               NONE
+      -->
+      <attribute name="IsolationLevel">REPEATABLE_READ</attribute>
+
+      <!--
+           Valid modes are LOCAL
+                           REPL_ASYNC
+                           REPL_SYNC
+                           INVALIDATION_ASYNC
+                           INVALIDATION_SYNC
+      -->
+      <attribute name="CacheMode">LOCAL</attribute>
+
+      <!-- Name of cluster. Needs to be the same for all TreeCache nodes in a
+           cluster in order to find each other.
+      -->
+      <attribute name="ClusterName">JBossCache-Cluster</attribute>
+      <!--
+          The max amount of time (in milliseconds) we wait until the
+          state (ie. the contents of the cache) are retrieved from
+          existing members in a clustered environment
+      -->
+      <attribute name="StateRetrievalTimeout">20000</attribute>
+
+      <!--
+          Number of milliseconds to wait until all responses for a
+          synchronous call have been received.
+      -->
+      <attribute name="SyncReplTimeout">15000</attribute>
+
+      <!-- Max number of milliseconds to wait for a lock acquisition -->
+      <attribute name="LockAcquisitionTimeout">10000</attribute>
+   </mbean>
+</server>

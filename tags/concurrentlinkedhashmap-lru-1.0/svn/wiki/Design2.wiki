@@ -1,0 +1,152 @@
+#summary The algorithmic design of a concurrent linked hash map. (deprecated)
+#labels Phase-Design
+
+*This version is deprecated with release-1.0*
+
+----
+
+= Introduction =
+The following describes the algorithm for a concurrent [http://java.sun.com/javase/6/docs/api/java/util/LinkedHashMap.html LinkedHashMap].
+
+This algorithm builds on the concepts outlined in [Design design #1], which describes a concurrent algorithm using per-node locking. Please read that document first.
+
+This algorithm removes the explicit locking by introducing _compare-and-swap_ operations. This was done by making the following observations:
+
+ * An *insertion* can be reduced from 2 to 1 blocking instruction by introducing a CAS loop.
+  # The new element's _previous_ is eagerly set to the existing tail's auxiliary (the sentinel's _previous_).
+  # The sentinel's _previous_ is set to the new element's _auxiliary_ if and only if it was the existing tail. Repeat at (1) until this succeeds.
+  # Set the previous tail's _auxiliary's next_ to the new element.
+ * A *removal* must introduce a CAS loop if the adjacent element is being linked by the above *insertion* algorithm. It is modified by repeatedly attempting to set the next element's _previous_ to the removed element's _previous_, if it equalled the removed element's _auxiliary_.
+ * If the above is done, then auxiliaries are only beneficial for removals. They can be removed by introducing further CAS operations.
+
+In this algorithm, an element is considered to be locked when its _next_ is set to _null_ and the previous value is captured in an _auxiliary_ reference. When the right-hand side element attempts to swing _next_ to a new value, it will fail as _next_ does not point to it. It will be unblocked and succeed once its _prev_->_next_ once again equals itself.
+
+----
+== Empty ==
+When the hash table is empty the sentinel element is linked to itself.
+
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/spin/empty.png]
+----
+== Steady-State ==
+When all of the transients have died away the structure looks like the following if there are three entries.
+
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/spin/steady-state.png]
+----
+== Retrieval ==
+In an LRU policy when an entry is successfully retrieved from the hash table it is moved to the tail of the list.
+
+ # Retrieve from hash table
+ # If found, try to remove the element
+   * If successful,
+     * Insert to the tail of the list
+   * If unsuccessful, continue
+     * A concurrent removal is unlinking it
+     * A concurrent insertion or retrieval for the same element is linking it
+ # If found, return the value held by the element. Otherwise null.
+----
+== Update ==
+An update corresponds to the _put_ and _replace_ operations on a [http://java.sun.com/javase/6/docs/api/java/util/concurrent/ConcurrentMap.html ConcurrentMap].
+
+ # Perform map operation to retrieve the element
+   * If _put_, this is a _putIfAbsent_ with the element found
+   * If _replace_, this is a _get_ with the element found
+ # E->value = new_value
+   * This may be conditional on a _replace(key, oldValue, newValue)_
+ # Perform _retrieval_ step #2
+
+----
+== Insertion ==
+The following shows the algorithm for inserting an entry. This corresponds to the _putIfAbsent_ and _put_ operations on a [http://java.sun.com/javase/6/docs/api/java/util/concurrent/ConcurrentMap.html ConcurrentMap]. The _put_ operation performs either an update or insertion based on the state of the map, so it is emulated though usage of the _putIfAbsent_ operation.
+
+ # Insert E_new into hash table
+   * If unsuccessful, return current item
+ # E_new->prev = S->prev
+ # E_new->prev->next = E_new iff (E_new->prev->next == S)
+   * If unsuccessful, repeat at (2).
+ # S->prev = E_new iff (S->prev == E_new->prev)
+   * If unsuccessful
+     * If (S->prev == E_new) then continue as a concurrent removal helped out
+     * Otherwise, repeat at (4)
+ # E_new->next = S
+
+=== Insert E1 ===
+The following shows the insertion of {K1, E1} into an empty map.
+
+==== Insert ====
+Insert the entry into hash table. Perform steps #1.
+
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/spin/insert_E1_1.png]
+
+==== Link with Tail ====
+Update the tail to link to the new element. Perform steps #2 - #3.
+
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/spin/insert_E1_2.png]
+
+==== Link with Sentinel ====
+Update the sentinel to link to the new element. Perform step #4.
+
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/spin/insert_E1_3.png]
+
+==== Complete Linking ====
+Update the new element to link with sentinel. Perform steps #5.
+
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/spin/insert_E1_4.png]
+
+=== Insert E2 ===
+The following shows the insertion of {K2, E2} into the above map.
+
+==== Insert ====
+Insert the entry into hash table. Perform steps #1.
+
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/spin/insert_E2_1.png]
+
+==== Link with Tail ====
+Update the tail to link to the new element. Perform steps #2 - #3.
+
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/spin/insert_E2_2.png]
+
+==== Link with Sentinel ====
+Update the sentinel to link to the new element. Perform step #4.
+
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/spin/insert_E2_3.png]
+
+==== Complete Linking ====
+Update the new element to link with sentinel. Perform steps #5.
+
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/spin/insert_E2_4.png]
+
+----
+== Removal ==
+The following shows the algorithm for removing an entry.
+
+ # Remove entry from hash table
+   * If not found, return
+ # Auxiliary = E_old->next
+ # E_old->next = null iff (Auxiliary != null) && (E_old->next == Auxiliary)
+   * If unsuccessful, repeat at (2).
+ # E_old->prev->next = Auxiliary iff (E_old->prev->next == E_old)
+   * If unsuccessful, repeat at (3).
+ # Auxiliary->prev = E_old->prev iff (Auxiliary->prev == E_old)
+   * If unsuccessful, repeat at (4)
+
+If E_next is being concurrently linked or removed it will be blocked attempting to update E_old's _next_ from E_next to E_next_next. As E_old's _next_ is set to _null_, the adjacent operation will be blocked until the removal has completed.
+
+=== Remove ===
+Remove {K2, E2} from the hash table. Perform step #1.
+
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/spin/remove_E2_1.png]
+
+=== Lock ===
+Lock. Perform step #2 - #3.
+
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/spin/remove_E2_2.png]
+
+=== Unlink ===
+Unlink. Perform steps #4 - #5.
+
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/spin/remove_E2_3.png]
+
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/spin/remove_E2_4.png]
+
+=== Final State ===
+[http://concurrentlinkedhashmap.googlecode.com/svn/wiki/images/design/spin/remove_E2_5.png]

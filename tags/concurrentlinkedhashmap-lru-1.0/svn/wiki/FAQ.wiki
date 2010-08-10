@@ -1,0 +1,34 @@
+#summary Frequently Asked Questions
+
+== Acknowledgements ==
+I'd like to thank everyone who has submitted bugs, feature requests, or has reviewed the algorithm/implementation.
+
+Special thanks to (in no particular order):
+ * Greg Luck, who provided valuable feedback based on his own testing.
+ * Adam Zell, who wrote the build, code reviews, and finds interesting papers.
+ * Bob Lane, whose performance and concurrency expertise was invaluable when exploring algorithmic ideas.
+
+----
+
+==Previous Generations==
+The previous generations attempted to reduce the critical section by making the linked list support concurrent removals, CAS-based appends, and using a concurrency-friendly eviction policy (Second Chance). A concurrent algorithm was designed and prototyped. This approach is described in the [http://code.google.com/p/concurrentlinkedhashmap/wiki/Design2 design document].
+
+ * The first generation used a state-machine and lazily evicted dead nodes (Sept. 2008 jar).
+ * The second generation used per-node spin locks on a concurrent list and supported ad-hoc removals.
+ * The [ProductionVersion production] version contains a lock-based implementation for those wanting something faster than [http://java.sun.com/javase/6/docs/api/java/util/LinkedHashMap.html LinkedHashMap] without using experimental code.
+
+=== Usage ===
+* Which eviction policy is recommended?
+
+The _Second Chance Fifo_ policy provides both an excellent hit rate and concurrency performance. It is recommended as the primary policy.
+
+If the _Least Recently Used_ policy is used then the amount of expected concurrency should be relatively small. This is because each operation requires reordering the list which creates contention at the tail. In practice the cost is acceptable, but in extreme usages this policy will have poor performance characteristics.
+
+=== Development ===
+* Why are fields marked volatile with an [http://java.sun.com/javase/6/docs/api/java/util/concurrent/atomic/AtomicReferenceFieldUpdater.html AtomicReferenceFieldUpdater] instead of using an [http://java.sun.com/javase/6/docs/api/java/util/concurrent/atomic/AtomicReference.html AtomicReference]?
+
+This was done based on a [http://cs.oswego.edu/pipermail/concurrency-interest/2007-March/003802.html recommendation] by Doug Lea in regards to [http://java.sun.com/javase/6/docs/api/java/util/concurrent/ConcurrentLinkedQueue.html ConcurrentLinkedQueue].
+
+  The two choices have different tradeoffs. Using fieldUpdaters does have more per-call overhead, but in principle most of it is optimizable away, and on some platforms and some contexts, it often is. Using a separate [http://java.sun.com/javase/6/docs/api/java/util/concurrent/atomic/AtomicReference.html AtomicReference] in essence doubles the length of a list (every second indirection is just a pointer holding the real pointer). And for small nodes as used here, nearly doubles the footprint -- even a one-field object has object header etc overhead, and increases GC overhead. All in all, using fieldUpdaters in this case is the best choice, even though on some programs/platforms it might on average be a  little slower (and on others faster).
+
+  -Doug
