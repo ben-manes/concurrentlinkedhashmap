@@ -68,7 +68,6 @@ public final class MultiThreadedTest extends BaseTest {
             .concurrencyLevel(nThreads)
             .build();
     Future<Long> future = es.submit(new Callable<Long>() {
-      @Override
       public Long call() throws Exception {
         return timeTasks(nThreads, new Thrasher(cache, sets));
       }

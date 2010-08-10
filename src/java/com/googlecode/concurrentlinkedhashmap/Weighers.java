@@ -127,7 +127,6 @@ public final class Weighers {
   private enum SingletonWeigher implements Weigher {
     INSTANCE;
 
-    @Override
     public int weightOf(Object value) {
       return 1;
     }
@@ -136,7 +135,6 @@ public final class Weighers {
   private enum ByteArrayWeigher implements Weigher<byte[]> {
     INSTANCE;
 
-    @Override
     public int weightOf(byte[] value) {
       return value.length;
     }
@@ -145,7 +143,6 @@ public final class Weighers {
   private enum IterableWeigher implements Weigher<Iterable> {
     INSTANCE;
 
-    @Override
     public int weightOf(Iterable values) {
       if (values instanceof Collection) {
         return ((Collection) values).size();
@@ -161,7 +158,6 @@ public final class Weighers {
   private enum CollectionWeigher implements Weigher<Collection> {
     INSTANCE;
 
-    @Override
     public int weightOf(Collection values) {
       return values.size();
     }
@@ -170,7 +166,6 @@ public final class Weighers {
   private enum ListWeigher implements Weigher<List> {
     INSTANCE;
 
-    @Override
     public int weightOf(List values) {
       return values.size();
     }
@@ -179,7 +174,6 @@ public final class Weighers {
   private enum SetWeigher implements Weigher<Set> {
     INSTANCE;
 
-    @Override
     public int weightOf(Set values) {
       return values.size();
     }
@@ -188,7 +182,6 @@ public final class Weighers {
   private enum MapWeigher implements Weigher<Map> {
     INSTANCE;
 
-    @Override
     public int weightOf(Map values) {
       return values.size();
     }

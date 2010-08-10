@@ -19,7 +19,6 @@ public class LHMCacheWrapper implements CacheWrapper {
   private Map<Object, Object> cache;
   private int capacity;
 
-  @Override
   public void init(Map parameters) throws Exception {
 //    InputStream stream =
 //        getClass().getClassLoader().getResourceAsStream((String) parameters.get("config"));
@@ -33,7 +32,6 @@ public class LHMCacheWrapper implements CacheWrapper {
     capacity = 5000;
   }
 
-  @Override
   public void setUp() throws Exception {
     cache = Collections.synchronizedMap(new LinkedHashMap<Object, Object>(capacity, 0.75f, true) {
       private static final long serialVersionUID = 1L;
@@ -46,46 +44,37 @@ public class LHMCacheWrapper implements CacheWrapper {
 
   }
 
-  @Override
   public void tearDown() throws Exception {
   }
 
-  @Override
   public void put(List<String> path, Object key, Object value) throws Exception {
     cache.put(key, value);
   }
 
-  @Override
   public Object get(List<String> path, Object key) throws Exception {
     return cache.get(key);
   }
 
-  @Override
   public void empty() throws Exception {
     cache.clear();
   }
 
-  @Override
   public int getNumMembers() {
     return 0;
   }
 
-  @Override
   public String getInfo() {
     return "size/capacity: " + cache.size() + "/" + capacity;
   }
 
-  @Override
   public Object getReplicatedData(List<String> path, String key) throws Exception {
     return get(path, key);
   }
 
-  @Override
   public Object startTransaction() {
     throw new UnsupportedOperationException("Does not support JTA!");
   }
 
-  @Override
   public void endTransaction(boolean successful) {
     throw new UnsupportedOperationException("Does not support JTA!");
   }
