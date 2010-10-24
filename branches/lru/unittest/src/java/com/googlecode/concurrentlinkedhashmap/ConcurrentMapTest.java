@@ -24,6 +24,7 @@ import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 
 import org.testng.annotations.Test;
 
+import java.io.Serializable;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.Map;
@@ -419,6 +420,7 @@ public final class ConcurrentMapTest extends BaseTest {
       EvictionListener<Integer, Collection<Integer>> listener) {
     ConcurrentLinkedHashMap<Integer, Collection<Integer>> map =
       new Builder<Integer, Collection<Integer>>()
+          .sizeLimiter(new SerializableSizeLimiter())
           .weigher(Weighers.<Integer>collection())
           .maximumWeightedCapacity(500)
           .initialCapacity(100)
@@ -427,6 +429,13 @@ public final class ConcurrentMapTest extends BaseTest {
           .build();
     map.put(1, singletonList(2));
     assertThat(map, is(reserializable()));
+  }
+
+  @SuppressWarnings("serial")
+  static final class SerializableSizeLimiter implements SizeLimiter, Serializable {
+    @Override public boolean hasExceededLimit(ConcurrentLinkedHashMap<?, ?> map) {
+      return false;
+    }
   }
 
   /* ---------------- Key Set -------------- */
