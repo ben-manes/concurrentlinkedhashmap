@@ -59,6 +59,7 @@ public final class IsValidState extends TypeSafeDiagnosingMatcher<ConcurrentLink
   /** Validates that the doubly-linked list. */
   @SuppressWarnings("unchecked")
   private boolean checkLinks(ConcurrentLinkedHashMap<?, ?> map, Description description) {
+    int weightedSize = 0;
     boolean matches = true;
     matches &= checkSentinel(map, description);
     Set<Node> seen = newSetFromMap(new IdentityHashMap<Node, Boolean>());
@@ -67,9 +68,11 @@ public final class IsValidState extends TypeSafeDiagnosingMatcher<ConcurrentLink
       matches &= check(seen.add(current),
           String.format("Loop detected: %s, saw %s in %s", current, seen, map), description);
       matches &= checkDataNode(map, current, description);
+      weightedSize += current.weightedValue.weight;
       current = current.next;
     }
     matches &= check(map.size() == seen.size(), "Size != list length", description);
+    matches &= check(map.weightedSize() == weightedSize, "WeightedSize != link weights", description);
     return matches;
   }
 

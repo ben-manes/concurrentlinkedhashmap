@@ -10,8 +10,8 @@ import org.hamcrest.TypeSafeDiagnosingMatcher;
 import java.util.Map;
 
 /**
- * A matcher that performs an exhaustive equality check throughout the
- * {@link Map} contract.
+ * A matcher that performs an exhaustive empty check throughout the {@link Map}
+ * contract.
  *
  * @author ben.manes@gmail.com (Ben Manes)
  */

@@ -31,19 +31,12 @@ public abstract class BaseTest {
   /** Retrieves the maximum weighted capacity to build maps with. */
   protected abstract int capacity();
 
-  /** Initializes the test with runtime properties. */
-  @BeforeClass(alwaysRun = true)
-  public void before() {
-    debug = booleanProperty("test.debugMode");
-    info("\nRunning %s...\n", getClass().getSimpleName());
-  }
-
   protected static int intProperty(String property) {
-    return Integer.valueOf(System.getProperty(property));
+    return Integer.getInteger(property);
   }
 
   protected static boolean booleanProperty(String property) {
-    return Boolean.valueOf(System.getProperty(property));
+    return Boolean.getBoolean(property);
   }
 
   protected static <E extends Enum<E>> E enumProperty(String property, Class<E> clazz) {
@@ -65,6 +58,13 @@ public abstract class BaseTest {
   /* ---------------- Testing aspects -------------- */
 
   private ConcurrentLinkedHashMap<?, ?> rawMap;
+
+  /** Initializes the test with runtime properties. */
+  @BeforeClass(alwaysRun = true)
+  public void before() {
+    debug = booleanProperty("test.debugMode");
+    info("\nRunning %s...\n", getClass().getSimpleName());
+  }
 
   /** Validates the state of a provided map. */
   @AfterMethod(alwaysRun = true)

@@ -102,13 +102,13 @@ public final class BuilderTest extends BaseTest {
   }
 
   @Test(dataProvider = "builder")
-  public void weigher_withDefault(Builder<Integer, byte[]> builder) {
-    assertThat(builder.build().weigher, is(sameInstance(Weighers.<byte[]>singleton())));
+  public void weigher_withDefault(Builder<Integer, Integer> builder) {
+    assertThat((Object) builder.build().weigher, sameInstance((Object) Weighers.singleton()));
   }
 
   @Test(dataProvider = "builder")
   public void weigher_withCustom(Builder<Integer, byte[]> builder) {
     builder.weigher(Weighers.byteArray());
-    assertThat(builder.build().weigher, is(sameInstance(Weighers.byteArray())));
+    assertThat((Object) builder.build().weigher, is(sameInstance((Object) Weighers.byteArray())));
   }
 }

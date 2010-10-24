@@ -13,7 +13,7 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * A matcher that performs an exhaustive empty equality check throughout the
+ * A matcher that performs an exhaustive empty check throughout the
  * {@link Collection} contract.
  *
  * @author ben.manes@gmail.com (Ben Manes)

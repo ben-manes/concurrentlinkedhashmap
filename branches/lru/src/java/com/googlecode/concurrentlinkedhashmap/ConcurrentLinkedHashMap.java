@@ -157,7 +157,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   volatile int maximumWeightedSize;
 
   final Lock evictionLock;
-  final Weigher<V> weigher;
+  final Weigher<? super V> weigher;
   final Queue<Runnable> writeQueue;
   final Queue<Node>[] recencyQueue;
   final AtomicIntegerArray recencyQueueLength;
@@ -198,7 +198,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     writeQueue = new ConcurrentLinkedQueue<Runnable>();
     recencyQueueLength = new AtomicIntegerArray(segments);
     recencyQueue = (Queue<Node>[]) new Queue[segments];
-    for (int i=0; i<segments; i++) {
+    for (int i = 0; i < segments; i++) {
       segmentLock[i] = new ReentrantLock();
       recencyQueue[i] = new ConcurrentLinkedQueue<Node>();
     }
@@ -276,12 +276,35 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     // will be chosen for removal.
     while (hasOverflowed()) {
       Node node = sentinel.next;
+      if (node == sentinel) {
+        return; // pending operations will correct the size
+      }
       // Notify the listener if the entry was evicted
       if (data.remove(node.key, node)) {
         listenerQueue.add(node);
       }
-      weightedSize -= node.weightedValue.weight;
+      decrementWeightFor(node);
       node.remove();
+    }
+  }
+
+  /**
+   * Decrements the weighted size by the node's weight. This method should be
+   * called after the node has been removed from the data map, but it may be
+   * still referenced by concurrent operations.
+   *
+   * @param node the entry that was removed
+   */
+  @GuardedBy("evictionLock")
+  private void decrementWeightFor(Node node) {
+    // Decrements under the segment lock to ensure that a concurrent update
+    // to the node's weight has completed.
+    Lock lock = segmentLock[node.segment];
+    lock.lock();
+    try {
+      weightedSize -= node.weightedValue.weight;
+    } finally {
+      lock.unlock();
     }
   }
 
@@ -374,7 +397,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    */
   @GuardedBy("evictionLock")
   void drainRecencyQueues() {
-    for (int segment=0; segment<segments; segment++) {
+    for (int segment = 0; segment < segments; segment++) {
       drainRecencyQueue(segment);
     }
   }
@@ -518,8 +541,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
       Node current = sentinel.next;
       while (current != sentinel) {
-        weightedSize -= current.weightedValue.weight;
         data.remove(current.key, current);
+        decrementWeightFor(current);
         current = current.next;
         current.prev.prev = null;
         current.prev.next = null;
@@ -652,8 +675,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     // insertion and removal for an entry is handled by its segment lock. The
     // insertion into the write queue after #putIfAbsent()'s is ensured through
     // this lock. This behavior allows shrinking the lock's critical section.
-    V value = null;
     Node node;
+    V value = null;
     int segment = segmentFor(key);
     Lock lock = segmentLock[segment];
 
@@ -716,8 +739,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     // queue are consistently ordered. The lock enforces that other mutations
     // completed, the read value isn't stale, and that the replacement is
     // ordered.
-    V prior = null;
     Node node;
+    V prior = null;
     int weightedDifference = 0;
     boolean delayReorder = false;
     int segment = segmentFor(key);
@@ -1157,8 +1180,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    */
   private static final class SerializationProxy<K, V> implements Serializable {
     private final EvictionListener<K, V> listener;
+    private final Weigher<? super V> weigher;
     private final int concurrencyLevel;
-    private final Weigher<V> weigher;
     private final Map<K, V> data;
     private final int capacity;
 
@@ -1195,8 +1218,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * {@code
    *   // a cache of the groups that a user belongs to
    *   ConcurrentMap<User, Set<Group>> groups = new Builder<User, Set<Group>>()
-   *       .weigher(Weighers.<Group>set())
    *       .maximumWeightedCapacity(5000)
+   *       .weigher(Weighers.set())
    *       .build();
    * }
    * </pre>
@@ -1206,10 +1229,10 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     static final int DEFAULT_CONCURRENCY_LEVEL = 16;
 
     EvictionListener<K, V> listener;
+    Weigher<? super V> weigher;
     int maximumWeightedCapacity;
     int concurrencyLevel;
     int initialCapacity;
-    Weigher<V> weigher;
 
     @SuppressWarnings("unchecked")
     public Builder() {
@@ -1293,7 +1316,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
      * @param weigher the algorithm to determine a value's weight
      * @throws NullPointerException if the weigher is null
      */
-    public Builder<K, V> weigher(Weigher<V> weigher) {
+    public Builder<K, V> weigher(Weigher<? super V> weigher) {
       checkNotNull(weigher, null);
       this.weigher = weigher;
       return this;
