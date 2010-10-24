@@ -48,14 +48,15 @@ import java.util.concurrent.locks.ReentrantLock;
  * through a {@link Builder}.
  * <p>
  * An entry is evicted from the map when the <tt>weighted capacity</tt> exceeds
- * the <tt>maximum weighted capacity</tt> threshold. A {@link Weigher} instance
- * determines how many units of capacity that a value consumes. The default
- * singleton weigher algorithm assigns each value a weight of <tt>1</tt> to
- * bound the map by the number of key-value pairs. A map that holds collections
- * may chose to weigh values by the number of elements in the collection and
- * bound the map by the total number of elements that it contains. A change to
- * a value that modifies its weight requires that an update operation is
- * performed on the map.
+ * a threshold determined by a {@link SizeLimiter}. The default size limiter
+ * bounds the map by its <tt>maximum weighted capacity</tt>. A {@link Weigher}
+ * instance determines how many units of capacity that a value consumes. The
+ * default weigher assigns each value a weight of <tt>1</tt> to bound the map by
+ * the total number of key-value pairs. A map that holds collections may choose
+ * to weigh values by the number of elements in the collection and bound the map
+ * by the total number of elements that it contains. A change to a value that
+ * modifies its weight requires that an update operation is performed on the
+ * map.
  * <p>
  * An {@link EvictionListener} may be supplied for notification when an entry
  * is evicted from the map. This listener is invoked on a caller's thread and
@@ -78,7 +79,9 @@ import java.util.concurrent.locks.ReentrantLock;
  * interfaces.
  * <p>
  * Like {@link java.util.Hashtable} but unlike {@link HashMap}, this class
- * does <em>not</em> allow <tt>null</tt> to be used as a key or value.
+ * does <em>not</em> allow <tt>null</tt> to be used as a key or value. Unlike
+ * {@link java.util.LinkedHashMap}, this class does <em>not</em> provide
+ * predictable iteration order.
  *
  * @author ben.manes@gmail.com (Ben Manes)
  * @param <K> the type of keys maintained by this map
