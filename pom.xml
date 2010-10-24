@@ -17,7 +17,14 @@
   </licenses>
   <scm>
     <url>http://concurrentlinkedhashmap.googlecode.com/svn</url>
+    <connection>scm:svn:http://concurrentlinkedhashmap.googlecode.com/svn/</connection>
+    <developerConnection>scm:svn:https://concurrentlinkedhashmap.googlecode.com/svn/</developerConnection>
   </scm>
+  <parent>
+    <groupId>org.sonatype.oss</groupId>
+    <artifactId>oss-parent</artifactId>
+    <version>3</version>
+  </parent>
   <dependencies>
     <dependency>
       <groupId>colt</groupId>
@@ -180,6 +187,7 @@
       <url>http://forumarchivebuilder.googlecode.com/svn/repository</url>
     </repository>
   </repositories>
+  <!--
   <distributionManagement>
     <repository>
       <uniqueVersion>false</uniqueVersion>
@@ -187,4 +195,5 @@
       <url>svn:https://concurrentlinkedhashmap.googlecode.com/svn/repo</url>
     </repository>
   </distributionManagement>
+  -->
 </project>

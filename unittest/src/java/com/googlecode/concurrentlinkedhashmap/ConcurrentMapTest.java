@@ -4,7 +4,7 @@ import static com.google.common.collect.Maps.immutableEntry;
 import static com.google.common.collect.Maps.newHashMap;
 import static com.googlecode.concurrentlinkedhashmap.IsEmptyCollection.emptyCollection;
 import static com.googlecode.concurrentlinkedhashmap.IsEmptyMap.emptyMap;
-import static com.googlecode.concurrentlinkedhashmap.IsEqualToClone.equalToClone;
+import static com.googlecode.concurrentlinkedhashmap.IsReserializable.reserializable;
 import static java.util.Arrays.asList;
 import static java.util.Collections.singletonList;
 import static org.apache.commons.lang.StringUtils.countMatches;
@@ -22,10 +22,8 @@ import com.google.common.collect.ImmutableMap;
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 
-import org.apache.commons.lang.SerializationUtils;
 import org.testng.annotations.Test;
 
-import java.io.Serializable;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.Map;
@@ -408,12 +406,12 @@ public final class ConcurrentMapTest extends BaseTest {
 
   @Test(dataProvider = "guardedMap")
   public void serialization_whenEmpty(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    assertThat(map, is(equalToClone()));
+    assertThat(map, is(reserializable()));
   }
 
   @Test(dataProvider = "warmedMap")
   public void serialization_whenPopulated(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    assertThat(map, is(equalToClone()));
+    assertThat(map, is(reserializable()));
   }
 
   @Test(dataProvider = "guardingListener")
@@ -428,7 +426,7 @@ public final class ConcurrentMapTest extends BaseTest {
           .listener(listener)
           .build();
     map.put(1, singletonList(2));
-    assertThat(map, is(equalToClone()));
+    assertThat(map, is(reserializable()));
   }
 
   /* ---------------- Key Set -------------- */
@@ -696,8 +694,6 @@ public final class ConcurrentMapTest extends BaseTest {
   @Test(dataProvider = "warmedMap")
   public void writeThroughEntry_serialize(ConcurrentLinkedHashMap<Integer, Integer> map) {
     Entry<Integer, Integer> entry = map.entrySet().iterator().next();
-    Object copy = SerializationUtils.clone((Serializable) entry);
-    assertThat(entry, is(equalTo(copy)));
-    assertThat(entry.hashCode(), is(equalTo(copy.hashCode())));
+    assertThat(entry, is(reserializable()));
   }
 }
