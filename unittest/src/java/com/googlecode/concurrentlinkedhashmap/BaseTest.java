@@ -218,7 +218,7 @@ public abstract class BaseTest {
       implements EvictionListener<K, V>, Serializable {
     final Collection<Entry<K, V>> evicted;
 
-    private CollectingListener() {
+    public CollectingListener() {
       this.evicted = new ConcurrentLinkedQueue<Entry<K, V>>();
     }
 

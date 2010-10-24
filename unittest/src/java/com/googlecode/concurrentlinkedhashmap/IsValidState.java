@@ -2,6 +2,8 @@ package com.googlecode.concurrentlinkedhashmap;
 
 import static java.util.Collections.newSetFromMap;
 
+import com.google.common.collect.Lists;
+
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Node;
 
 import org.hamcrest.Description;
@@ -37,10 +39,6 @@ public final class IsValidState extends TypeSafeDiagnosingMatcher<ConcurrentLink
       matches &= check(map.recencyQueue[i].isEmpty(), "recencyQueue", description);
       matches &= check(map.recencyQueueLength.get(i) == 0, "recencyQueue", description);
     }
-    for (Lock lock : map.segmentLock) {
-      boolean isLocked = !((ReentrantLock) lock).isLocked();
-      matches &= check(isLocked, "locked", description);
-    }
     matches &= check(map.listenerQueue.isEmpty(), "listenerQueue", description);
     matches &= check(map.data.size() == map.size(), "Inconsistent size", description);
     matches &= check(map.weightedSize() == map.weightedSize, "weightedSize", description);
@@ -51,8 +49,8 @@ public final class IsValidState extends TypeSafeDiagnosingMatcher<ConcurrentLink
     if (map.isEmpty()) {
       matches &= new IsEmptyMap().matchesSafely(map, description);
     }
-
     matches &= checkLinks(map, description);
+    matches &= checkLocks(map, description);
     return matches;
   }
 
@@ -77,7 +75,7 @@ public final class IsValidState extends TypeSafeDiagnosingMatcher<ConcurrentLink
   }
 
   /** Validates that the sentinel node is in a proper state. */
-  public boolean checkSentinel(ConcurrentLinkedHashMap<?, ?> map, Description description) {
+  private boolean checkSentinel(ConcurrentLinkedHashMap<?, ?> map, Description description) {
     boolean matches = true;
     matches &= check(map.sentinel.key == null, "key", description);
     matches &= check(map.sentinel.weightedValue == null, "value", description);
@@ -110,6 +108,16 @@ public final class IsValidState extends TypeSafeDiagnosingMatcher<ConcurrentLink
     matches &= check(node == node.prev.next, "link corruption", description);
     matches &= check(node == node.next.prev, "link corruption", description);
     matches &= check(node.segment == map.segmentFor(node.key), "bad segment", description);
+    return matches;
+  }
+
+  /** Validates that the locks are not held. */
+  private boolean checkLocks(ConcurrentLinkedHashMap<?, ?> map, Description description) {
+    boolean matches = true;
+    for (Lock lock : Lists.asList(map.evictionLock, map.segmentLock)) {
+      boolean isLocked = !((ReentrantLock) lock).isLocked();
+      matches &= check(isLocked, "locked", description);
+    }
     return matches;
   }
 

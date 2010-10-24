@@ -1,6 +1,7 @@
 package com.googlecode.concurrentlinkedhashmap;
 
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.RECENCY_THRESHOLD;
+import static com.googlecode.concurrentlinkedhashmap.IsValidState.valid;
 import static java.util.Arrays.asList;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -8,7 +9,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
-import static org.testng.Assert.fail;
 
 import com.google.common.collect.ImmutableMap;
 
@@ -37,39 +37,113 @@ public final class EvictionTest extends BaseTest {
   @Test(dataProvider = "warmedMap")
   public void capacity_increase(ConcurrentLinkedHashMap<Integer, Integer> map) {
     Map<Integer, Integer> expected = ImmutableMap.copyOf(newWarmedMap());
-
     int newMaxCapacity = 2 * capacity();
+
     map.setCapacity(newMaxCapacity);
-    assertThat(map.capacity(), is(equalTo(newMaxCapacity)));
     assertThat(map, is(equalTo(expected)));
-  }
-
-  @Test(dataProvider = "warmedMap")
-  public void capacity_decrease(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    int newMaxCapacity = capacity() / 2;
-    map.setCapacity(newMaxCapacity);
     assertThat(map.capacity(), is(equalTo(newMaxCapacity)));
-    assertThat(map.size(), is(equalTo(newMaxCapacity)));
-    assertThat(map.weightedSize(), is(equalTo(newMaxCapacity)));
   }
 
-  @Test(dataProvider = "warmedMap")
-  public void capacity_decreaseToMinimum(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    int newMaxCapacity = 0;
+  @Test
+  public void capacity_decrease() {
+    checkDecreasedCapacity(capacity() / 2);
+  }
+
+  @Test
+  public void capacity_decreaseToMinimum() {
+    checkDecreasedCapacity(0);
+  }
+
+  private void checkDecreasedCapacity(int newMaxCapacity) {
+    CollectingListener<Integer, Integer> listener = new CollectingListener<Integer, Integer>();
+    ConcurrentLinkedHashMap<Integer, Integer> map = new Builder<Integer, Integer>()
+        .maximumWeightedCapacity(capacity())
+        .listener(listener)
+        .build();
+    warmUp(map, 0, capacity());
     map.setCapacity(newMaxCapacity);
-    assertThat(map.capacity(), is(equalTo(newMaxCapacity)));
+
+    assertThat(map, is(valid()));
     assertThat(map.size(), is(equalTo(newMaxCapacity)));
-    assertThat(map.weightedSize(), is(equalTo(newMaxCapacity)));
+    assertThat(map.capacity(), is(equalTo(newMaxCapacity)));
+    assertThat(listener.evicted, hasSize(capacity() - newMaxCapacity));
   }
 
-  @Test(dataProvider = "warmedMap")
+  @Test(dataProvider = "warmedMap", expectedExceptions = IllegalArgumentException.class)
   public void capacity_decreaseBelowMinimum(ConcurrentLinkedHashMap<Integer, Integer> map) {
     try {
       map.setCapacity(-1);
-      fail("Capacity must be positive");
-    } catch (IllegalArgumentException e) {
+    } finally {
       assertThat(map.capacity(), is(equalTo(capacity())));
     }
+  }
+
+  @Test(expectedExceptions = IllegalStateException.class)
+  public void evictionListener_fails() {
+    ConcurrentLinkedHashMap<Integer, Integer> map = new Builder<Integer, Integer>()
+        .listener(new EvictionListener<Integer, Integer>() {
+          @Override public void onEviction(Integer key, Integer value) {
+            throw new IllegalStateException();
+          }
+        })
+        .maximumWeightedCapacity(0)
+        .build();
+    try {
+      warmUp(map, 0, capacity());
+    } finally {
+      assertThat(map, is(valid()));
+    }
+  }
+
+  @Test
+  public void evictUntil_neverDiscard() {
+    checkEvictUntil(new SizeLimiter() {
+      @Override public boolean hasExceededLimit(ConcurrentLinkedHashMap<?, ?> map) {
+        return false;
+      }
+    }, capacity());
+  }
+
+  @Test
+  public void evictUntil_alwaysDiscard() {
+    checkEvictUntil(new SizeLimiter() {
+      @Override public boolean hasExceededLimit(ConcurrentLinkedHashMap<?, ?> map) {
+        return true;
+      }
+    }, 0);
+  }
+
+  @Test
+  public void evictUntil_decrease() {
+    final int maxSize = capacity() / 2;
+    checkEvictUntil(new SizeLimiter() {
+      @Override public boolean hasExceededLimit(ConcurrentLinkedHashMap<?, ?> map) {
+        return map.size() > maxSize;
+      }
+    }, maxSize);
+  }
+
+  @Test(dataProvider = "warmedMap", expectedExceptions = IllegalStateException.class)
+  public void evictUntil_fails(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    map.evictUntil(new SizeLimiter() {
+      @Override public boolean hasExceededLimit(ConcurrentLinkedHashMap<?, ?> map) {
+        throw new IllegalStateException();
+      }
+    });
+  }
+
+  private void checkEvictUntil(SizeLimiter sizeLimiter, int expectedSize) {
+    CollectingListener<Integer, Integer> listener = new CollectingListener<Integer, Integer>();
+    ConcurrentLinkedHashMap<Integer, Integer> map = new Builder<Integer, Integer>()
+        .maximumWeightedCapacity(capacity())
+        .listener(listener)
+        .build();
+    warmUp(map, 0, capacity());
+    map.evictUntil(sizeLimiter);
+
+    assertThat(map, is(valid()));
+    assertThat(map.size(), is(expectedSize));
+    assertThat(listener.evicted, hasSize(capacity() - expectedSize));
   }
 
   @Test(dataProvider = "collectingListener")
@@ -79,6 +153,8 @@ public final class EvictionTest extends BaseTest {
         .listener(listener)
         .build();
     warmUp(map, 0, 100);
+
+    assertThat(map, is(valid()));
     assertThat(listener.evicted, hasSize(100));
   }
 
@@ -89,6 +165,8 @@ public final class EvictionTest extends BaseTest {
         .listener(listener)
         .build();
     warmUp(map, 0, 20);
+
+    assertThat(map, is(valid()));
     assertThat(map.size(), is(10));
     assertThat(map.weightedSize(), is(10));
     assertThat(listener.evicted, hasSize(10));
@@ -115,6 +193,8 @@ public final class EvictionTest extends BaseTest {
     // evict (2, 3)
     map.put(5, asList(12, 13, 14, 15, 16, 17, 18, 19, 20));
     assertThat(map.weightedSize(), is(10));
+
+    assertThat(map, is(valid()));
   }
 
   @Test
@@ -136,6 +216,8 @@ public final class EvictionTest extends BaseTest {
 
     // evict 9, 0, 1
     checkEvict(map, asList(13, 14, 15), 2, 10, 11, 12, 6, 7, 8, 13, 14, 15);
+
+    assertThat(map, is(valid()));
   }
 
   private void checkReorder(ConcurrentLinkedHashMap<Integer, Integer> map,
@@ -216,6 +298,7 @@ public final class EvictionTest extends BaseTest {
 
     assertThat(map.sentinel.next, is(not(originalHead)));
     assertThat(map.sentinel.prev, is(originalHead));
+    assertThat(map, is(valid()));
   }
 
   @Test(dataProvider = "warmedMap")

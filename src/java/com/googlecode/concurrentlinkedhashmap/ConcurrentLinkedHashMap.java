@@ -157,6 +157,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   volatile int maximumWeightedSize;
 
   final Lock evictionLock;
+  final SizeLimiter sizeLimiter;
   final Weigher<? super V> weigher;
   final Queue<Runnable> writeQueue;
   final Queue<Node>[] recencyQueue;
@@ -165,6 +166,10 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   // These fields provide support for notifying a listener.
   final Queue<Node> listenerQueue;
   final EvictionListener<K, V> listener;
+
+  transient Set<K> keySet;
+  transient Collection<V> values;
+  transient Set<Map.Entry<K,V>> entrySet;
 
   /**
    * Creates an instance based on the builder's configuration.
@@ -192,8 +197,9 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     maximumWeightedSize = Math.min(builder.maximumWeightedCapacity, MAXIMUM_CAPACITY);
 
     // The eviction support
-    weigher = builder.weigher;
     sentinel = new Node();
+    weigher = builder.weigher;
+    sizeLimiter = builder.sizeLimiter;
     evictionLock = new ReentrantLock();
     writeQueue = new ConcurrentLinkedQueue<Runnable>();
     recencyQueueLength = new AtomicIntegerArray(segments);
@@ -242,24 +248,28 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       throw new IllegalArgumentException();
     }
     this.maximumWeightedSize = capacity;
+    evictUntil(sizeLimiter);
+  }
+
+  /**
+   * Evicts entries from the map while it exceeds the size limiter's constraint
+   * or until the map is empty.
+   *
+   * @param sizeLimiter the algorithm to determine whether to evict an entry
+   * @throws NullPointerException if the size limiter is null
+   */
+  public void evictUntil(SizeLimiter sizeLimiter) {
+    checkNotNull(sizeLimiter, "null size limiter");
 
     evictionLock.lock();
     try {
       drainRecencyQueues();
       drainWriteQueue();
-      evict();
+      evict(sizeLimiter);
     } finally {
       evictionLock.unlock();
     }
-  }
-
-  /**
-   * Determines whether the map has exceeded its capacity.
-   *
-   * @return if the map has overflowed and an entry should be evicted
-   */
-  boolean hasOverflowed() {
-    return weightedSize > maximumWeightedSize;
+    notifyListener();
   }
 
   /**
@@ -267,17 +277,21 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * and appends evicted entries to the listener queue for processing.
    */
   @GuardedBy("evictionLock")
-  void evict() {
+  void evict(SizeLimiter sizeLimiter) {
     // Attempts to evict entries from the map if it exceeds the maximum
     // capacity. If the eviction fails due to a concurrent removal of the
     // victim, that removal may cancel out the addition that triggered this
     // eviction. The victim is eagerly unlinked before the removal task so
     // that if there are other pending prior additions then a new victim
     // will be chosen for removal.
-    while (hasOverflowed()) {
+    while (sizeLimiter.hasExceededLimit(this)) {
       Node node = sentinel.next;
       if (node == sentinel) {
-        return; // pending operations will correct the size
+        // The map has evicted all of its entries and can offer no further aid
+        // in fulfilling the limiter's constraint. Note that for the weighted
+        // size limiter, pending operations will adjust the size to reflect the
+        // correct weight.
+        return;
       }
       // Notify the listener if the entry was evicted
       if (data.remove(node.key, node)) {
@@ -466,7 +480,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     public void run() {
       weightedSize += weight;
       node.appendToTail();
-      evict();
+      evict(sizeLimiter);
     }
   }
 
@@ -504,7 +518,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     @GuardedBy("evictionLock")
     public void run() {
       weightedSize += weightDifference;
-      evict();
+      evict(sizeLimiter);
     }
   }
 
@@ -820,17 +834,20 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
   @Override
   public Set<K> keySet() {
-    return new KeySet();
+    Set<K> ks = keySet;
+    return (ks != null) ? ks : (keySet = new KeySet());
   }
 
   @Override
   public Collection<V> values() {
-    return new Values();
+    Collection<V> vs = values;
+    return (vs != null) ? vs : (values = new Values());
   }
 
   @Override
   public Set<Entry<K, V>> entrySet() {
-    return new EntrySet();
+    Set<Map.Entry<K,V>> es = entrySet;
+    return (es != null) ? es : (entrySet = new EntrySet());
   }
 
   /**
@@ -1159,6 +1176,18 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     @Override public void onEviction(Object key, Object value) {}
   }
 
+  /**
+   * A size limiter that bounds the map by its weighted size.
+   */
+  enum WeightedSizeLimiter implements SizeLimiter {
+    INSTANCE;
+
+    @Override
+    public boolean hasExceededLimit(ConcurrentLinkedHashMap<?, ?> map) {
+      return map.weightedSize() > map.capacity();
+    }
+  }
+
   /* ---------------- Serialization Support -------------- */
 
   private static final long serialVersionUID = 1;
@@ -1181,6 +1210,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   private static final class SerializationProxy<K, V> implements Serializable {
     private final EvictionListener<K, V> listener;
     private final Weigher<? super V> weigher;
+    private final SizeLimiter sizeLimiter;
     private final int concurrencyLevel;
     private final Map<K, V> data;
     private final int capacity;
@@ -1188,6 +1218,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     SerializationProxy(ConcurrentLinkedHashMap<K, V> map) {
       concurrencyLevel = map.concurrencyLevel;
       capacity = map.maximumWeightedSize;
+      sizeLimiter = map.sizeLimiter;
       data = new HashMap<K, V>(map);
       listener = map.listener;
       weigher = map.weigher;
@@ -1197,6 +1228,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       ConcurrentLinkedHashMap<K, V> map = new Builder<K, V>()
           .concurrencyLevel(concurrencyLevel)
           .maximumWeightedCapacity(capacity)
+          .sizeLimiter(sizeLimiter)
           .listener(listener)
           .weigher(weigher)
           .build();
@@ -1230,6 +1262,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
     EvictionListener<K, V> listener;
     Weigher<? super V> weigher;
+    SizeLimiter sizeLimiter;
+
     int maximumWeightedCapacity;
     int concurrencyLevel;
     int initialCapacity;
@@ -1238,6 +1272,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     public Builder() {
       maximumWeightedCapacity = -1;
       weigher = Weighers.singleton();
+      sizeLimiter = WeightedSizeLimiter.INSTANCE;
       initialCapacity = DEFAULT_INITIAL_CAPACITY;
       concurrencyLevel = DEFAULT_CONCURRENCY_LEVEL;
       listener = (EvictionListener<K, V>) DiscardingListener.INSTANCE;
@@ -1319,6 +1354,22 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     public Builder<K, V> weigher(Weigher<? super V> weigher) {
       checkNotNull(weigher, null);
       this.weigher = weigher;
+      return this;
+    }
+
+    /**
+     * Specifies an algorithm to determine if the maximum capacity has been
+     * exceeded and that an entry should be evicted from the map. The default
+     * algorithm bounds the map by the maximum weighted capacity. The evaluation
+     * of whether the map has exceeded its capacity is performed after a write
+     * operation.
+     *
+     * @param sizeLimiter the algorithm to determine whether to evict an entry
+     * @throws NullPointerException if the size limiter is null
+     */
+    public Builder<K, V> sizeLimiter(SizeLimiter sizeLimiter) {
+      checkNotNull(sizeLimiter, null);
+      this.sizeLimiter = sizeLimiter;
       return this;
     }
 
