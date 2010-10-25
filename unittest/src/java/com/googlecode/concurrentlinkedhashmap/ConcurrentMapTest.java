@@ -420,7 +420,7 @@ public final class ConcurrentMapTest extends BaseTest {
       EvictionListener<Integer, Collection<Integer>> listener) {
     ConcurrentLinkedHashMap<Integer, Collection<Integer>> map =
       new Builder<Integer, Collection<Integer>>()
-          .sizeLimiter(new SerializableSizeLimiter())
+          .capacityLimiter(new SerializableCapacityLimiter())
           .weigher(Weighers.<Integer>collection())
           .maximumWeightedCapacity(500)
           .initialCapacity(100)
@@ -432,8 +432,8 @@ public final class ConcurrentMapTest extends BaseTest {
   }
 
   @SuppressWarnings("serial")
-  static final class SerializableSizeLimiter implements SizeLimiter, Serializable {
-    @Override public boolean hasExceededLimit(ConcurrentLinkedHashMap<?, ?> map) {
+  static final class SerializableCapacityLimiter implements CapacityLimiter, Serializable {
+    @Override public boolean hasExceededCapacity(ConcurrentLinkedHashMap<?, ?> map) {
       return false;
     }
   }
