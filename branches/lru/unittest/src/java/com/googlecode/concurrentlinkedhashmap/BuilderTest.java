@@ -9,7 +9,7 @@ import static org.hamcrest.Matchers.sameInstance;
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.DiscardingListener;
-import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.WeightedSizeLimiter;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.WeightedCapacityLimiter;
 
 import org.testng.annotations.Test;
 
@@ -114,24 +114,24 @@ public final class BuilderTest extends BaseTest {
   }
 
   @Test(dataProvider = "builder", expectedExceptions = NullPointerException.class)
-  public void sizeLimiter_withNull(Builder<?, ?> builder) {
-    builder.sizeLimiter(null);
+  public void capacityLimiter_withNull(Builder<?, ?> builder) {
+    builder.capacityLimiter(null);
   }
 
   @Test(dataProvider = "builder")
-  public void sizeLimiter_withDefault(Builder<Object, Object> builder) {
-    SizeLimiter sizeLimiter = WeightedSizeLimiter.INSTANCE;
-    assertThat(builder.build().sizeLimiter, is(sameInstance(sizeLimiter)));
+  public void capacityLimiter_withDefault(Builder<Object, Object> builder) {
+    CapacityLimiter capacityLimiter = WeightedCapacityLimiter.INSTANCE;
+    assertThat(builder.build().capacityLimiter, is(sameInstance(capacityLimiter)));
   }
 
   @Test(dataProvider = "builder")
-  public void sizeLimiter_withCustom(Builder<Object, Object> builder) {
-    SizeLimiter sizeLimiter = new SizeLimiter() {
-      @Override public boolean hasExceededLimit(ConcurrentLinkedHashMap<?, ?> map) {
+  public void capacityLimiter_withCustom(Builder<Object, Object> builder) {
+    CapacityLimiter capacityLimiter = new CapacityLimiter() {
+      @Override public boolean hasExceededCapacity(ConcurrentLinkedHashMap<?, ?> map) {
         return false;
       }
     };
-    builder.maximumWeightedCapacity(capacity()).sizeLimiter(sizeLimiter);
-    assertThat(builder.build().sizeLimiter, is(sameInstance(sizeLimiter)));
+    builder.maximumWeightedCapacity(capacity()).capacityLimiter(capacityLimiter);
+    assertThat(builder.build().capacityLimiter, is(sameInstance(capacityLimiter)));
   }
 }

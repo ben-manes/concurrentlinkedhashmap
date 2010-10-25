@@ -21,23 +21,23 @@ package com.googlecode.concurrentlinkedhashmap;
  * other threads from performing most common operations on the map.
  * <p>
  * An instance may be evaluated after every write operation on the map or
- * triggered directly with {@link ConcurrentLinkedHashMap#evictUntil(SizeLimiter)}
+ * triggered directly with {@link ConcurrentLinkedHashMap#evictWith(CapacityLimiter)}
  * An implementation should be aware that the caller's thread will not expect
- * long execution times or failures as a side effect of the size limiter being
- * evaluated. Execution safety and a fast turn around time should be considered
- * when implementing this interface.
+ * long execution times or failures as a side effect of the capacity limiter
+ * being evaluated. Execution safety and a fast turn around time should be
+ * considered when implementing this interface.
  *
  * @author ben.manes@gmail.com (Ben Manes)
  * @see <tt>http://code.google.com/p/concurrentlinkedhashmap/</tt>
  */
-public interface SizeLimiter {
+public interface CapacityLimiter {
 
   /**
    * Determines whether an entry should be evicted from the specified map.
    *
    * @param map the map to evaluate for whether an eviction is required
-   * @return whether to evict an entry from the map
+   * @return <tt>true</tt> if an entry should be evicted from the map
    */
   @GuardedBy("map.evictionLock")
-  boolean hasExceededLimit(ConcurrentLinkedHashMap<?, ?> map);
+  boolean hasExceededCapacity(ConcurrentLinkedHashMap<?, ?> map);
 }

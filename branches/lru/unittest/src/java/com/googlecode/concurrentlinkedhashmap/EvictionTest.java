@@ -96,54 +96,54 @@ public final class EvictionTest extends BaseTest {
   }
 
   @Test
-  public void evictUntil_neverDiscard() {
-    checkEvictUntil(new SizeLimiter() {
-      @Override public boolean hasExceededLimit(ConcurrentLinkedHashMap<?, ?> map) {
+  public void evictWith_neverDiscard() {
+    checkEvictWith(new CapacityLimiter() {
+      @Override public boolean hasExceededCapacity(ConcurrentLinkedHashMap<?, ?> map) {
         return false;
       }
     }, capacity());
   }
 
   @Test
-  public void evictUntil_alwaysDiscard() {
-    checkEvictUntil(new SizeLimiter() {
-      @Override public boolean hasExceededLimit(ConcurrentLinkedHashMap<?, ?> map) {
+  public void evictWith_alwaysDiscard() {
+    checkEvictWith(new CapacityLimiter() {
+      @Override public boolean hasExceededCapacity(ConcurrentLinkedHashMap<?, ?> map) {
         return true;
       }
     }, 0);
   }
 
   @Test
-  public void evictUntil_decrease() {
+  public void evictWith_decrease() {
     final int maxSize = capacity() / 2;
-    checkEvictUntil(new SizeLimiter() {
-      @Override public boolean hasExceededLimit(ConcurrentLinkedHashMap<?, ?> map) {
+    checkEvictWith(new CapacityLimiter() {
+      @Override public boolean hasExceededCapacity(ConcurrentLinkedHashMap<?, ?> map) {
         return map.size() > maxSize;
       }
     }, maxSize);
   }
 
-  @Test(dataProvider = "warmedMap", expectedExceptions = IllegalStateException.class)
-  public void evictUntil_fails(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    map.evictUntil(new SizeLimiter() {
-      @Override public boolean hasExceededLimit(ConcurrentLinkedHashMap<?, ?> map) {
-        throw new IllegalStateException();
-      }
-    });
-  }
-
-  private void checkEvictUntil(SizeLimiter sizeLimiter, int expectedSize) {
+  private void checkEvictWith(CapacityLimiter capacityLimiter, int expectedSize) {
     CollectingListener<Integer, Integer> listener = new CollectingListener<Integer, Integer>();
     ConcurrentLinkedHashMap<Integer, Integer> map = new Builder<Integer, Integer>()
         .maximumWeightedCapacity(capacity())
         .listener(listener)
         .build();
     warmUp(map, 0, capacity());
-    map.evictUntil(sizeLimiter);
+    map.evictWith(capacityLimiter);
 
     assertThat(map, is(valid()));
     assertThat(map.size(), is(expectedSize));
     assertThat(listener.evicted, hasSize(capacity() - expectedSize));
+  }
+
+  @Test(dataProvider = "warmedMap", expectedExceptions = IllegalStateException.class)
+  public void evictWith_fails(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    map.evictWith(new CapacityLimiter() {
+      @Override public boolean hasExceededCapacity(ConcurrentLinkedHashMap<?, ?> map) {
+        throw new IllegalStateException();
+      }
+    });
   }
 
   @Test(dataProvider = "collectingListener")
@@ -303,12 +303,12 @@ public final class EvictionTest extends BaseTest {
 
   @Test(dataProvider = "warmedMap")
   public void drainRecencyQueue(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    int segment = map.segmentFor(1);
     for (int i = 0; i < RECENCY_THRESHOLD; i++) {
       map.get(1);
     }
-    assertThat(map.recencyQueueLength.get(segment), is(equalTo(RECENCY_THRESHOLD)));
+    int index = (int) Thread.currentThread().getId() % map.recencyQueue.length;
+    assertThat(map.recencyQueueLength.get(index), is(equalTo(RECENCY_THRESHOLD)));
     map.get(1);
-    assertThat(map.recencyQueueLength.get(segment), is(equalTo(0)));
+    assertThat(map.recencyQueueLength.get(index), is(equalTo(0)));
   }
 }
