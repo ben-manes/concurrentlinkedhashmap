@@ -53,7 +53,7 @@
     <dependency>
       <groupId>com.google.guava</groupId>
       <artifactId>guava</artifactId>
-      <version>r06</version>
+      <version>r07</version>
       <scope>test</scope>
     </dependency>
     <dependency>

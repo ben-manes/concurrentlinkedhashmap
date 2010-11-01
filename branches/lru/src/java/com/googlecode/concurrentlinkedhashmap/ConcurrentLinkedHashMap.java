@@ -25,10 +25,13 @@ import java.util.AbstractCollection;
 import java.util.AbstractMap;
 import java.util.AbstractQueue;
 import java.util.AbstractSet;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
@@ -116,10 +119,9 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   //
   // The Least Recently Used page replacement algorithm was chosen due to its
   // simplicity, high hit rate, and ability to be implemented with O(1) time
-  // complexity. Due to the usage of multiple read queues the recency tracking
-  // does not provide a strict ordering. Instead a weaker ordering is maintained
-  // where entries with similar recencies are grouped together on the link
-  // chain.
+  // complexity. A strict recency ordering is achieved by observing that each
+  // read queue is in sorted order and can be merged in O(n lg k) time so that
+  // the recency operations can be applied in the expected order.
 
   /**
    * Number of cache access operations that can be buffered per recency queue
@@ -127,7 +129,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * to avoid lock contention by recording a memento of reads and delaying a
    * lock acquisition until the threshold is crossed or a mutation occurs.
    */
-  static final int RECENCY_THRESHOLD = 64;
+  static final int RECENCY_THRESHOLD = 16;
 
   /** The maximum number of segments to allow. */
   static final int MAXIMUM_SEGMENTS = 1 << 16; // slightly conservative
@@ -161,6 +163,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   volatile int maximumWeightedSize;
 
   final Lock evictionLock;
+  volatile int globalRecencyOrder;
   final Weigher<? super V> weigher;
   final Queue<Runnable> writeQueue;
   final CapacityLimiter capacityLimiter;
@@ -194,6 +197,9 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     segmentShift = 32 - sshift;
     segmentMask = segments - 1;
     segmentLock = new Lock[segments];
+    for (int i = 0; i < segments; i++) {
+      segmentLock[i] = new ReentrantLock();
+    }
 
     // The data store and its maximum capacity
     data = new ConcurrentHashMap<K, Node>(builder.initialCapacity, 0.75f, concurrencyLevel);
@@ -203,12 +209,15 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     sentinel = new Node();
     weigher = builder.weigher;
     evictionLock = new ReentrantLock();
+    globalRecencyOrder = Integer.MIN_VALUE;
     capacityLimiter = builder.capacityLimiter;
     writeQueue = new ConcurrentLinkedQueue<Runnable>();
-    recencyQueueLength = new AtomicIntegerArray(segments);
-    recencyQueue = (Queue<RecencyReference>[]) new Queue[segments];
-    for (int i = 0; i < segments; i++) {
-      segmentLock[i] = new ReentrantLock();
+
+    // An even number of recency queues is chosen to simplify merging
+    int numberOfQueues = (segments % 2 == 0) ? segments : segments + 1;
+    recencyQueue = (Queue<RecencyReference>[]) new Queue[numberOfQueues];
+    recencyQueueLength = new AtomicIntegerArray(numberOfQueues);
+    for (int i = 0; i < numberOfQueues; i++) {
       recencyQueue[i] = new ConcurrentLinkedQueue<RecencyReference>();
     }
 
@@ -276,6 +285,15 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   }
 
   /**
+   * Determines whether the map has exceeded its capacity.
+   *
+   * @return if the map has overflowed and an entry should be evicted
+   */
+  boolean hasOverflowed(CapacityLimiter capacityLimiter) {
+    return capacityLimiter.hasExceededCapacity(this);
+  }
+
+  /**
    * Evicts entries from the map while it exceeds the capacity and appends
    * evicted entries to the listener queue for processing.
    */
@@ -287,7 +305,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     // eviction. The victim is eagerly unlinked before the removal task so
     // that if there are other pending prior additions then a new victim
     // will be chosen for removal.
-    while (capacityLimiter.hasExceededCapacity(this)) {
+    while (hasOverflowed(capacityLimiter)) {
       Node node = sentinel.next;
       if (node == sentinel) {
         // The map has evicted all of its entries and can offer no further aid
@@ -335,7 +353,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * @return the segment index
    */
   int segmentFor(Object key) {
-    int hash = spreader(key.hashCode());
+    int hash = spread(key.hashCode());
     return (hash >>> segmentShift) & segmentMask;
   }
 
@@ -349,7 +367,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * @param hashCode the key's hashCode
    * @return an improved hashCode
    */
-  static int spreader(int hashCode) {
+  static int spread(int hashCode) {
     // Spread bits to regularize both segment and index locations,
     // using variant of single-word Wang/Jenkins hash.
     hashCode += (hashCode <<  15) ^ 0xffffcd7d;
@@ -371,9 +389,18 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * @return true if the size exceeds its threshold and should be drained
    */
   boolean addToRecencyQueue(Node node) {
+    // A recency queue is chosen by the thread's id so that recencies are evenly
+    // distributed between queues. This ensures that hot entries do not cause
+    // contention due to the threads trying to append to the same queue.
     int index = (int) Thread.currentThread().getId() % recencyQueue.length;
+
+    // The recency's global order is acquired in a racy fashion as an atomic
+    // increment is an unnecessary penalty. This allows concurrent reads to have
+    // the same recency ordering and the queues to be in a weakly sorted order.
+    int recencyOrder = globalRecencyOrder++;
+
+    recencyQueue[index].add(new RecencyReference(node, recencyOrder));
     int buffered = recencyQueueLength.incrementAndGet(index);
-    recencyQueue[index].add(new RecencyReference(node));
     return (buffered <= RECENCY_THRESHOLD);
   }
 
@@ -410,41 +437,153 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   }
 
   /**
-   * Applies the pending recency reorderings to the list.
+   * Drains the recency queues and applies the pending reorderings.
    */
   @GuardedBy("evictionLock")
   void drainRecencyQueues() {
-    for (int i = 0; i < recencyQueue.length; i++) {
-      drainRecencyQueue(i);
+    // A strict recency ordering is achieved by observing that each queue
+    // contains the recencies in weakly sorted order. The queues can be merged
+    // into a single weakly sorted list in O(n lg k) time, where n is the number
+    // of recency elements and k is the number of recency queues.
+    Queue<List<RecencyReference>> lists = new LinkedList<List<RecencyReference>>();
+    for (int i = 0; i < recencyQueue.length; i = i + 2) {
+      lists.add(moveRecenciesIntoMergedList(i, i + 1));
     }
+    while (lists.size() > 1) {
+      lists.add(mergeRecencyLists(lists.poll(), lists.poll()));
+    }
+    applyRecencyReorderings(lists.peek());
   }
 
-
   /**
-   * Applies the pending recency reorderings to the list.
+   * Merges two recency queues into a sorted list
    *
-   * @param index the index of the recency queue to drain
+   * @param index1 an index of a recency queue to drain
+   * @param index2 an index of a recency queue to drain
+   * @return a sorted list of the merged recency queues
    */
   @GuardedBy("evictionLock")
-  void drainRecencyQueue(int index) {
+  List<RecencyReference> moveRecenciesIntoMergedList(int index1, int index2) {
     // While the queue is being drained it may be concurrently appended to. The
     // number of elements removed are tracked so that the length can be
     // decremented by the delta rather than set to zero.
-    int delta = 0;
-    RecencyReference reference;
-    Queue<RecencyReference> queue = recencyQueue[index];
-    while ((reference = queue.poll()) != null) {
+    int removedFromQueue1 = 0;
+    int removedFromQueue2 = 0;
+
+    // To avoid a growth penalty, the initial capacity of the merged list is
+    // the expected size of the two queues plus additional slack due to the
+    // possibility of concurrent additions to the queues.
+    int initialCapacity = 3 * RECENCY_THRESHOLD;
+    List<RecencyReference> result = new ArrayList<RecencyReference>(initialCapacity);
+
+    // The queues are drained and merged in recency order. As each queue is
+    // itself ordered by recency, this is performed in O(n) time.
+    Queue<RecencyReference> queue1 = recencyQueue[index1];
+    Queue<RecencyReference> queue2 = recencyQueue[index2];
+    for (;;) {
+      if (queue1.isEmpty()) {
+        removedFromQueue2 += moveRecenciesToList(queue2, result);
+        break;
+      } else if (queue2.isEmpty()) {
+        removedFromQueue1 += moveRecenciesToList(queue1, result);
+        break;
+      }
+      if (queue1.peek().recencyOrder < queue2.peek().recencyOrder) {
+        result.add(queue1.poll());
+        removedFromQueue1++;
+      } else {
+        result.add(queue2.poll());
+        removedFromQueue2++;
+      }
+    }
+
+    recencyQueueLength.addAndGet(index1, -removedFromQueue1);
+    recencyQueueLength.addAndGet(index2, -removedFromQueue2);
+    return result;
+  }
+
+  /**
+   * Moves the recencies in the queue to the the output list.
+   *
+   * @param queue the recency queue to remove from
+   * @param output the list to append the recencies to
+   * @return the number of recencies removed from the queue
+   */
+  @GuardedBy("evictionLock")
+  int moveRecenciesToList(Queue<RecencyReference> queue, List<RecencyReference> output) {
+    int removed = 0;
+    RecencyReference recency = null;
+    while ((recency = queue.poll()) != null) {
+      output.add(recency);
+      removed++;
+    }
+    return removed;
+  }
+
+  /**
+   * Merges the intermediate recency lists into a sorted list.
+   *
+   * @param list1 an intermediate sorted list of recencies
+   * @param list2 an intermediate sorted list of recencies
+   * @return a sorted list of the merged recency lists
+   */
+  @GuardedBy("evictionLock")
+  List<RecencyReference> mergeRecencyLists(
+      List<RecencyReference> list1, List<RecencyReference> list2) {
+    List<RecencyReference> result = new ArrayList<RecencyReference>(list1.size() + list2.size());
+
+    // The lists are merged by walking each using by maintaining the current
+    // index to avoid a resize penalty of the simpler form that removes the
+    // first element from the array. As each list is itself ordered by recency,
+    // this is performed in O(n) time.
+    int index1 = 0;
+    int index2 = 0;
+    for (;;) {
+      if (index1 == list1.size()) {
+        while (index2 != list2.size()) {
+          result.add(list2.get(index2));
+          index2++;
+        }
+        return result;
+      } else if (index2 == list2.size()) {
+        while (index1 != list1.size()) {
+          result.add(list1.get(index1));
+          index1++;
+        }
+        return result;
+      }
+
+      RecencyReference recency1 = list1.get(index1);
+      RecencyReference recency2 = list2.get(index2);
+      if (recency1.recencyOrder < recency2.recencyOrder) {
+        result.add(recency1);
+        index1++;
+      } else {
+        result.add(recency2);
+        index2++;
+      }
+    }
+  }
+
+  /**
+   * Applies the pending recency reorderings to the page replacement policy.
+   *
+   * @param recencies the ordered list of the pending recency operations
+   */
+  @GuardedBy("evictionLock")
+  void applyRecencyReorderings(List<RecencyReference> recencies) {
+    for (int i = 0; i < recencies.size(); i++) {
+      RecencyReference recency = recencies.get(i);
+
       // An entry may be in the recency queue despite it having been previously
       // removed. This can occur when the entry was concurrently read while a
       // writer is removing it from the segment. If the entry was garbage
       // collected or no longer linked then it does not need to be processed.
-      Node node = reference.get();
+      Node node = recency.get();
       if ((node != null) && node.isLinked()) {
         node.moveToTail();
       }
-      delta--;
     }
-    recencyQueueLength.addAndGet(index, delta);
   }
 
   /**
@@ -472,8 +611,11 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * A reference to a list node with its recency order
    */
   final class RecencyReference extends WeakReference<Node> {
-    public RecencyReference(Node node) {
+    final int recencyOrder;
+
+    public RecencyReference(Node node, int recencyOrder) {
       super(node);
+      this.recencyOrder = recencyOrder;
     }
   }
 
