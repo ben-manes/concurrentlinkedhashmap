@@ -5,7 +5,7 @@
 _In progress_
  * Implement [http://www.cse.ohio-state.edu/hpcs/WWW/HTML/publications/abs02-6.html Low Inter-reference Recency Set] page replacement policy.
 
-The LIRS policy combines recency and frequency to provide a higher hit rate than an LRU policy. It does this without incurring a high penalty, is performed in O(1) time, and maintains its advantage across a wide range of workloads. The disadvantage of this policy is the implementation complexity.
+The LIRS policy combines recency and frequency to provide a better hit rate than an LRU policy. It does this without incurring a high penalty, is performed in O(1) time, and maintains its advantage across a wide range of workloads. The disadvantage of this policy is the implementation complexity.
 
 == Version 1.1 ==
 This version provided incremental improvements based on user feedback.
