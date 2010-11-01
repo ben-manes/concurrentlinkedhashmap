@@ -1,5 +1,4 @@
 #summary The efficiencies of different eviction algorithms.
-#labels Featured
 
 ==Efficiency Tests==
 ==== _Approach_ ====
