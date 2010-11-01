@@ -327,28 +327,29 @@ public final class MultiThreadedTest extends BaseTest {
     fail("Spun forever", e);
   }
 
-  protected static String listForwardToString(ConcurrentLinkedHashMap<?, ?> map) {
+  static String listForwardToString(ConcurrentLinkedHashMap<?, ?> map) {
     return listToString(map, true);
   }
 
-  protected static String listBackwardsToString(ConcurrentLinkedHashMap<?, ?> map) {
+  static String listBackwardsToString(ConcurrentLinkedHashMap<?, ?> map) {
     return listToString(map, false);
   }
 
   private static String listToString(ConcurrentLinkedHashMap<?, ?> map, boolean forward) {
     map.evictionLock.lock();
     try {
-      Set<Object> seen = newSetFromMap(new IdentityHashMap<Object, Boolean>());
       StringBuilder buffer = new StringBuilder("\n");
+      Set<Object> seen = newSetFromMap(new IdentityHashMap<Object, Boolean>());
       ConcurrentLinkedHashMap<?, ?>.Node current = forward
           ? map.sentinel.next : map.sentinel.prev;
       while (current != map.sentinel) {
         buffer.append(nodeToString(current)).append("\n");
-        if (seen.add(current)) {
+        boolean added = seen.add(current);
+        if (!added) {
           buffer.append("Failure: Loop detected\n");
           break;
         }
-        current = forward ? current.next : current.next.prev;
+        current = forward ? current.next : current.prev;
       }
       return buffer.toString();
     } finally {
@@ -357,7 +358,7 @@ public final class MultiThreadedTest extends BaseTest {
   }
 
   @SuppressWarnings("unchecked")
-  protected static String nodeToString(Node node) {
+  static String nodeToString(Node node) {
     if (node == null) {
       return "null";
     } else if (node.segment == -1) {
@@ -367,7 +368,7 @@ public final class MultiThreadedTest extends BaseTest {
   }
 
   /** Finds the node in the map by walking the list. Returns null if not found. */
-  protected static ConcurrentLinkedHashMap<?, ?>.Node findNode(
+  static ConcurrentLinkedHashMap<?, ?>.Node findNode(
       Object key, ConcurrentLinkedHashMap<?, ?> map) {
     map.evictionLock.lock();
     try {

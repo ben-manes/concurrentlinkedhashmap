@@ -11,15 +11,18 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Node;
 
+import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 
 /**
  * A unit-test for the page replacement algorithm and its public methods.
@@ -203,7 +206,7 @@ public final class EvictionTest extends BaseTest {
         .maximumWeightedCapacity(10)
         .build();
     warmUp(map, 0, 10);
-    assertThat(map.keySet(), containsInAnyOrder(0, 1, 2, 3, 4, 5, 6, 7, 8, 9));
+    checkContainsInOrder(map, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9);
 
     // re-order
     checkReorder(map, asList(0, 1, 2), 3, 4, 5, 6, 7, 8, 9, 0, 1, 2);
@@ -224,18 +227,30 @@ public final class EvictionTest extends BaseTest {
       List<Integer> keys, Integer... expect) {
     for (int i : keys) {
       map.get(i);
-      map.tryToDrainEvictionQueues(false);
     }
-    assertThat(map.keySet(), containsInAnyOrder(expect));
+    checkContainsInOrder(map, expect);
   }
 
   private void checkEvict(ConcurrentLinkedHashMap<Integer, Integer> map,
       List<Integer> keys, Integer... expect) {
     for (int i : keys) {
       map.put(i, i);
-      map.tryToDrainEvictionQueues(false);
     }
+    checkContainsInOrder(map, expect);
+  }
+
+  private void checkContainsInOrder(ConcurrentLinkedHashMap<Integer, Integer> map,
+      Integer... expect) {
+    map.tryToDrainEvictionQueues(false);
+    List<Integer> evictionList = Lists.newArrayList();
+    ConcurrentLinkedHashMap<Integer, Integer>.Node current = map.sentinel.next;
+    while (current != map.sentinel) {
+      evictionList.add(current.key);
+      current = current.next;
+    }
+    assertThat(map.size(), is(equalTo(expect.length)));
     assertThat(map.keySet(), containsInAnyOrder(expect));
+    assertThat(evictionList, is(equalTo(asList(expect))));
   }
 
   @Test(dataProvider = "warmedMap")
@@ -310,5 +325,52 @@ public final class EvictionTest extends BaseTest {
     assertThat(map.recencyQueueLength.get(index), is(equalTo(RECENCY_THRESHOLD)));
     map.get(1);
     assertThat(map.recencyQueueLength.get(index), is(equalTo(0)));
+  }
+
+  @Test(dataProvider = "recencyOrderings")
+  public void applyInRecencyOrder(List<Integer> recencyOrderings) {
+    Integer last = null;
+    for (Integer recencyOrder : recencyOrderings) {
+      if (last != null) {
+        assertThat(recencyOrder, is(equalTo(last + 1)));
+      }
+      last = recencyOrder;
+    }
+  }
+
+  /**
+   * Creates a list of orderings based on how the recency queues are drained
+   * and merged. The resulting list is the order of recencies that would have
+   * been applied the the page replacement policy.
+   */
+  @DataProvider(name = "recencyOrderings")
+  public Object[][] providesRecencyOrderings() {
+    ConcurrentLinkedHashMap<Integer, Integer> map = new Builder<Integer, Integer>()
+      .maximumWeightedCapacity(Integer.MAX_VALUE)
+      .build();
+
+    // Add a dummy set of recency operations to the queues.
+    int numberOfRecenciesToSort = map.recencyQueue.length * RECENCY_THRESHOLD;
+    for (int i = 0; i < numberOfRecenciesToSort; i++) {
+      map.addToRecencyQueue(null);
+    }
+
+    // Perform the merging in the same manner as when draining the queues
+    Queue<List<ConcurrentLinkedHashMap<Integer, Integer>.RecencyReference>> lists =
+        Lists.newLinkedList();
+    for (int i = 0; i < map.recencyQueue.length; i = i + 2) {
+      lists.add(map.moveRecenciesIntoMergedList(i, i + 1));
+    }
+    while (lists.size() > 1) {
+      lists.add(map.mergeRecencyLists(lists.poll(), lists.poll()));
+    }
+
+    // Extract the recency orderings
+    List<Integer> ordering = Lists.newArrayList();
+    for (ConcurrentLinkedHashMap<Integer, Integer>.RecencyReference recency : lists.poll()) {
+      ordering.add(recency.recencyOrder);
+    }
+    assertThat(ordering, hasSize(numberOfRecenciesToSort));
+    return new Object[][] {{ ordering }};
   }
 }

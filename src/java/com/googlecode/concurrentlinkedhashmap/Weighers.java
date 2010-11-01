@@ -51,6 +51,11 @@ public final class Weighers {
    * This allows for restricting the capacity based on the memory-consumption
    * and is primarily for usage by dedicated caching servers that hold the
    * serialized data.
+   * <p>
+   * A value with a weight of <tt>0</tt> will be rejected by the map. If a value
+   * with this weight can occur, then the caller should eagerly evaluate the
+   * value and treat it as a removal operation. Alternatively, a custom weigher
+   * may be specified on the map to assign an empty value a positive weight.
    *
    * @return A weigher where each byte takes one unit of capacity.
    */
@@ -64,6 +69,11 @@ public final class Weighers {
    * {@link #collection()} weigher cannot be, as evaluation takes O(n) time. A
    * map bounded with this weigher will evict when the total number of elements
    * exceeds the capacity rather than the number of key-value pairs in the map.
+   * <p>
+   * A value with a weight of <tt>0</tt> will be rejected by the map. If a value
+   * with this weight can occur, then the caller should eagerly evaluate the
+   * value and treat it as a removal operation. Alternatively, a custom weigher
+   * may be specified on the map to assign an empty value a positive weight.
    *
    * @return A weigher where each element takes one unit of capacity.
    */
@@ -78,6 +88,11 @@ public final class Weighers {
    * number of elements. A map bounded with this weigher will evict when the
    * total number of elements exceeds the capacity rather than the number of
    * key-value pairs in the map.
+   * <p>
+   * A value with a weight of <tt>0</tt> will be rejected by the map. If a value
+   * with this weight can occur, then the caller should eagerly evaluate the
+   * value and treat it as a removal operation. Alternatively, a custom weigher
+   * may be specified on the map to assign an empty value a positive weight.
    *
    * @return A weigher where each element takes one unit of capacity.
    */
@@ -92,6 +107,11 @@ public final class Weighers {
    * of elements. A map bounded with this weigher will evict when the total
    * number of elements exceeds the capacity rather than the number of
    * key-value pairs in the map.
+   * <p>
+   * A value with a weight of <tt>0</tt> will be rejected by the map. If a value
+   * with this weight can occur, then the caller should eagerly evaluate the
+   * value and treat it as a removal operation. Alternatively, a custom weigher
+   * may be specified on the map to assign an empty value a positive weight.
    *
    * @return A weigher where each element takes one unit of capacity.
    */
@@ -106,6 +126,11 @@ public final class Weighers {
    * of elements. A map bounded with this weigher will evict when the total
    * number of elements exceeds the capacity rather than the number of
    * key-value pairs in the map.
+   * <p>
+   * A value with a weight of <tt>0</tt> will be rejected by the map. If a value
+   * with this weight can occur, then the caller should eagerly evaluate the
+   * value and treat it as a removal operation. Alternatively, a custom weigher
+   * may be specified on the map to assign an empty value a positive weight.
    *
    * @return A weigher where each element takes one unit of capacity.
    */
@@ -120,6 +145,11 @@ public final class Weighers {
    * entries. A map bounded with this weigher will evict when the total number of
    * entries across all values exceeds the capacity rather than the number of
    * key-value pairs in the map.
+   * <p>
+   * A value with a weight of <tt>0</tt> will be rejected by the map. If a value
+   * with this weight can occur, then the caller should eagerly evaluate the
+   * value and treat it as a removal operation. Alternatively, a custom weigher
+   * may be specified on the map to assign an empty value a positive weight.
    *
    * @return A weigher where each entry takes one unit of capacity.
    */
