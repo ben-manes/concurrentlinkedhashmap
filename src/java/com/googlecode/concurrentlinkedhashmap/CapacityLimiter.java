@@ -21,7 +21,7 @@ package com.googlecode.concurrentlinkedhashmap;
  * other threads from performing most common operations on the map.
  * <p>
  * An instance may be evaluated after every write operation on the map or
- * triggered directly with {@link ConcurrentLinkedHashMap#evictWith(CapacityLimiter)}
+ * triggered directly with {@link ConcurrentLinkedHashMap#evictWith(CapacityLimiter)}.
  * An implementation should be aware that the caller's thread will not expect
  * long execution times or failures as a side effect of the capacity limiter
  * being evaluated. Execution safety and a fast turn around time should be
