@@ -54,7 +54,7 @@ public final class IsValidState extends TypeSafeDiagnosingMatcher<ConcurrentLink
     return matches;
   }
 
-  /** Validates that the doubly-linked list. */
+  /** Validates the doubly-linked list. */
   @SuppressWarnings("unchecked")
   private boolean checkLinks(ConcurrentLinkedHashMap<?, ?> map, Description description) {
     int weightedSize = 0;
@@ -74,7 +74,7 @@ public final class IsValidState extends TypeSafeDiagnosingMatcher<ConcurrentLink
     return matches;
   }
 
-  /** Validates that the sentinel node is in a proper state. */
+  /** Validates the sentinel node. */
   private boolean checkSentinel(ConcurrentLinkedHashMap<?, ?> map, Description description) {
     boolean matches = true;
     matches &= check(map.sentinel.key == null, "key", description);
@@ -86,7 +86,7 @@ public final class IsValidState extends TypeSafeDiagnosingMatcher<ConcurrentLink
     return matches;
   }
 
-  /** Validates the the data node is in a proper state. */
+  /** Validates the data node. */
   @SuppressWarnings("unchecked")
   private boolean checkDataNode(ConcurrentLinkedHashMap<?, ?> map, Node node,
       Description description) {

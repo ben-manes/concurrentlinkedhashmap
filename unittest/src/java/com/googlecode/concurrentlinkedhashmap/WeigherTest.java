@@ -105,40 +105,40 @@ public final class WeigherTest extends BaseTest {
     assertThat(weigher.weightOf(ImmutableMap.of(1, 2, 2, 3, 3, 4)), is(3));
   }
 
-  @Test(expectedExceptions = IllegalArgumentException.class)
-  public void weightedValue_withNegative() {
+  @Test(dataProvider = "builder", expectedExceptions = IllegalArgumentException.class)
+  public void weightedValue_withNegative(Builder<Integer, Integer> builder) {
     Weigher<Integer> weigher = new Weigher<Integer>() {
       @Override public int weightOf(Integer value) {
         return -1;
       }
     };
-    ConcurrentLinkedHashMap<Integer, Integer> map = new Builder<Integer, Integer>()
+    ConcurrentLinkedHashMap<Integer, Integer> map = builder
         .maximumWeightedCapacity(capacity())
         .weigher(weigher).build();
     map.put(1, 2);
   }
 
-  @Test(expectedExceptions = IllegalArgumentException.class)
-  public void weightedValue_withZero() {
+  @Test(dataProvider = "builder", expectedExceptions = IllegalArgumentException.class)
+  public void weightedValue_withZero(Builder<Integer, Integer> builder) {
     Weigher<Integer> weigher = new Weigher<Integer>() {
       @Override public int weightOf(Integer value) {
         return 0;
       }
     };
-    ConcurrentLinkedHashMap<Integer, Integer> map = new Builder<Integer, Integer>()
+    ConcurrentLinkedHashMap<Integer, Integer> map = builder
         .maximumWeightedCapacity(capacity())
         .weigher(weigher).build();
     map.put(1, 2);
   }
 
-  @Test(expectedExceptions = IllegalArgumentException.class)
-  public void weightedValue_withAboveMaximum() {
+  @Test(dataProvider = "builder", expectedExceptions = IllegalArgumentException.class)
+  public void weightedValue_withAboveMaximum(Builder<Integer, Integer> builder) {
     Weigher<Integer> weigher = new Weigher<Integer>() {
       @Override public int weightOf(Integer value) {
         return MAXIMUM_WEIGHT + 1;
       }
     };
-    ConcurrentLinkedHashMap<Integer, Integer> map = new Builder<Integer, Integer>()
+    ConcurrentLinkedHashMap<Integer, Integer> map = builder
         .maximumWeightedCapacity(capacity())
         .weigher(weigher).build();
     map.put(1, 2);
@@ -220,16 +220,15 @@ public final class WeigherTest extends BaseTest {
     assertThat(map.weightedSize(), is(0));
   }
 
-  @Test
-  public void integerOverflow() {
+  @Test(dataProvider = "builder")
+  public void integerOverflow(Builder<Integer, Integer> builder) {
     final boolean[] useMax = {true};
-    Builder<Integer, Integer> builder = new Builder<Integer, Integer>()
-        .maximumWeightedCapacity(capacity())
-        .weigher(new Weigher<Integer>() {
-          @Override public int weightOf(Integer value) {
-            return useMax[0] ? MAXIMUM_WEIGHT : 1;
-          }
-        });
+    builder.maximumWeightedCapacity(capacity());
+    builder.weigher(new Weigher<Integer>() {
+      @Override public int weightOf(Integer value) {
+        return useMax[0] ? MAXIMUM_WEIGHT : 1;
+      }
+    });
     ConcurrentLinkedHashMap<Integer, Integer> map = builder
         .maximumWeightedCapacity(MAXIMUM_CAPACITY)
         .build();

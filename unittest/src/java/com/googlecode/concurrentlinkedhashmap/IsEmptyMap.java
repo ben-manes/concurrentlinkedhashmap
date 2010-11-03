@@ -11,7 +11,7 @@ import java.util.Map;
 
 /**
  * A matcher that performs an exhaustive empty check throughout the {@link Map}
- * contract.
+ * and {@link ConcurrentLinkedHashMap} contract.
  *
  * @author ben.manes@gmail.com (Ben Manes)
  */
@@ -40,6 +40,7 @@ public final class IsEmptyMap extends TypeSafeDiagnosingMatcher<Map<?, ?>> {
 
   private boolean isEmpty(ConcurrentLinkedHashMap<?, ?> map, Description description) {
     boolean matches = true;
+    map.tryToDrainEvictionQueues(false);
     matches &= check(map.size() == 0, "Size != 0", description);
     matches &= check(map.data.isEmpty(), "Internal not empty", description);
     matches &= check(map.data.size() == 0, "Internal size != 0", description);

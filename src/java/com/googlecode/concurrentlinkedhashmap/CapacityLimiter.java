@@ -20,8 +20,8 @@ package com.googlecode.concurrentlinkedhashmap;
  * map. An instance is invoked under the map's eviction lock and will not block
  * other threads from performing most common operations on the map.
  * <p>
- * An instance may be evaluated after every write operation on the map or
- * triggered directly with {@link ConcurrentLinkedHashMap#evictWith(CapacityLimiter)}.
+ * An instance may be evaluated after every insertion or update operation on the
+ * map or triggered directly with {@link ConcurrentLinkedHashMap#evictWith(CapacityLimiter)}.
  * An implementation should be aware that the caller's thread will not expect
  * long execution times or failures as a side effect of the capacity limiter
  * being evaluated. Execution safety and a fast turn around time should be
