@@ -16,9 +16,9 @@
     </license>
   </licenses>
   <scm>
-    <url>http://concurrentlinkedhashmap.googlecode.com/svn</url>
-    <connection>scm:svn:http://concurrentlinkedhashmap.googlecode.com/svn/</connection>
-    <developerConnection>scm:svn:https://concurrentlinkedhashmap.googlecode.com/svn/</developerConnection>
+    <url>http://concurrentlinkedhashmap.googlecode.com/svn/branches/lru</url>
+    <connection>scm:svn:http://concurrentlinkedhashmap.googlecode.com/svn/branches/lru</connection>
+    <developerConnection>scm:svn:https://concurrentlinkedhashmap.googlecode.com/svn/branches/lru</developerConnection>
   </scm>
   <parent>
     <groupId>org.sonatype.oss</groupId>
