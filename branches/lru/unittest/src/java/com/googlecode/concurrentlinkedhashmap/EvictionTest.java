@@ -1,5 +1,6 @@
 package com.googlecode.concurrentlinkedhashmap;
 
+import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.MAXIMUM_CAPACITY;
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.RECENCY_THRESHOLD;
 import static com.googlecode.concurrentlinkedhashmap.IsValidState.valid;
 import static java.util.Arrays.asList;
@@ -47,6 +48,18 @@ public final class EvictionTest extends BaseTest {
     assertThat(map.capacity(), is(equalTo(newMaxCapacity)));
   }
 
+  @Test(dataProvider = "warmedMap")
+  public void capacity_increaseToMaximum(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    map.setCapacity(MAXIMUM_CAPACITY);
+    assertThat(map.capacity(), is(equalTo(MAXIMUM_CAPACITY)));
+  }
+
+  @Test(dataProvider = "warmedMap")
+  public void capacity_increaseAboveMaximum(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    map.setCapacity(MAXIMUM_CAPACITY + 1);
+    assertThat(map.capacity(), is(equalTo(MAXIMUM_CAPACITY)));
+  }
+
   @Test
   public void capacity_decrease() {
     checkDecreasedCapacity(capacity() / 2);
@@ -81,9 +94,9 @@ public final class EvictionTest extends BaseTest {
     }
   }
 
-  @Test(expectedExceptions = IllegalStateException.class)
-  public void evictionListener_fails() {
-    ConcurrentLinkedHashMap<Integer, Integer> map = new Builder<Integer, Integer>()
+  @Test(dataProvider = "builder", expectedExceptions = IllegalStateException.class)
+  public void evictionListener_fails(Builder<Integer, Integer> builder) {
+    ConcurrentLinkedHashMap<Integer, Integer> map = builder
         .listener(new EvictionListener<Integer, Integer>() {
           @Override public void onEviction(Integer key, Integer value) {
             throw new IllegalStateException();
@@ -175,10 +188,9 @@ public final class EvictionTest extends BaseTest {
     assertThat(listener.evicted, hasSize(10));
   }
 
-  @Test
-  public void evict_weighted() {
-    ConcurrentLinkedHashMap<Integer, Collection<Integer>> map =
-      new Builder<Integer, Collection<Integer>>()
+  @Test(dataProvider = "builder")
+  public void evict_weighted(Builder<Integer, Collection<Integer>> builder) {
+    ConcurrentLinkedHashMap<Integer, Collection<Integer>> map = builder
         .weigher(Weighers.<Integer>collection())
         .maximumWeightedCapacity(10)
         .build();
@@ -200,9 +212,9 @@ public final class EvictionTest extends BaseTest {
     assertThat(map, is(valid()));
   }
 
-  @Test
-  public void evict_lru() {
-    ConcurrentLinkedHashMap<Integer, Integer> map = new Builder<Integer, Integer>()
+  @Test(dataProvider = "builder")
+  public void evict_lru(Builder<Integer, Integer> builder) {
+    ConcurrentLinkedHashMap<Integer, Integer> map = builder
         .maximumWeightedCapacity(10)
         .build();
     warmUp(map, 0, 10);

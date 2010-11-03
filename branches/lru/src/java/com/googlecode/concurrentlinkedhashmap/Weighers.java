@@ -53,7 +53,7 @@ public final class Weighers {
    * serialized data.
    * <p>
    * A value with a weight of <tt>0</tt> will be rejected by the map. If a value
-   * with this weight can occur, then the caller should eagerly evaluate the
+   * with this weight can occur then the caller should eagerly evaluate the
    * value and treat it as a removal operation. Alternatively, a custom weigher
    * may be specified on the map to assign an empty value a positive weight.
    *
@@ -71,7 +71,7 @@ public final class Weighers {
    * exceeds the capacity rather than the number of key-value pairs in the map.
    * <p>
    * A value with a weight of <tt>0</tt> will be rejected by the map. If a value
-   * with this weight can occur, then the caller should eagerly evaluate the
+   * with this weight can occur then the caller should eagerly evaluate the
    * value and treat it as a removal operation. Alternatively, a custom weigher
    * may be specified on the map to assign an empty value a positive weight.
    *
@@ -90,7 +90,7 @@ public final class Weighers {
    * key-value pairs in the map.
    * <p>
    * A value with a weight of <tt>0</tt> will be rejected by the map. If a value
-   * with this weight can occur, then the caller should eagerly evaluate the
+   * with this weight can occur then the caller should eagerly evaluate the
    * value and treat it as a removal operation. Alternatively, a custom weigher
    * may be specified on the map to assign an empty value a positive weight.
    *
@@ -109,7 +109,7 @@ public final class Weighers {
    * key-value pairs in the map.
    * <p>
    * A value with a weight of <tt>0</tt> will be rejected by the map. If a value
-   * with this weight can occur, then the caller should eagerly evaluate the
+   * with this weight can occur then the caller should eagerly evaluate the
    * value and treat it as a removal operation. Alternatively, a custom weigher
    * may be specified on the map to assign an empty value a positive weight.
    *
@@ -128,7 +128,7 @@ public final class Weighers {
    * key-value pairs in the map.
    * <p>
    * A value with a weight of <tt>0</tt> will be rejected by the map. If a value
-   * with this weight can occur, then the caller should eagerly evaluate the
+   * with this weight can occur then the caller should eagerly evaluate the
    * value and treat it as a removal operation. Alternatively, a custom weigher
    * may be specified on the map to assign an empty value a positive weight.
    *
@@ -147,7 +147,7 @@ public final class Weighers {
    * key-value pairs in the map.
    * <p>
    * A value with a weight of <tt>0</tt> will be rejected by the map. If a value
-   * with this weight can occur, then the caller should eagerly evaluate the
+   * with this weight can occur then the caller should eagerly evaluate the
    * value and treat it as a removal operation. Alternatively, a custom weigher
    * may be specified on the map to assign an empty value a positive weight.
    *

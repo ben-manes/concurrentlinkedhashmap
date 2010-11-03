@@ -259,7 +259,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     if (capacity < 0) {
       throw new IllegalArgumentException();
     }
-    this.maximumWeightedSize = capacity;
+    this.maximumWeightedSize = Math.min(capacity, MAXIMUM_CAPACITY);
     evictWith(capacityLimiter);
   }
 
@@ -463,7 +463,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   }
 
   /**
-   * Merges two recency queues into a sorted list
+   * Merges two recency queues into a sorted list.
    *
    * @param index1 an index of a recency queue to drain
    * @param index2 an index of a recency queue to drain
@@ -486,7 +486,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     // The queues are drained and merged in recency order. As each queue is
     // itself weakly ordered by recency, this is performed in O(n) time. To
     // avoid unnecessary CAS operations, care is taken so that only a single
-    // poll() is required per recency while draining the queues.
+    // queue operation is required per recency while draining.
     Queue<RecencyReference> queue1 = recencyQueue[index1];
     Queue<RecencyReference> queue2 = recencyQueue[index2];
     RecencyReference recency1 = queue1.poll();
@@ -628,7 +628,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   }
 
   /**
-   * A reference to a list node with its recency order
+   * A reference to a list node with its recency order.
    */
   final class RecencyReference extends WeakReference<Node> {
     final int recencyOrder;
@@ -740,7 +740,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       sentinel.next = sentinel;
       sentinel.prev = sentinel;
 
-      // Eagerly discards all of the stale recencies reorderings
+      // Eagerly discards all of the stale recency reorderings
       for (int i = 0; i < recencyQueue.length; i++) {
         Queue<?> queue = recencyQueue[i];
         int removed = 0;
@@ -820,11 +820,12 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     checkNotNull(value, "null value");
 
     // Per-segment write ordering is required to ensure that the map and write
-    // queue are consistently ordered. If a remove occurs immediately after the
-    // put, the concurrent insertion into the queue might allow the removal to
-    // be processed first which would corrupt the capacity constraint. The
-    // locking is kept slim and if the insertion fails then the operation is
-    // treated as a read so that a recency reordering operation is scheduled.
+    // queue are consistently ordered. This is required because if a removal
+    // occurs immediately after the put, the concurrent insertion into the queue
+    // might allow the removal to be processed first which would corrupt the
+    // capacity constraint. The locking is kept slim and if the insertion fails
+    // then the operation is treated as a read so that a recency reordering
+    // operation is scheduled.
     Node prior;
     V oldValue = null;
     int weightedDifference = 0;
@@ -1546,8 +1547,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
      * Specifies an algorithm to determine if the maximum capacity has been
      * exceeded and that an entry should be evicted from the map. The default
      * algorithm bounds the map by the maximum weighted capacity. The evaluation
-     * of whether the map has exceeded its capacity is performed after a write
-     * operation.
+     * of whether the map has exceeded its capacity is performed after an
+     * insertion or update operation.
      *
      * @param capacityLimiter the algorithm to determine whether to evict an
      *     entry

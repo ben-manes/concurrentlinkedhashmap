@@ -1,5 +1,6 @@
 package com.googlecode.concurrentlinkedhashmap;
 
+import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.MAXIMUM_CAPACITY;
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder.DEFAULT_CONCURRENCY_LEVEL;
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder.DEFAULT_INITIAL_CAPACITY;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -48,14 +49,20 @@ public final class BuilderTest extends BaseTest {
     builder.build(); // can't check, so just assert that it builds
   }
 
-  @Test(expectedExceptions = IllegalArgumentException.class)
-  public void maximumWeightedCapacity_withNegative() {
-    new Builder<Object, Object>().maximumWeightedCapacity(-100);
+  @Test(dataProvider = "builder", expectedExceptions = IllegalArgumentException.class)
+  public void maximumWeightedCapacity_withNegative(Builder<?, ?> builder) {
+    builder.maximumWeightedCapacity(-100);
   }
 
   @Test(dataProvider = "builder")
   public void maximumWeightedCapacity(Builder<?, ?> builder) {
     assertThat(builder.build().capacity(), is(equalTo(capacity())));
+  }
+
+  @Test(dataProvider = "builder")
+  public void maximumWeightedCapacity_aboveMaximum(Builder<?, ?> builder) {
+    builder.maximumWeightedCapacity(MAXIMUM_CAPACITY + 1);
+    assertThat(builder.build().capacity(), is(equalTo(MAXIMUM_CAPACITY)));
   }
 
   @Test(dataProvider = "builder", expectedExceptions = IllegalArgumentException.class)
