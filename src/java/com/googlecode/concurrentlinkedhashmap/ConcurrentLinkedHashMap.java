@@ -25,12 +25,12 @@ import java.util.AbstractCollection;
 import java.util.AbstractMap;
 import java.util.AbstractQueue;
 import java.util.AbstractSet;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
@@ -336,7 +336,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   @GuardedBy("evictionLock")
   void decrementWeightFor(Node node) {
     if (weigher == Weighers.singleton()) {
-      weightedSize -= node.weightedValue.weight;
+      weightedSize--;
     } else {
       // Decrements under the segment lock to ensure that a concurrent update
       // to the node's weight has completed.
@@ -452,7 +452,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     // contains the recencies in weakly sorted order. The queues can be merged
     // into a single weakly sorted list in O(n lg k) time, where n is the number
     // of recency elements and k is the number of recency queues.
-    Queue<List<RecencyReference>> lists = new LinkedList<List<RecencyReference>>();
+    Queue<List<RecencyReference>> lists =
+      new ArrayDeque<List<RecencyReference>>(recencyQueue.length / 2);
     for (int i = 0; i < recencyQueue.length; i = i + 2) {
       lists.add(moveRecenciesIntoMergedList(i, i + 1));
     }
@@ -549,13 +550,19 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   @GuardedBy("evictionLock")
   List<RecencyReference> mergeRecencyLists(
       List<RecencyReference> list1, List<RecencyReference> list2) {
-    List<RecencyReference> result = new ArrayList<RecencyReference>(list1.size() + list2.size());
+    if (list1.isEmpty()) {
+      return list2;
+    } else if (list2.isEmpty()) {
+      return list1;
+    }
 
     // The lists are merged by walking the arrays and maintaining the current
     // index. This avoids a resize penalty if instead the first element was
     // removed and maintains good cache locality of an array vs a linked list
     // implementation. As each list is itself weakly ordered by recency, this
     // is performed in O(n) time.
+    List<RecencyReference> result = new ArrayList<RecencyReference>(list1.size() + list2.size());
+
     int index1 = 0;
     int index2 = 0;
     for (;;) {
