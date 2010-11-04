@@ -17,7 +17,6 @@ import java.util.Map;
  */
 public final class IsEmptyMap extends TypeSafeDiagnosingMatcher<Map<?, ?>> {
 
-  @Override
   public void describeTo(Description description) {
     description.appendText("empty");
   }

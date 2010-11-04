@@ -23,7 +23,6 @@ import java.util.Map;
  */
 public final class IsReserializable<T> extends TypeSafeMatcher<T> {
 
-  @Override
   public void describeTo(Description description) {
     description.appendValue("serialized clone");
   }

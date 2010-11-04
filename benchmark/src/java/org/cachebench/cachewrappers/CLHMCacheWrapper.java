@@ -29,7 +29,6 @@ public final class CLHMCacheWrapper extends AbstractCacheWrapper {
         .makeCache(Cache.ConcurrentLinkedHashMap);
   }
 
-  @Override
   public void setUp() throws Exception {
     map.clear();
   }

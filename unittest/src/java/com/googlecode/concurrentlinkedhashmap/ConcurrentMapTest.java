@@ -428,7 +428,7 @@ public final class ConcurrentMapTest extends BaseTest {
 
   @SuppressWarnings("serial")
   static final class SerializableCapacityLimiter implements CapacityLimiter, Serializable {
-    @Override public boolean hasExceededCapacity(ConcurrentLinkedHashMap<?, ?> map) {
+    public boolean hasExceededCapacity(ConcurrentLinkedHashMap<?, ?> map) {
       return false;
     }
   }

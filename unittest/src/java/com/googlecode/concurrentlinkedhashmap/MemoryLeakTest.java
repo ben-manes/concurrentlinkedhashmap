@@ -34,7 +34,6 @@ public final class MemoryLeakTest extends BaseTest {
     timeTasks(1000, new Runnable() {
       final Listener listener = new Listener();
 
-      @Override
       public void run() {
         int current = (int) Math.random();
         for (int i = 1;; i++) {
@@ -63,7 +62,6 @@ public final class MemoryLeakTest extends BaseTest {
           .build();
     }
 
-    @Override
     public void onEviction(Integer key, Integer value) {
       calls.incrementAndGet();
 

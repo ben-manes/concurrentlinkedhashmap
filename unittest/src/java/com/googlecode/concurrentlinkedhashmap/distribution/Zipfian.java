@@ -30,7 +30,6 @@ final class Zipfian implements Supplier<Double> {
   /**
    * Random value with given skew.
    */
-  @Override
   public Double get() {
     return (double) Distributions.nextZipfInt(skew, random);
   }

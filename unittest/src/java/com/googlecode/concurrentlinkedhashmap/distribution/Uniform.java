@@ -29,7 +29,6 @@ final class Uniform implements Supplier<Double> {
   /**
    * Random value from the open interval (end-points included).
    */
-  @Override
   public Double get() {
     return random.nextUniform(lower, upper);
   }

@@ -20,7 +20,6 @@ import java.util.Set;
  */
 public final class IsEmptyCollection extends TypeSafeDiagnosingMatcher<Collection<?>> {
 
-  @Override
   public void describeTo(Description description) {
     description.appendText("empty");
   }

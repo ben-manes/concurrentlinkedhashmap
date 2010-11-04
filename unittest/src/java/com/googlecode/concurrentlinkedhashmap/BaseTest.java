@@ -206,7 +206,7 @@ public abstract class BaseTest {
   private static final class GuardingListener<K, V>
     implements EvictionListener<K, V>, Serializable {
 
-    @Override public void onEviction(Object key, Object value) {
+    public void onEviction(Object key, Object value) {
       fail(String.format("Evicted %s=%s", key, value));
     }
 
@@ -222,7 +222,7 @@ public abstract class BaseTest {
       this.evicted = new ConcurrentLinkedQueue<Entry<K, V>>();
     }
 
-    @Override public void onEviction(K key, V value) {
+    public void onEviction(K key, V value) {
       evicted.add(immutableEntry(key, value));
     }
 

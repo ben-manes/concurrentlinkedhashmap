@@ -35,7 +35,6 @@ final class BoundedLinkedHashMap<K, V> extends LinkedHashMap<K, V> implements Co
     return size() > maximumCapacity;
   }
 
-  @Override
   public V putIfAbsent(K key, V value) {
     V currentValue = get(key);
     return (currentValue == null)
@@ -43,7 +42,6 @@ final class BoundedLinkedHashMap<K, V> extends LinkedHashMap<K, V> implements Co
         : currentValue;
   }
 
-  @Override
   public boolean remove(Object key, Object value) {
     if (value.equals(get(key))) {
       remove(key);
@@ -52,14 +50,12 @@ final class BoundedLinkedHashMap<K, V> extends LinkedHashMap<K, V> implements Co
     return false;
   }
 
-  @Override
   public V replace(K key, V value) {
     return containsKey(key)
         ? put(key, value)
         : null;
   }
 
-  @Override
   public boolean replace(K key, V oldValue, V newValue) {
     V currentValue = get(key);
     if (oldValue.equals(currentValue)) {

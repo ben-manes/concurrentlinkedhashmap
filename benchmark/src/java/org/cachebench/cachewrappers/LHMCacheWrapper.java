@@ -27,7 +27,6 @@ public final class LHMCacheWrapper extends AbstractCacheWrapper {
         .makeCache(Cache.LinkedHashMap_Lru_Sync);
   }
 
-  @Override
   public void setUp() throws Exception {
     map.clear();
   }

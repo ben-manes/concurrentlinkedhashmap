@@ -34,7 +34,6 @@ public abstract class AbstractCacheWrapper implements CacheWrapper {
    */
   protected abstract void initialize(Map<String, String> parameters);
 
-  @Override
   @SuppressWarnings("unchecked")
   public final void init(Map parameters) throws Exception {
     addPropertiesToMap(parameters);
@@ -43,7 +42,7 @@ public abstract class AbstractCacheWrapper implements CacheWrapper {
 
   private void addPropertiesToMap(Map<String, String> parameters) throws Exception {
     String resourceName = parameters.get("config");
-    if ((resourceName == null) || resourceName.trim().isEmpty()) {
+    if ((resourceName == null) || resourceName.trim().length() == 0) {
       return;
     }
     InputStream stream = getClass().getClassLoader().getResourceAsStream(resourceName);
@@ -58,46 +57,37 @@ public abstract class AbstractCacheWrapper implements CacheWrapper {
     }
   }
 
-  @Override
   public void put(List<String> path, Object key, Object value) throws Exception {
     delegate().put(key, value);
   }
 
-  @Override
   public Object get(List<String> path, Object key) throws Exception {
     return delegate().get(key);
   }
 
-  @Override
   public void empty() throws Exception {
     delegate().clear();
   }
 
-  @Override
   public int getNumMembers() {
     return 0;
   }
 
-  @Override
   public String getInfo() {
     return "size/capacity: " + delegate().size() + "/" + capacity();
   }
 
-  @Override
   public Object getReplicatedData(List<String> path, String key) throws Exception {
     return get(path, key);
   }
 
-  @Override
   public Object startTransaction() {
     throw new UnsupportedOperationException("Does not support JTA!");
   }
 
-  @Override
   public void endTransaction(boolean successful) {
     throw new UnsupportedOperationException("Does not support JTA!");
   }
 
-  @Override
   public void tearDown() throws Exception {}
 }

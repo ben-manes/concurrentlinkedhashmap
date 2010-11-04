@@ -44,7 +44,7 @@ public class GetPutBenchmark extends ConcurrentBenchmark {
 
   public void timeReadWrite(final int reps) {
     concurrent(new Runnable() {
-      @Override public void run() {
+      public void run() {
         for (int i = 0; i < reps; i++) {
           map.get(i);
         }

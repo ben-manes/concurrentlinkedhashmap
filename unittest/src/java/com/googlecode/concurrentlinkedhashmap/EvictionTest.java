@@ -98,7 +98,7 @@ public final class EvictionTest extends BaseTest {
   public void evictionListener_fails(Builder<Integer, Integer> builder) {
     ConcurrentLinkedHashMap<Integer, Integer> map = builder
         .listener(new EvictionListener<Integer, Integer>() {
-          @Override public void onEviction(Integer key, Integer value) {
+          public void onEviction(Integer key, Integer value) {
             throw new IllegalStateException();
           }
         })
@@ -114,7 +114,7 @@ public final class EvictionTest extends BaseTest {
   @Test
   public void evictWith_neverDiscard() {
     checkEvictWith(new CapacityLimiter() {
-      @Override public boolean hasExceededCapacity(ConcurrentLinkedHashMap<?, ?> map) {
+      public boolean hasExceededCapacity(ConcurrentLinkedHashMap<?, ?> map) {
         return false;
       }
     }, capacity());
@@ -123,7 +123,7 @@ public final class EvictionTest extends BaseTest {
   @Test
   public void evictWith_alwaysDiscard() {
     checkEvictWith(new CapacityLimiter() {
-      @Override public boolean hasExceededCapacity(ConcurrentLinkedHashMap<?, ?> map) {
+      public boolean hasExceededCapacity(ConcurrentLinkedHashMap<?, ?> map) {
         return true;
       }
     }, 0);
@@ -133,7 +133,7 @@ public final class EvictionTest extends BaseTest {
   public void evictWith_decrease() {
     final int maxSize = capacity() / 2;
     checkEvictWith(new CapacityLimiter() {
-      @Override public boolean hasExceededCapacity(ConcurrentLinkedHashMap<?, ?> map) {
+      public boolean hasExceededCapacity(ConcurrentLinkedHashMap<?, ?> map) {
         return map.size() > maxSize;
       }
     }, maxSize);
@@ -156,7 +156,7 @@ public final class EvictionTest extends BaseTest {
   @Test(dataProvider = "warmedMap", expectedExceptions = IllegalStateException.class)
   public void evictWith_fails(ConcurrentLinkedHashMap<Integer, Integer> map) {
     map.evictWith(new CapacityLimiter() {
-      @Override public boolean hasExceededCapacity(ConcurrentLinkedHashMap<?, ?> map) {
+      public boolean hasExceededCapacity(ConcurrentLinkedHashMap<?, ?> map) {
         throw new IllegalStateException();
       }
     });
@@ -269,7 +269,7 @@ public final class EvictionTest extends BaseTest {
   public void updateRecency_onGet(final ConcurrentLinkedHashMap<Integer, Integer> map) {
     final ConcurrentLinkedHashMap<Integer, Integer>.Node originalHead = map.sentinel.next;
     updateRecency(map, new Runnable() {
-      @Override public void run() {
+      public void run() {
         map.get(originalHead.key);
       }
     });
@@ -279,7 +279,7 @@ public final class EvictionTest extends BaseTest {
   public void updateRecency_onPutIfAbsent(final ConcurrentLinkedHashMap<Integer, Integer> map) {
     final ConcurrentLinkedHashMap<Integer, Integer>.Node originalHead = map.sentinel.next;
     updateRecency(map, new Runnable() {
-      @Override public void run() {
+      public void run() {
         map.putIfAbsent(originalHead.key, originalHead.key);
       }
     });
@@ -289,7 +289,7 @@ public final class EvictionTest extends BaseTest {
   public void updateRecency_onPut(final ConcurrentLinkedHashMap<Integer, Integer> map) {
     final ConcurrentLinkedHashMap<Integer, Integer>.Node originalHead = map.sentinel.next;
     updateRecency(map, new Runnable() {
-      @Override public void run() {
+      public void run() {
         map.put(originalHead.key, originalHead.key);
       }
     });
@@ -299,7 +299,7 @@ public final class EvictionTest extends BaseTest {
   public void updateRecency_onReplace(final ConcurrentLinkedHashMap<Integer, Integer> map) {
     final ConcurrentLinkedHashMap<Integer, Integer>.Node originalHead = map.sentinel.next;
     updateRecency(map, new Runnable() {
-      @Override public void run() {
+      public void run() {
         map.replace(originalHead.key, originalHead.key);
       }
     });
@@ -310,7 +310,7 @@ public final class EvictionTest extends BaseTest {
       final ConcurrentLinkedHashMap<Integer, Integer> map) {
     final ConcurrentLinkedHashMap<Integer, Integer>.Node originalHead = map.sentinel.next;
     updateRecency(map, new Runnable() {
-      @Override public void run() {
+      public void run() {
         map.replace(originalHead.key, originalHead.key, originalHead.key);
       }
     });

@@ -1,8 +1,7 @@
 package com.googlecode.concurrentlinkedhashmap;
 
-import static java.util.Collections.newSetFromMap;
-
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Node;
 
@@ -24,7 +23,6 @@ import java.util.concurrent.locks.ReentrantLock;
  */
 public final class IsValidState extends TypeSafeDiagnosingMatcher<ConcurrentLinkedHashMap<?, ?>> {
 
-  @Override
   public void describeTo(Description description) {
     description.appendText("state");
   }
@@ -60,7 +58,7 @@ public final class IsValidState extends TypeSafeDiagnosingMatcher<ConcurrentLink
     int weightedSize = 0;
     boolean matches = true;
     matches &= checkSentinel(map, description);
-    Set<Node> seen = newSetFromMap(new IdentityHashMap<Node, Boolean>());
+    Set<Node> seen = Sets.newSetFromMap(new IdentityHashMap<Node, Boolean>());
     Node current = map.sentinel.next;
     while (current != map.sentinel) {
       matches &= check(seen.add(current),

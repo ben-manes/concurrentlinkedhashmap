@@ -26,7 +26,6 @@ final class Poisson implements Supplier<Double> {
   /**
    * Random value with expected mean value.
    */
-  @Override
   public Double get() {
     return (double) random.nextPoisson(mean);
   }

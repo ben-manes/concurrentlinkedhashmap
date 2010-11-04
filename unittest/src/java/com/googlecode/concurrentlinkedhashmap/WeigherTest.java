@@ -108,7 +108,7 @@ public final class WeigherTest extends BaseTest {
   @Test(dataProvider = "builder", expectedExceptions = IllegalArgumentException.class)
   public void weightedValue_withNegative(Builder<Integer, Integer> builder) {
     Weigher<Integer> weigher = new Weigher<Integer>() {
-      @Override public int weightOf(Integer value) {
+      public int weightOf(Integer value) {
         return -1;
       }
     };
@@ -121,7 +121,7 @@ public final class WeigherTest extends BaseTest {
   @Test(dataProvider = "builder", expectedExceptions = IllegalArgumentException.class)
   public void weightedValue_withZero(Builder<Integer, Integer> builder) {
     Weigher<Integer> weigher = new Weigher<Integer>() {
-      @Override public int weightOf(Integer value) {
+      public int weightOf(Integer value) {
         return 0;
       }
     };
@@ -134,7 +134,7 @@ public final class WeigherTest extends BaseTest {
   @Test(dataProvider = "builder", expectedExceptions = IllegalArgumentException.class)
   public void weightedValue_withAboveMaximum(Builder<Integer, Integer> builder) {
     Weigher<Integer> weigher = new Weigher<Integer>() {
-      @Override public int weightOf(Integer value) {
+      public int weightOf(Integer value) {
         return MAXIMUM_WEIGHT + 1;
       }
     };
@@ -225,7 +225,7 @@ public final class WeigherTest extends BaseTest {
     final boolean[] useMax = {true};
     builder.maximumWeightedCapacity(capacity());
     builder.weigher(new Weigher<Integer>() {
-      @Override public int weightOf(Integer value) {
+      public int weightOf(Integer value) {
         return useMax[0] ? MAXIMUM_WEIGHT : 1;
       }
     });
@@ -243,7 +243,7 @@ public final class WeigherTest extends BaseTest {
 
   private <E> Iterable<E> asIterable(final Collection<E> c) {
     return new Iterable<E>() {
-      @Override public Iterator<E> iterator() {
+      public Iterator<E> iterator() {
         return c.iterator();
       }
     };

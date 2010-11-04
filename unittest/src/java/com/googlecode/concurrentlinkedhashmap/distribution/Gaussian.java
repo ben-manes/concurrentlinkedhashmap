@@ -29,7 +29,6 @@ final class Gaussian implements Supplier<Double> {
   /**
    * Random value with the given mean and standard deviation.
    */
-  @Override
   public Double get() {
     return random.nextGaussian(mean, sigma);
   }

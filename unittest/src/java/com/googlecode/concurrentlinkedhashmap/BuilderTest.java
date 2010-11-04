@@ -134,7 +134,7 @@ public final class BuilderTest extends BaseTest {
   @Test(dataProvider = "builder")
   public void capacityLimiter_withCustom(Builder<Object, Object> builder) {
     CapacityLimiter capacityLimiter = new CapacityLimiter() {
-      @Override public boolean hasExceededCapacity(ConcurrentLinkedHashMap<?, ?> map) {
+      public boolean hasExceededCapacity(ConcurrentLinkedHashMap<?, ?> map) {
         return false;
       }
     };

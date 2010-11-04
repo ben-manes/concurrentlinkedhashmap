@@ -75,9 +75,9 @@ public final class MultiThreadedTest extends BaseTest {
       values.add(Arrays.asList(array));
     }
     executeWithTimeOut(map, new Callable<Long>() {
-      @Override public Long call() throws Exception {
+      public Long call() throws Exception {
         return timeTasks(nThreads, new Runnable() {
-          @Override public void run() {
+          public void run() {
             List<Integer> value = values.poll();
             for (int i = 0; i < iterations; i++) {
               map.put(i % 10, value);
@@ -101,7 +101,7 @@ public final class MultiThreadedTest extends BaseTest {
         .concurrencyLevel(nThreads)
         .build();
     executeWithTimeOut(map, new Callable<Long>() {
-      @Override public Long call() throws Exception {
+      public Long call() throws Exception {
         return timeTasks(nThreads, new Thrasher(map, sets));
       }
     });
@@ -121,7 +121,6 @@ public final class MultiThreadedTest extends BaseTest {
       this.sets = sets;
     }
 
-    @Override
     public void run() {
       Operation[] ops = Operation.values();
       int id = index.getAndIncrement();
@@ -340,8 +339,13 @@ public final class MultiThreadedTest extends BaseTest {
     try {
       StringBuilder buffer = new StringBuilder("\n");
       Set<Object> seen = newSetFromMap(new IdentityHashMap<Object, Boolean>());
-      ConcurrentLinkedHashMap<?, ?>.Node current = forward
-          ? map.sentinel.next : map.sentinel.prev;
+      @SuppressWarnings("unchecked")
+      ConcurrentLinkedHashMap.Node current;
+      if (forward) {
+        current = map.sentinel.next;
+      } else {
+        current = map.sentinel.prev;
+      }
       while (current != map.sentinel) {
         buffer.append(nodeToString(current)).append("\n");
         boolean added = seen.add(current);
@@ -372,11 +376,13 @@ public final class MultiThreadedTest extends BaseTest {
       Object key, ConcurrentLinkedHashMap<?, ?> map) {
     map.evictionLock.lock();
     try {
-      ConcurrentLinkedHashMap<?, ?>.Node current = map.sentinel;
+      @SuppressWarnings("unchecked")
+      ConcurrentLinkedHashMap.Node current = map.sentinel;
       while (current != map.sentinel) {
         if (current.equals(key)) {
           return current;
         }
+        current = map.sentinel.next;
       }
       return null;
     } finally {
