@@ -372,7 +372,7 @@ public final class MultiThreadedTest extends BaseTest {
       Object key, ConcurrentLinkedHashMap<?, ?> map) {
     map.evictionLock.lock();
     try {
-      ConcurrentLinkedHashMap<?, ?>.Node current = map.sentinel;
+      ConcurrentLinkedHashMap<?, ?>.Node current = map.sentinel.next;
       while (current != map.sentinel) {
         if (current.equals(key)) {
           return current;
