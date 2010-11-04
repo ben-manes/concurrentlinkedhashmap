@@ -16,8 +16,8 @@
 package com.googlecode.concurrentlinkedhashmap;
 
 /**
- * A class that can determine the whether an entry should be evicted from the
- * map. An instance is invoked under the map's eviction lock and will not block
+ * A class that can determine whether an entry should be evicted from the map.
+ * An instance is invoked under the map's eviction lock and will not block
  * other threads from performing most common operations on the map.
  * <p>
  * An instance may be evaluated after every insertion or update operation on the

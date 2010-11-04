@@ -377,6 +377,7 @@ public final class MultiThreadedTest extends BaseTest {
         if (current.equals(key)) {
           return current;
         }
+        current = current.next;
       }
       return null;
     } finally {
