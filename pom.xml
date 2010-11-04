@@ -4,7 +4,7 @@
   <artifactId>concurrentlinkedhashmap-lru</artifactId>
   <packaging>jar</packaging>
   <name>ConcurrentLinkedHashMap</name>
-  <version>1.1_jdk5-SNAPSHOT</version>
+  <version>1.1_jdk5</version>
   <description>
     A high performance version of java.util.LinkedHashMap for use as a software cache.
   </description>
@@ -16,9 +16,9 @@
     </license>
   </licenses>
   <scm>
-    <url>http://concurrentlinkedhashmap.googlecode.com/svn/branches/lru_jdk5</url>
-    <connection>scm:svn:http://concurrentlinkedhashmap.googlecode.com/svn/branches/lru_jdk5</connection>
-    <developerConnection>scm:svn:https://concurrentlinkedhashmap.googlecode.com/svn/branches/lru_jdk5</developerConnection>
+    <url>http://concurrentlinkedhashmap.googlecode.com/svn/tags/concurrentlinkedhashmap-lru-1.1_jdk5</url>
+    <connection>scm:svn:http://concurrentlinkedhashmap.googlecode.com/svn/tags/concurrentlinkedhashmap-lru-1.1_jdk5</connection>
+    <developerConnection>scm:svn:https://concurrentlinkedhashmap.googlecode.com/svn/tags/concurrentlinkedhashmap-lru-1.1_jdk5</developerConnection>
   </scm>
   <parent>
     <groupId>org.sonatype.oss</groupId>
