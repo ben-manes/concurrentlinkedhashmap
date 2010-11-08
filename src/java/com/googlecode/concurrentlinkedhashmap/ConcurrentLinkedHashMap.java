@@ -741,7 +741,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     public void run() {
       weightedSize += weight;
       node.miss();
-      evict(capacityLimiter);
     }
   }
 
@@ -815,10 +814,12 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       drainWriteQueue();
 
       for (Node node : data.values()) {
-        data.remove(node.key, node);
-        decrementWeightFor(node);
-        node.prevInStack = node.nextInStack = null;
-        node.prevInQueue = node.nextInQueue = null;
+        if (node.isLinked()) {
+          data.remove(node.key, node);
+          decrementWeightFor(node);
+          node.prevInStack = node.nextInStack = null;
+          node.prevInQueue = node.nextInQueue = null;
+        }
       }
       sentinel.prevInStack = sentinel.nextInStack = sentinel;
       sentinel.prevInQueue = sentinel.nextInQueue = sentinel;
@@ -1337,7 +1338,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     /** Becomes a hot entry. */
     @GuardedBy("evictionLock")
     private void makeHot() {
-      hotWeightedSize += weightedValue.weight;
+      addToHotWeightedSize();
       status = Status.HOT;
     }
 
@@ -1345,12 +1346,41 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     @GuardedBy("evictionLock")
     void makeCold() {
       if (status == Status.HOT) {
-        hotWeightedSize -= weightedValue.weight;
+        subtractFromHotWeightedSize();
       }
       status = Status.COLD;
       moveToQueue_tail();
     }
 
+    void addToHotWeightedSize() {
+      if (weigher == Weighers.singleton()) {
+        hotWeightedSize++;
+      } else {
+        Lock lock = segmentLock[segment];
+        lock.lock();
+        try {
+          hotWeightedSize += weightedValue.weight;
+        } finally {
+          lock.unlock();
+        }
+      }
+    }
+
+    void subtractFromHotWeightedSize() {
+      if (weigher == Weighers.singleton()) {
+        hotWeightedSize--;
+      } else {
+        Lock lock = segmentLock[segment];
+        lock.lock();
+        try {
+          hotWeightedSize -= weightedValue.weight;
+        } finally {
+          lock.unlock();
+        }
+      }
+    }
+
+    // FIXME(bmanes): Not used?
     /** Becomes a non-resident entry. */
     @GuardedBy("evictionLock")
     void makeNonResident() {

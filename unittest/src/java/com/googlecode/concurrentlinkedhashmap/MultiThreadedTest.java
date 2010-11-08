@@ -56,7 +56,6 @@ public final class MultiThreadedTest extends BaseTest {
 
   @BeforeClass(alwaysRun = true)
   public void beforeMultiThreaded() {
-    System.out.println("*** DISABLED: Remember to re-enable weighted size check");
     iterations = intProperty("multiThreaded.iterations");
     nThreads = intProperty("multiThreaded.nThreads");
     timeout = intProperty("multiThreaded.timeout");
@@ -174,7 +173,7 @@ public final class MultiThreadedTest extends BaseTest {
     },
     WEIGHTED_SIZE() {
       @Override void execute(ConcurrentLinkedHashMap<Integer, Integer> cache, Integer key) {
-        //checkState(cache.weightedSize() >= 0);
+        checkState(cache.weightedSize() >= 0);
       }
     },
     CAPACITY() {
