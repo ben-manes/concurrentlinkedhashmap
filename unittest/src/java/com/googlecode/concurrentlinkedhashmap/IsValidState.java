@@ -32,12 +32,14 @@ public final class IsValidState extends TypeSafeDiagnosingMatcher<ConcurrentLink
   @Override
   protected boolean matchesSafely(ConcurrentLinkedHashMap<?, ?> map, Description description) {
     boolean matches = true;
-    map.tryToDrainEvictionQueues(false);
+    while (hasPendingReorderings(map)) {
+      map.tryToDrainEvictionQueues(false);
+    }
 
-    matches &= check(map.writeQueue.isEmpty(), "writeQueue", description);
+    matches &= check(map.writeQueue.isEmpty(), "writeQueue not empty", description);
     for (int i = 0; i < map.recencyQueue.length; i++) {
-      matches &= check(map.recencyQueue[i].isEmpty(), "recencyQueue", description);
-      matches &= check(map.recencyQueueLength.get(i) == 0, "recencyQueueLength", description);
+      matches &= check(map.recencyQueue[i].isEmpty(), "recencyQueue not empty", description);
+      matches &= check(map.recencyQueueLength.get(i) == 0, "recencyQueueLength != 0", description);
     }
     matches &= check(map.listenerQueue.isEmpty(), "listenerQueue", description);
     matches &= check(map.data.size() == map.size(), "Inconsistent size", description);
@@ -52,6 +54,15 @@ public final class IsValidState extends TypeSafeDiagnosingMatcher<ConcurrentLink
     matches &= checkLinks(map, description);
     matches &= checkLocks(map, description);
     return matches;
+  }
+
+  private boolean hasPendingReorderings(ConcurrentLinkedHashMap<?, ?> map) {
+    for (int i = 0; i < map.recencyQueue.length; i++) {
+      if (map.recencyQueueLength.get(i) != 0) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /** Validates the doubly-linked list. */

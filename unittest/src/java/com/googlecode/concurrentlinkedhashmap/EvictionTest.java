@@ -10,20 +10,21 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Node;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.RecencyReference;
 
-import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.Queue;
 
 /**
  * A unit-test for the page replacement algorithm and its public methods.
@@ -339,50 +340,31 @@ public final class EvictionTest extends BaseTest {
     assertThat(map.recencyQueueLength.get(index), is(equalTo(0)));
   }
 
-  @Test(dataProvider = "recencyOrderings")
-  public void applyInRecencyOrder(List<Integer> recencyOrderings) {
-    Integer last = null;
-    for (Integer recencyOrder : recencyOrderings) {
-      if (last != null) {
-        assertThat(recencyOrder, is(equalTo(last + 1)));
-      }
-      last = recencyOrder;
-    }
-  }
-
-  /**
-   * Creates a list of orderings based on how the recency queues are drained
-   * and merged. The resulting list is the order of recencies that would have
-   * been applied the the page replacement policy.
-   */
-  @DataProvider(name = "recencyOrderings")
-  public Object[][] providesRecencyOrderings() {
-    ConcurrentLinkedHashMap<Integer, Integer> map = new Builder<Integer, Integer>()
-      .maximumWeightedCapacity(Integer.MAX_VALUE)
-      .build();
-
-    // Add a dummy set of recency operations to the queues.
-    int numberOfRecenciesToSort = map.recencyQueue.length * RECENCY_THRESHOLD;
-    for (int i = 0; i < numberOfRecenciesToSort; i++) {
+  @Test(dataProvider = "guardedMap")
+  public void applyInRecencyOrder(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    // Add a dummy set of recency operations to the queues
+    for (int i = 0; i < map.maxRecenciesToDrain; i++) {
       map.addToRecencyQueue(null);
     }
 
     // Perform the merging in the same manner as when draining the queues
-    Queue<List<ConcurrentLinkedHashMap<Integer, Integer>.RecencyReference>> lists =
-        Lists.newLinkedList();
-    for (int i = 0; i < map.recencyQueue.length; i = i + 2) {
-      lists.add(map.moveRecenciesIntoMergedList(i, i + 1));
-    }
-    while (lists.size() > 1) {
-      lists.add(map.mergeRecencyLists(lists.poll(), lists.poll()));
-    }
+    Object[] recencies = new Object[map.maxRecenciesToDrain];
+    List<ConcurrentLinkedHashMap<Integer, Integer>.RecencyReference> overflow =
+      new ArrayList<ConcurrentLinkedHashMap<Integer, Integer>.RecencyReference>();
+    int lastRecencyIndex = map.moveRecenciesFromQueues(recencies, overflow);
 
-    // Extract the recency orderings
-    List<Integer> ordering = Lists.newArrayList();
-    for (ConcurrentLinkedHashMap<Integer, Integer>.RecencyReference recency : lists.poll()) {
-      ordering.add(recency.recencyOrder);
+    // Check that the recencies are in sorted order
+    Integer last = null;
+    for (int i = 0; i <= lastRecencyIndex; i++) {
+      @SuppressWarnings("unchecked")
+      int order = ((RecencyReference) recencies[i]).recencyOrder;
+      if (last != null) {
+        assertThat(order, is(equalTo(last + 1)));
+      }
     }
-    assertThat(ordering, hasSize(numberOfRecenciesToSort));
-    return new Object[][] {{ ordering }};
+    for (int i = lastRecencyIndex + 1; i < recencies.length; i++) {
+      assertThat(recencies[i], is(nullValue()));
+    }
+    assertThat(overflow, hasSize(0));
   }
 }
