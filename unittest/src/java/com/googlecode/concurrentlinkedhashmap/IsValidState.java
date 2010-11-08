@@ -80,7 +80,7 @@ public final class IsValidState extends TypeSafeDiagnosingMatcher<ConcurrentLink
     Node currentInStack = map.sentinel.nextInStack;
     while (currentInStack != map.sentinel) {
       matches &= check(seenInStack.add(currentInStack),
-          String.format("Loop detected: %s, saw %s in %s",
+          String.format("Stack loop detected: %s, saw %s in %s",
               currentInStack, seenInStack, map), description);
       matches &= checkDataNode(map, currentInStack, description);
       currentInStack = currentInStack.nextInStack;
@@ -88,9 +88,9 @@ public final class IsValidState extends TypeSafeDiagnosingMatcher<ConcurrentLink
 
     Node currentInQueue = map.sentinel.nextInQueue;
     while (currentInQueue != map.sentinel) {
-      matches &= check(seenInStack.add(currentInQueue),
-          String.format("Loop detected: %s, saw %s in %s",
-              currentInQueue, seenInStack, map), description);
+      matches &= check(seenInQueue.add(currentInQueue),
+          String.format("Queue loop detected: %s, saw %s in %s",
+              currentInQueue, seenInQueue, map), description);
       matches &= checkDataNode(map, currentInQueue, description);
       currentInQueue = currentInQueue.nextInQueue;
     }
@@ -135,18 +135,31 @@ public final class IsValidState extends TypeSafeDiagnosingMatcher<ConcurrentLink
     matches &= check(map.containsValue(node.weightedValue.value),
         String.format("Could not find value: %s", node.weightedValue.value), description);
     matches &= check(map.data.get(node.key) == node, "found wrong node", description);
-    matches &= check(node.prevInStack != null, "null prevInStack", description);
-    matches &= check(node.nextInStack != null, "null nextInStack", description);
-    matches &= check(node.prevInQueue != null, "null prevInQueue", description);
-    matches &= check(node.nextInQueue != null, "null nextInQueue", description);
-    matches &= check(node != node.prevInStack, "circular node", description);
-    matches &= check(node != node.nextInStack, "circular node", description);
-    matches &= check(node != node.prevInQueue, "circular node", description);
-    matches &= check(node != node.nextInQueue, "circular node", description);
-    matches &= check(node == node.prevInStack.nextInStack, "link corruption", description);
-    matches &= check(node == node.nextInStack.prevInStack, "link corruption", description);
-    matches &= check(node == node.prevInQueue.nextInQueue, "link corruption", description);
-    matches &= check(node == node.nextInQueue.prevInQueue, "link corruption", description);
+    matches &= check(node.isLinked(), "not linked in Lirs", description);
+
+    if (node.inStack()) {
+      matches &= check(node.prevInStack != null, "null prevInStack", description);
+      matches &= check(node.nextInStack != null, "null nextInStack", description);
+      matches &= check(node != node.prevInStack, "circular node", description);
+      matches &= check(node != node.nextInStack, "circular node", description);
+      matches &= check(node == node.prevInStack.nextInStack, "link corruption", description);
+      matches &= check(node == node.nextInStack.prevInStack, "link corruption", description);
+    } else {
+      matches &= check(node.prevInStack == null, "not null prevInStack", description);
+      matches &= check(node.nextInStack == null, "not null nextInStack", description);
+    }
+
+    if (node.inQueue()) {
+      matches &= check(node.prevInQueue != null, "null prevInQueue", description);
+      matches &= check(node.nextInQueue != null, "null nextInQueue", description);
+      matches &= check(node != node.prevInQueue, "circular node", description);
+      matches &= check(node != node.nextInQueue, "circular node", description);
+      matches &= check(node == node.prevInQueue.nextInQueue, "link corruption", description);
+      matches &= check(node == node.nextInQueue.prevInQueue, "link corruption", description);
+    } else {
+      matches &= check(node.prevInQueue == null, "not null prevInQueue", description);
+      matches &= check(node.nextInQueue == null, "not null nextInQueue", description);
+    }
     matches &= check(node.segment == map.segmentFor(node.key), "bad segment", description);
     return matches;
   }

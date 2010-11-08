@@ -725,7 +725,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   }
 
   /**
-   * Adds a node to the list and evicts an entry on overflow.
+   * Adds a node to the page replacement policy and evicts an entry on overflow.
    */
   final class AddTask implements Runnable {
     final Node node;
@@ -746,7 +746,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   }
 
   /**
-   * Removes a node from the list.
+   * Removes a node from the page replacement policy.
    */
   final class RemovalTask implements Runnable {
     final Node node;
@@ -1197,8 +1197,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
     /** Creates a new sentinel node. */
     Node() {
-      this.segment = -1;
       this.key = null;
+      this.segment = -1;
       this.prevInStack = nextInStack = this;
       this.prevInQueue = nextInQueue = this;
     }

@@ -39,10 +39,10 @@ public final class EfficiencyTest extends BaseTest {
   }
 
   @Test(groups = "development", dataProvider = "builder")
-  public void efficiency_lru(Builder<Long, Long> builder) {
+  public void efficiency_lirs(Builder<Long, Long> builder) {
     Map<Long, Long> expected = new CacheBuilder()
         .maximumCapacity(capacity())
-        .makeCache(Cache.LinkedHashMap_Lru_Sync);
+        .makeCache(Cache.Lirs);
     List<Long> workingSet = createWorkingSet(Distribution.Exponential, 10 * capacity());
     float hitExpected = determineEfficiency(expected, workingSet);
     float hitActual = determineEfficiency(builder.build(), workingSet);
