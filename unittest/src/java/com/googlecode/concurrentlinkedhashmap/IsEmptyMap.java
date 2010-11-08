@@ -49,8 +49,10 @@ public final class IsEmptyMap extends TypeSafeDiagnosingMatcher<Map<?, ?>> {
     matches &= check(map.equals(ImmutableMap.of()), "Not equal to empty map", description);
     matches &= check(map.hashCode() == ImmutableMap.of().hashCode(), "hashcode", description);
     matches &= check(map.toString().equals(ImmutableMap.of().toString()), "toString", description);
-    matches &= check(map.sentinel.prev == map.sentinel, "sentinel not linked to prev", description);
-    matches &= check(map.sentinel.next == map.sentinel, "sentinel not linked to next", description);
+    matches &= check(map.sentinel.prevInStack == map.sentinel, "sentinel not linked to prev", description);
+    matches &= check(map.sentinel.nextInStack == map.sentinel, "sentinel not linked to next", description);
+    matches &= check(map.sentinel.prevInQueue == map.sentinel, "sentinel not linked to prev", description);
+    matches &= check(map.sentinel.nextInQueue == map.sentinel, "sentinel not linked to next", description);
     return matches;
   }
 

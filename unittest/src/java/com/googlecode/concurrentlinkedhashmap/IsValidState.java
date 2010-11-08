@@ -46,8 +46,10 @@ public final class IsValidState extends TypeSafeDiagnosingMatcher<ConcurrentLink
     matches &= check(map.weightedSize() == map.weightedSize, "weightedSize", description);
     matches &= check(map.capacity() == map.maximumWeightedSize, "capacity", description);
     matches &= check(map.maximumWeightedSize >= map.weightedSize(), "overflow", description);
-    matches &= check(map.sentinel.prev != null, "link corruption", description);
-    matches &= check(map.sentinel.next != null, "link corruption", description);
+    matches &= check(map.sentinel.prevInStack != null, "link corruption", description);
+    matches &= check(map.sentinel.nextInStack != null, "link corruption", description);
+    matches &= check(map.sentinel.prevInQueue != null, "link corruption", description);
+    matches &= check(map.sentinel.nextInQueue != null, "link corruption", description);
     if (map.isEmpty()) {
       matches &= new IsEmptyMap().matchesSafely(map, description);
     }
@@ -72,14 +74,33 @@ public final class IsValidState extends TypeSafeDiagnosingMatcher<ConcurrentLink
     boolean matches = true;
     matches &= checkSentinel(map, description);
     Set<Node> seen = newSetFromMap(new IdentityHashMap<Node, Boolean>());
-    Node current = map.sentinel.next;
-    while (current != map.sentinel) {
-      matches &= check(seen.add(current),
-          String.format("Loop detected: %s, saw %s in %s", current, seen, map), description);
-      matches &= checkDataNode(map, current, description);
-      weightedSize += current.weightedValue.weight;
-      current = current.next;
+    Set<Node> seenInStack = newSetFromMap(new IdentityHashMap<Node, Boolean>());
+    Set<Node> seenInQueue = newSetFromMap(new IdentityHashMap<Node, Boolean>());
+
+    Node currentInStack = map.sentinel.nextInStack;
+    while (currentInStack != map.sentinel) {
+      matches &= check(seenInStack.add(currentInStack),
+          String.format("Loop detected: %s, saw %s in %s",
+              currentInStack, seenInStack, map), description);
+      matches &= checkDataNode(map, currentInStack, description);
+      currentInStack = currentInStack.nextInStack;
     }
+
+    Node currentInQueue = map.sentinel.nextInQueue;
+    while (currentInQueue != map.sentinel) {
+      matches &= check(seenInStack.add(currentInQueue),
+          String.format("Loop detected: %s, saw %s in %s",
+              currentInQueue, seenInStack, map), description);
+      matches &= checkDataNode(map, currentInQueue, description);
+      currentInQueue = currentInQueue.nextInQueue;
+    }
+
+    seen.addAll(seenInStack);
+    seen.addAll(seenInQueue);
+    for (Node node : seen) {
+      weightedSize += node.weightedValue.weight;
+    }
+
     matches &= check(map.size() == seen.size(), "Size != list length", description);
     matches &= check(map.weightedSize() == weightedSize, "WeightedSize != link weights", description);
     return matches;
@@ -91,8 +112,10 @@ public final class IsValidState extends TypeSafeDiagnosingMatcher<ConcurrentLink
     matches &= check(map.sentinel.key == null, "key", description);
     matches &= check(map.sentinel.weightedValue == null, "value", description);
     matches &= check(map.sentinel.segment == -1, "segment", description);
-    matches &= check(map.sentinel.prev.next == map.sentinel, "circular", description);
-    matches &= check(map.sentinel.next.prev == map.sentinel, "circular", description);
+    matches &= check(map.sentinel.prevInStack.nextInStack == map.sentinel, "circular", description);
+    matches &= check(map.sentinel.nextInStack.prevInStack == map.sentinel, "circular", description);
+    matches &= check(map.sentinel.prevInQueue.nextInQueue == map.sentinel, "circular", description);
+    matches &= check(map.sentinel.nextInQueue.prevInQueue == map.sentinel, "circular", description);
     matches &= check(!map.data.containsValue(map.sentinel), "in map", description);
     return matches;
   }
@@ -112,12 +135,18 @@ public final class IsValidState extends TypeSafeDiagnosingMatcher<ConcurrentLink
     matches &= check(map.containsValue(node.weightedValue.value),
         String.format("Could not find value: %s", node.weightedValue.value), description);
     matches &= check(map.data.get(node.key) == node, "found wrong node", description);
-    matches &= check(node.prev != null, "null prev", description);
-    matches &= check(node.next != null, "null next", description);
-    matches &= check(node != node.prev, "circular node", description);
-    matches &= check(node != node.next, "circular node", description);
-    matches &= check(node == node.prev.next, "link corruption", description);
-    matches &= check(node == node.next.prev, "link corruption", description);
+    matches &= check(node.prevInStack != null, "null prevInStack", description);
+    matches &= check(node.nextInStack != null, "null nextInStack", description);
+    matches &= check(node.prevInQueue != null, "null prevInQueue", description);
+    matches &= check(node.nextInQueue != null, "null nextInQueue", description);
+    matches &= check(node != node.prevInStack, "circular node", description);
+    matches &= check(node != node.nextInStack, "circular node", description);
+    matches &= check(node != node.prevInQueue, "circular node", description);
+    matches &= check(node != node.nextInQueue, "circular node", description);
+    matches &= check(node == node.prevInStack.nextInStack, "link corruption", description);
+    matches &= check(node == node.nextInStack.prevInStack, "link corruption", description);
+    matches &= check(node == node.prevInQueue.nextInQueue, "link corruption", description);
+    matches &= check(node == node.nextInQueue.prevInQueue, "link corruption", description);
     matches &= check(node.segment == map.segmentFor(node.key), "bad segment", description);
     return matches;
   }

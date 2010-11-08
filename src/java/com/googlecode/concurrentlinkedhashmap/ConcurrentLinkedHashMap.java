@@ -114,14 +114,20 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   // record a memento of the the additions, removals, and accesses that were
   // performed on the map. The write queue is drained at the first opportunity
   // and the read queues are drained after a write or when a queue exceeds its
-  // capacity threshold.
+  // capacity threshold. A strict recency ordering is achieved by observing that
+  // each read queue is in a weakly sorted order, starting from the last drain.
+  // The read queues can be merged in O(n) time so that the recency operations
+  // are applied in the expected order.
   //
-  // The Least Recently Used page replacement algorithm was chosen due to its
-  // simplicity, high hit rate, and ability to be implemented with O(1) time
-  // complexity. A strict recency ordering is achieved by observing that each
-  // read queue is in a weakly sorted order since the last drain and can be
-  // merged in O(n) time so that the recency operations can be applied in the
-  // expected order.
+  // The Low Inter-reference Recency Set was chosen as the page replacement
+  // algorithm due to its high hit rate, ability to track both the recency and
+  // frequency, and be implemented with O(1) time complexity. This algorithm is
+  // described in [1] and was evaluated against other algorithms in [2].
+  //
+  // [1] LIRS: An Efficient Low Inter-reference Recency Set Replacement to
+  // Improve Buffer Cache Performance
+  // [2] The Performance Impact of Kernel Prefetching on Buffer Cache
+  // Replacement Algorithms
 
   /**
    * Number of cache access operations that can be buffered per recency queue
@@ -139,6 +145,9 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
   /** The maximum weight of a value. */
   static final int MAXIMUM_WEIGHT = 1 << 29;
+
+  /** The percentage of the cache which is dedicated to hot blocks. */
+  static final float HOT_RATE = 0.99f;
 
   /** A queue that discards all entries. */
   static final Queue<?> discardingQueue = new DiscardingQueue<Object>();
@@ -161,6 +170,11 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   volatile int weightedSize;
   @GuardedBy("evictionLock") // must write under lock
   volatile int maximumWeightedSize;
+
+  @GuardedBy("evictionLock")
+  int hotWeightedSize;
+  @GuardedBy("evictionLock")
+  int maximumHotWeightedSize;
 
   volatile int globalRecencyOrder;
   final int maxRecenciesToDrain;
@@ -208,6 +222,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     // The data store and its maximum capacity
     data = new ConcurrentHashMap<K, Node>(builder.initialCapacity, 0.75f, concurrencyLevel);
     maximumWeightedSize = Math.min(builder.maximumWeightedCapacity, MAXIMUM_CAPACITY);
+    updateMaximumHotWeightedSize();
 
     // The eviction support
     sentinel = new Node();
@@ -268,6 +283,52 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   }
 
   /**
+   * Sets the maximum number of entries that can be considered hot by the LIRS
+   * page replacement algorithm based on the maximum weighted size.
+   */
+  @GuardedBy("evictionLock")
+  private void updateMaximumHotWeightedSize() {
+    // If the maximum hot size is equal to the maximum size then the page
+    // replacement algorithm degrades to an LRU policy. To avoid this, the
+    // maximum hot size is decreased by one when it would otherwise be equal.
+    int size = (int) (HOT_RATE * maximumWeightedSize);
+    maximumHotWeightedSize = (size == maximumWeightedSize)
+        ? (maximumWeightedSize - 1) : size;
+  }
+
+  /**
+   * Prunes HIR blocks in the bottom of the stack until an HOT block sits in
+   * the stack bottom. If pruned blocks were resident then they remain in the
+   * queue; otherwise they are no longer referenced and are evicted.
+   */
+  @GuardedBy("evictionLock")
+  private void pruneStack() {
+    // See section 3.3:
+    // "We define an operation called "stack pruning" on the LIRS stack S,
+    // which removes the HIR blocks in the bottom of the stack until an LIR
+    // block sits in the stack bottom. This operation serves for two purposes:
+    // (1) We ensure the block in the bottom of the stack always belongs to the
+    // LIR block set. (2) After the LIR block in the bottom is removed, those
+    // HIR blocks contiguously located above it will not have chances to change
+    // their status from HIR to LIR, because their recencies are larger than
+    // the new maximum recency of LIR blocks."
+    Node bottom = sentinel.prevInStack;
+    while ((bottom != sentinel) && (bottom.status != Status.HOT)) {
+      if (bottom.status == Status.NON_RESIDENT) {
+        // Notify the listener if the entry was evicted
+        if (data.remove(bottom.key, bottom)) {
+          listenerQueue.add(bottom);
+        }
+        weightedSize -= bottom.weightedValue.weight;
+        bottom.remove();
+      } else {
+        bottom.removeFromStack();
+      }
+      bottom = sentinel.prevInStack;
+    }
+  }
+
+  /**
    * Evicts entries from the map while it exceeds the capacity limiter's
    * constraint or until the map is empty.
    *
@@ -313,7 +374,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     // that if an eviction is still required then a new victim will be chosen
     // for removal.
     while (hasOverflowed(capacityLimiter)) {
-      Node node = sentinel.next;
+      Node node = nextVictim();
       if (node == sentinel) {
         // The map has evicted all of its entries and can offer no further aid
         // in fulfilling the limiter's constraint. Note that for the weighted
@@ -321,6 +382,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
         // the correct weight.
         return;
       }
+
       // Notify the listener if the entry was evicted
       if (data.remove(node.key, node)) {
         listenerQueue.add(node);
@@ -328,6 +390,21 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       decrementWeightFor(node);
       node.remove();
     }
+  }
+
+  /**
+   * Determines the next victim entry to evict from the map.
+   *
+   * @return the node to the entry to evict or the sentinel if empty
+   */
+  private Node nextVictim() {
+    // TODO(bmanes): Revisit - forgot why this is a hack due to dynamic resizing
+
+    // See section 3.3 case #3:
+    // "We remove the HIR resident block at the front of list Q (it then
+    // becomes a non-resident block), and replace it out of the cache."
+    Node node = sentinel.nextInQueue;
+    return (node == sentinel) ? sentinel.nextInStack : node;
   }
 
   /**
@@ -583,7 +660,19 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     // linked then it does not need to be processed.
     Node node = recency.get();
     if ((node != null) && node.isLinked()) {
-      node.moveToTail();
+      switch (node.status) {
+        case HOT:
+          node.hotHit();
+          break;
+        case COLD:
+          node.coldHit();
+          break;
+        case NON_RESIDENT:
+          node.miss();
+          break;
+        default:
+          throw new AssertionError();
+      }
     }
   }
 
@@ -651,7 +740,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     @GuardedBy("evictionLock")
     public void run() {
       weightedSize += weight;
-      node.appendToTail();
+      node.miss();
       evict(capacityLimiter);
     }
   }
@@ -725,16 +814,14 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     try {
       drainWriteQueue();
 
-      Node current = sentinel.next;
-      while (current != sentinel) {
-        data.remove(current.key, current);
-        decrementWeightFor(current);
-        current = current.next;
-        current.prev.prev = null;
-        current.prev.next = null;
+      for (Node node : data.values()) {
+        data.remove(node.key, node);
+        decrementWeightFor(node);
+        node.prevInStack = node.nextInStack = null;
+        node.prevInQueue = node.nextInQueue = null;
       }
-      sentinel.next = sentinel;
-      sentinel.prev = sentinel;
+      sentinel.prevInStack = sentinel.nextInStack = sentinel;
+      sentinel.prevInQueue = sentinel.nextInQueue = sentinel;
 
       // Eagerly discards all of the stale recency reorderings
       for (int i = 0; i < recencyQueue.length; i++) {
@@ -1032,6 +1119,28 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   }
 
   /**
+   * The page-replacement status of an entry.
+   */
+  enum Status {
+
+    /**
+     * A hot entry is a resident LIRS block that is held in the stack.
+     */
+    HOT,
+
+    /**
+     * A cold entry is a resident LIRS block that is held in the queue and may
+     * be held in by stack.
+     */
+    COLD,
+
+    /**
+     * A non-resident HIRS entry is a block that may be held in the stack.
+     */
+    NON_RESIDENT
+  }
+
+  /**
    * A value and its weight.
    */
   static final class WeightedValue<V> {
@@ -1059,69 +1168,271 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     /** The segment that the node is associated with. */
     final int segment;
 
-    /**
-     * A link to the entry that was less recently used or the sentinel if this
-     * entry is the least recent.
-     */
+    /** The LIRS status of the entry. */
     @GuardedBy("evictionLock")
-    Node prev;
+    volatile Status status;
 
     /**
-     * A link to the entry that was more recently used or the sentinel if this
-     * entry is the most recent.
+     * The links on the LIRS stack, S, which maintains recency information. The
+     * stack holds all hot entries as well as the cold and non-resident entries
+     * that are more recent than the least recent hot entry. The stack is pruned
+     * so that the last entry is hot and all entries accessed more recently than
+     * the last hot entry are present in the stack, The stack is ordered by
+     * recency, with its most recently accessed entry at the top and its least
+     * recently accessed entry at the bottom.
      */
     @GuardedBy("evictionLock")
-    Node next;
+    Node prevInStack;
+    @GuardedBy("evictionLock")
+    Node nextInStack;
+
+    /**
+     * The links on the LIRS queue, Q, which holds all cold entries and supplies
+     * the victim entry at the head of the queue for eviction.
+     */
+    @GuardedBy("evictionLock")
+    Node prevInQueue;
+    @GuardedBy("evictionLock")
+    Node nextInQueue;
 
     /** Creates a new sentinel node. */
     Node() {
       this.segment = -1;
       this.key = null;
-      this.prev = this;
-      this.next = this;
+      this.prevInStack = nextInStack = this;
+      this.prevInQueue = nextInQueue = this;
     }
 
-    /** Creates a new, unlinked node. */
+    /** Creates a new, unlinked data node. */
     Node(K key, WeightedValue<V> weightedValue, int segment) {
       this.weightedValue = weightedValue;
+      this.status = Status.NON_RESIDENT;
       this.segment = segment;
       this.key = key;
-      this.prev = null;
-      this.next = null;
     }
 
-    /** Removes the node from the list. */
+    /** Whether the node is linked on the stack or queue. */
+    boolean isLinked() {
+      return inStack() || inQueue();
+    }
+
+    /* ---------------- LIRS Stack Support -------------- */
+
+    /** Adds or moves the node to the top of the stack. */
+    @GuardedBy("evictionLock")
+    void moveToStack_top() {
+      if (inStack()) {
+        prevInStack.nextInStack = nextInStack;
+        nextInStack.prevInStack = prevInStack;
+      }
+      addToStackBefore(sentinel.nextInStack);
+    }
+
+    /** Adds or moves the node to the bottom of the stack. */
+    @GuardedBy("evictionLock")
+    void moveToStack_bottom() {
+      if (inStack()) {
+        prevInStack.nextInStack = nextInStack;
+        nextInStack.prevInStack = prevInStack;
+      }
+      addToStackBefore(sentinel);
+    }
+
+    /** Adds this node before the specified node in the stack. */
+    @GuardedBy("evictionLock")
+    void addToStackBefore(Node node) {
+      prevInStack = node.prevInStack;
+      nextInStack = node;
+      prevInStack.nextInStack = this;
+      nextInStack.prevInStack = this;
+    }
+
+    /** Removes this node from the stack. */
+    @GuardedBy("evictionLock")
+    void removeFromStack() {
+      prevInStack.nextInStack = nextInStack;
+      nextInStack.prevInStack = prevInStack;
+      prevInStack = nextInStack = null;
+    }
+
+    /** Whether the node is in the stack. */
+    @GuardedBy("evictionLock")
+    boolean inStack() {
+      return (nextInStack != null);
+    }
+
+    /* ---------------- LIRS Queue Support -------------- */
+
+    /** Adds or moves the node to the tail of the queue. */
+    @GuardedBy("evictionLock")
+    void moveToQueue_tail() {
+      if (inQueue()) {
+        prevInQueue.nextInQueue = nextInQueue;
+        nextInQueue.prevInQueue = prevInQueue;
+      }
+      addToQueue();
+    }
+
+    /** Adds the node to the tail of the queue. */
+    @GuardedBy("evictionLock")
+    void addToQueue() {
+      prevInQueue = sentinel.prevInQueue;
+      nextInQueue = sentinel;
+      prevInQueue.nextInQueue = this;
+      nextInQueue.prevInQueue = this;
+    }
+
+    /** Removes the node from the queue. */
+    @GuardedBy("evictionLock")
+    void removeFromQueue() {
+      prevInQueue.nextInQueue = nextInQueue;
+      nextInQueue.prevInQueue = prevInQueue;
+      prevInQueue = nextInQueue = null;
+    }
+
+    /** Whether the node is in the queue. */
+    @GuardedBy("evictionLock")
+    boolean inQueue() {
+      return (nextInQueue != null);
+    }
+
+    /* ---------------- LIRS Eviction Support -------------- */
+
+    /**
+     * Moves this entry from the queue to the stack, marking it hot (as cold
+     * resident entries must remain in the queue).
+     */
+    @GuardedBy("evictionLock")
+    void migrateToStack() {
+      removeFromQueue();
+      if (!inStack()) {
+        moveToStack_bottom();
+      }
+      makeHot();
+    }
+
+    /**
+     * Moves this entry from the stack to the queue, marking it cold
+     * (as hot entries must remain in the stack). This should only be called
+     * on resident entries, as non-resident entries should not be made resident.
+     * The bottom entry on the queue is always hot due to stack pruning.
+     */
+    @GuardedBy("evictionLock")
+    private void migrateToQueue() {
+      removeFromStack();
+      makeCold();
+    }
+
+    /** Removes the node from the stack and queue. */
     @GuardedBy("evictionLock")
     void remove() {
-      prev.next = next;
-      next.prev = prev;
-      // null to reduce GC pressure
-      prev = next = null;
-    }
-
-    /** Appends the node to the tail of the list. */
-    @GuardedBy("evictionLock")
-    void appendToTail() {
-      prev = sentinel.prev;
-      next = sentinel;
-      sentinel.prev.next = this;
-      sentinel.prev = this;
-    }
-
-    /** Moves the node to the tail of the list. */
-    @GuardedBy("evictionLock")
-    void moveToTail() {
-      if (next != sentinel) {
-        prev.next = next;
-        next.prev = prev;
-        appendToTail();
+      if (inQueue()) {
+        removeFromQueue();
+      }
+      if (inStack()) {
+        removeFromStack();
       }
     }
 
-    /** Whether the node is linked on the list. */
+    /** Becomes a hot entry. */
     @GuardedBy("evictionLock")
-    boolean isLinked() {
-      return (next != null);
+    private void makeHot() {
+      hotWeightedSize += weightedValue.weight;
+      status = Status.HOT;
+    }
+
+    /** Becomes a cold entry. */
+    @GuardedBy("evictionLock")
+    void makeCold() {
+      if (status == Status.HOT) {
+        hotWeightedSize -= weightedValue.weight;
+      }
+      status = Status.COLD;
+      moveToQueue_tail();
+    }
+
+    /** Becomes a non-resident entry. */
+    @GuardedBy("evictionLock")
+    void makeNonResident() {
+      int weight = weightedValue.weight;
+      switch (status) {
+        case HOT:
+          weightedSize -= weight;
+          hotWeightedSize -= weight;
+          status = Status.NON_RESIDENT;
+          break;
+        case COLD:
+          weightedSize -= weight;
+          status = Status.NON_RESIDENT;
+          break;
+      }
+    }
+
+    /** Records a hit on a hot entry. */
+    @GuardedBy("evictionLock")
+    void hotHit() {
+      // See section 3.3, case #1
+      boolean onBottom = (sentinel.prevInStack == this);
+      moveToStack_top();
+      if (onBottom) {
+        pruneStack();
+      }
+    }
+
+    /** Records a hit on a cold block. */
+    @GuardedBy("evictionLock")
+    void coldHit() {
+      // See section 3.3, case #2
+      boolean inStack = inStack();
+      moveToStack_top();
+      if (!inStack) {
+        moveToQueue_tail();
+        return;
+      }
+
+      if (status != Status.HOT) {
+        status = Status.HOT;
+        hotWeightedSize += weightedValue.weight;
+      }
+      if (inQueue()) {
+        removeFromQueue();
+      }
+      sentinel.prevInStack.migrateToQueue();
+      pruneStack();
+    }
+
+    /**
+     * Records a hit on a non-resident block. This is how entries join the LIRS
+     * stack and queue.
+     */
+    @GuardedBy("evictionLock")
+    void miss() {
+      if (hotWeightedSize < maximumHotWeightedSize) {
+        // When LIR block set is not full, all the referenced blocks are given
+        // a hot status until the maximum hot weighted size is reached.
+        makeHot();
+        moveToStack_top();
+        return;
+      }
+
+      evict(capacityLimiter);
+
+      // Then we load the requested block X into the freed buffer and place it
+      // on the top of stack.
+      boolean inStack = inStack();
+      moveToStack_top();
+      if (inStack) {
+        // If the node is in stack, we change its status to LIR and move the
+        // LIR block in the bottom of the stack to the end of list with its
+        // status changed to HIR. A stack pruning is then conducted.
+        makeHot();
+        sentinel.prevInStack.migrateToQueue();
+        pruneStack();
+      } else {
+        // If the node is not in the stack, we leave its status in HIR and
+        // place it at the end of queue.
+        makeCold();
+      }
     }
   }
 

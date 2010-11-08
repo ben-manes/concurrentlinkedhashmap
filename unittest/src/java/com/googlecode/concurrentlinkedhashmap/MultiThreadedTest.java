@@ -134,13 +134,13 @@ public final class MultiThreadedTest extends BaseTest {
         } catch (RuntimeException e) {
           String error =
               String.format("Failed: key %s on operation %s for node %s",
-                  key, operation, nodeToString(findNode(key, cache)));
+                  key, operation, nodeToString(cache.data.get(key)));
           failures.add(error);
           throw e;
         } catch (Throwable thr) {
           String error =
               String.format("Halted: key %s on operation %s for node %s",
-                  key, operation, nodeToString(findNode(key, cache)));
+                  key, operation, nodeToString(cache.data.get(key)));
           failures.add(error);
         }
       }
@@ -317,8 +317,10 @@ public final class MultiThreadedTest extends BaseTest {
 
     // Print the state of the cache
     debug("Cached Elements: %s", cache.toString());
-    debug("List Forward:\n%s", listForwardToString(cache));
-    debug("List Backward:\n%s", listBackwardsToString(cache));
+    debug("Stack Forward:\n%s", lirsToString(cache, Direction.FORWARD, Lirs.STACK));
+    debug("Stack Backward:\n%s", lirsToString(cache, Direction.BACKWARD, Lirs.STACK));
+    debug("Queue Forward:\n%s", lirsToString(cache, Direction.FORWARD, Lirs.QUEUE));;
+    debug("Queue Backward:\n%s", lirsToString(cache, Direction.BACKWARD, Lirs.QUEUE));
 
     // Print the recorded failures
     for (String failure : failures) {
@@ -327,21 +329,15 @@ public final class MultiThreadedTest extends BaseTest {
     fail("Spun forever", e);
   }
 
-  static String listForwardToString(ConcurrentLinkedHashMap<?, ?> map) {
-    return listToString(map, true);
-  }
+  enum Lirs { STACK, QUEUE }
+  enum Direction { FORWARD, BACKWARD }
 
-  static String listBackwardsToString(ConcurrentLinkedHashMap<?, ?> map) {
-    return listToString(map, false);
-  }
-
-  private static String listToString(ConcurrentLinkedHashMap<?, ?> map, boolean forward) {
+  private static String lirsToString(ConcurrentLinkedHashMap<?, ?> map, Direction direction, Lirs collection) {
     map.evictionLock.lock();
     try {
       StringBuilder buffer = new StringBuilder("\n");
       Set<Object> seen = newSetFromMap(new IdentityHashMap<Object, Boolean>());
-      ConcurrentLinkedHashMap<?, ?>.Node current = forward
-          ? map.sentinel.next : map.sentinel.prev;
+      ConcurrentLinkedHashMap<?, ?>.Node current = iterate(map.sentinel, direction, collection);
       while (current != map.sentinel) {
         buffer.append(nodeToString(current)).append("\n");
         boolean added = seen.add(current);
@@ -349,11 +345,20 @@ public final class MultiThreadedTest extends BaseTest {
           buffer.append("Failure: Loop detected\n");
           break;
         }
-        current = forward ? current.next : current.prev;
+        current = iterate(current, direction, collection);
       }
       return buffer.toString();
     } finally {
       map.evictionLock.unlock();
+    }
+  }
+
+  private static ConcurrentLinkedHashMap<?, ?>.Node iterate(
+      ConcurrentLinkedHashMap<?, ?>.Node current, Direction direction, Lirs collection) {
+    if (collection == Lirs.STACK) {
+      return (direction == Direction.FORWARD) ? current.nextInStack : current.prevInStack;
+    } else {
+      return (direction == Direction.FORWARD) ? current.nextInQueue : current.prevInQueue;
     }
   }
 
@@ -365,23 +370,5 @@ public final class MultiThreadedTest extends BaseTest {
       return "setinel";
     }
     return node.key + "=" + node.weightedValue.value;
-  }
-
-  /** Finds the node in the map by walking the list. Returns null if not found. */
-  static ConcurrentLinkedHashMap<?, ?>.Node findNode(
-      Object key, ConcurrentLinkedHashMap<?, ?> map) {
-    map.evictionLock.lock();
-    try {
-      ConcurrentLinkedHashMap<?, ?>.Node current = map.sentinel.next;
-      while (current != map.sentinel) {
-        if (current.equals(key)) {
-          return current;
-        }
-        current = current.next;
-      }
-      return null;
-    } finally {
-      map.evictionLock.unlock();
-    }
   }
 }

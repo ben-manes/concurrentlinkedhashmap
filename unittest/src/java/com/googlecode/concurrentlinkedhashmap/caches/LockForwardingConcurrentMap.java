@@ -18,10 +18,10 @@ final class LockForwardingConcurrentMap<K, V> implements ConcurrentMap<K, V> {
   private final Lock writeLock;
   private final Lock readLock;
 
-  public LockForwardingConcurrentMap(Lock readLock, Lock writeLock, ConcurrentMap<K, V> delegate) {
+  public LockForwardingConcurrentMap(Lock readLock, Lock writeLock, Map<K, V> delegate) {
+    this.delegate = new ConcurrentMapAdapter<K, V>(delegate);
     this.writeLock = writeLock;
     this.readLock = readLock;
-    this.delegate = delegate;
   }
 
   @Override

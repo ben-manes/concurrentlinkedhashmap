@@ -6,6 +6,7 @@ import com.googlecode.concurrentlinkedhashmap.caches.ProductionMap.EvictionPolic
 
 import net.sf.ehcache.store.MemoryStoreEvictionPolicy;
 
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.locks.Lock;
@@ -58,7 +59,7 @@ public enum Cache {
   LinkedHashMap_Fifo_Lock() {
     @Override public <K, V> ConcurrentMap<K, V> create(CacheBuilder builder) {
       ReadWriteLock lock = new ReentrantReadWriteLock();
-      ConcurrentMap<K, V> delegate = new BoundedLinkedHashMap<K, V>(AccessOrder.FIFO, builder);
+      Map<K, V> delegate = new BoundedLinkedHashMap<K, V>(AccessOrder.FIFO, builder);
       return new LockForwardingConcurrentMap<K, V>(lock.readLock(), lock.writeLock(), delegate);
     }
   },
@@ -67,7 +68,7 @@ public enum Cache {
   LinkedHashMap_Lru_Lock() {
     @Override public <K, V> ConcurrentMap<K, V> create(CacheBuilder builder) {
       Lock lock = new ReentrantLock(); // LRU mutates on reads to update access order
-      ConcurrentMap<K, V> delegate = new BoundedLinkedHashMap<K, V>(AccessOrder.LRU, builder);
+      Map<K, V> delegate = new BoundedLinkedHashMap<K, V>(AccessOrder.LRU, builder);
       return new LockForwardingConcurrentMap<K, V>(lock, lock, delegate);
     }
   },
@@ -75,7 +76,7 @@ public enum Cache {
   /** LinkedHashMap in FIFO eviction, guarded by synchronized monitor. */
   LinkedHashMap_Fifo_Sync() {
     @Override public <K, V> ConcurrentMap<K, V> create(CacheBuilder builder) {
-      ConcurrentMap<K, V> delegate = new BoundedLinkedHashMap<K, V>(AccessOrder.FIFO, builder);
+      Map<K, V> delegate = new BoundedLinkedHashMap<K, V>(AccessOrder.FIFO, builder);
       return new SynchronizedForwardingConcurrentMap<K, V>(delegate);
     }
   },
@@ -83,7 +84,7 @@ public enum Cache {
   /** LinkedHashMap in LRU eviction, guarded by synchronized monitor. */
   LinkedHashMap_Lru_Sync() {
     @Override public <K, V> ConcurrentMap<K, V> create(CacheBuilder builder) {
-      ConcurrentMap<K, V> delegate = new BoundedLinkedHashMap<K, V>(AccessOrder.LRU, builder);
+      Map<K, V> delegate = new BoundedLinkedHashMap<K, V>(AccessOrder.LRU, builder);
       return new SynchronizedForwardingConcurrentMap<K, V>(delegate);
     }
   },
@@ -106,6 +107,16 @@ public enum Cache {
   Ehcache_Lru() {
     @Override public <K, V> ConcurrentMap<K, V> create(CacheBuilder builder) {
       return new EhcacheMap<K, V>(MemoryStoreEvictionPolicy.LRU, builder);
+    }
+  },
+
+  /**
+   * A HashMap with LIRS eviction, guarded by synchronized monitor.
+   */
+  Lirs() {
+    @Override public <K, V> ConcurrentMap<K, V>  create(CacheBuilder builder) {
+      Map<K, V> delegate = new LirsMap<K, V>(builder.maximumCapacity);
+      return new SynchronizedForwardingConcurrentMap<K, V>(delegate);
     }
   };
 

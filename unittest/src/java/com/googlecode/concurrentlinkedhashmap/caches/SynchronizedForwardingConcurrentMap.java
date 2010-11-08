@@ -16,8 +16,8 @@ final class SynchronizedForwardingConcurrentMap<K, V> implements ConcurrentMap<K
   private final ConcurrentMap<K, V> delegate;
   private final Object lock;
 
-  public SynchronizedForwardingConcurrentMap(ConcurrentMap<K, V> delegate) {
-    this.delegate = delegate;
+  public SynchronizedForwardingConcurrentMap(Map<K, V> delegate) {
+    this.delegate = new ConcurrentMapAdapter<K, V>(delegate);
     this.lock = new Object();
   }
 
