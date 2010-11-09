@@ -741,6 +741,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     public void run() {
       weightedSize += weight;
       node.miss();
+      evict(capacityLimiter);
     }
   }
 
