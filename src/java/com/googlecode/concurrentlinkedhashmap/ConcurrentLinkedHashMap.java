@@ -594,7 +594,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * @param lastRecencyIndex the last index of the recencies array
    */
   @GuardedBy("evictionLock")
-  private void updateDrainedRecencyOrder(Object[] recencies, int lastRecencyIndex) {
+  void updateDrainedRecencyOrder(Object[] recencies, int lastRecencyIndex) {
     if (lastRecencyIndex != -1) {
       RecencyReference recency = (RecencyReference) recencies[lastRecencyIndex];
       drainedRecencyOrder = recency.recencyOrder + 1;
