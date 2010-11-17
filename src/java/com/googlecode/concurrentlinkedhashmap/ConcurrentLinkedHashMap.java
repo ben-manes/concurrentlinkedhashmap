@@ -228,8 +228,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     sentinel = new Node();
     weigher = builder.weigher;
     evictionLock = new ReentrantLock();
-    globalRecencyOrder = Integer.MIN_VALUE;
-    drainedRecencyOrder = Integer.MIN_VALUE;
     capacityLimiter = builder.capacityLimiter;
     writeQueue = new ConcurrentLinkedQueue<Runnable>();
 
@@ -278,7 +276,13 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     if (capacity < 0) {
       throw new IllegalArgumentException();
     }
-    this.maximumWeightedSize = Math.min(capacity, MAXIMUM_CAPACITY);
+    evictionLock.lock();
+    try {
+      maximumWeightedSize = Math.min(capacity, MAXIMUM_CAPACITY);
+      updateMaximumHotWeightedSize();
+    } finally {
+      evictionLock.unlock();
+    }
     evictWith(capacityLimiter);
   }
 
@@ -287,7 +291,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * page replacement algorithm based on the maximum weighted size.
    */
   @GuardedBy("evictionLock")
-  private void updateMaximumHotWeightedSize() {
+  void updateMaximumHotWeightedSize() {
     // If the maximum hot size is equal to the maximum size then the page
     // replacement algorithm degrades to an LRU policy. To avoid this, the
     // maximum hot size is decreased by one when it would otherwise be equal.
@@ -302,7 +306,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * queue; otherwise they are no longer referenced and are evicted.
    */
   @GuardedBy("evictionLock")
-  private void pruneStack() {
+  void pruneStack() {
     // See section 3.3:
     // "We define an operation called "stack pruning" on the LIRS stack S,
     // which removes the HIR blocks in the bottom of the stack until an LIR
@@ -397,7 +401,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    *
    * @return the node to the entry to evict or the sentinel if empty
    */
-  private Node nextVictim() {
+  Node nextVictim() {
     // TODO(bmanes): Revisit - forgot why this is a hack due to dynamic resizing
 
     // See section 3.3 case #3:
@@ -531,8 +535,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   void drainRecencyQueues() {
     // A strict recency ordering is achieved by observing that each queue
     // contains recencies in weakly sorted order starting from the last drain.
-    // The queues can be merged into a single weakly sorted list in O(n) time
-    // by using counting sort and chaining on a collision.
+    // The queues can be merged into a sorted array in O(n) time by using
+    // counting sort and chaining on a collision.
 
     // The merged output is capped to the expected number of recencies plus
     // additional slack to optimistically handle the concurrent additions to
@@ -683,8 +687,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * @param lastRecencyIndex the last index of the recencies array
    */
   @GuardedBy("evictionLock")
-  private void updateDrainedRecencyOrder(Object[] recencies, int lastRecencyIndex) {
-    if (lastRecencyIndex != -1) {
+  void updateDrainedRecencyOrder(Object[] recencies, int lastRecencyIndex) {
+    if (lastRecencyIndex >= 0) {
       RecencyReference recency = (RecencyReference) recencies[lastRecencyIndex];
       drainedRecencyOrder = recency.recencyOrder + 1;
     }
@@ -1320,7 +1324,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
      * The bottom entry on the queue is always hot due to stack pruning.
      */
     @GuardedBy("evictionLock")
-    private void migrateToQueue() {
+    void migrateToQueue() {
       removeFromStack();
       makeCold();
     }
@@ -1338,7 +1342,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
     /** Becomes a hot entry. */
     @GuardedBy("evictionLock")
-    private void makeHot() {
+    void makeHot() {
       addToHotWeightedSize();
       status = Status.HOT;
     }
