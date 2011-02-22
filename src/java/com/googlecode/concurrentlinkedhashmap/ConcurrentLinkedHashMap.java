@@ -119,10 +119,21 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   // The read queues can be merged in O(n) time so that the recency operations
   // are applied in the expected order.
   //
-  // The Low Inter-reference Recency Set was chosen as the page replacement
-  // algorithm due to its high hit rate, ability to track both the recency and
-  // frequency, and be implemented with O(1) time complexity. This algorithm is
-  // described in [1] and was evaluated against other algorithms in [2].
+  // The page replacement algorithm is chosen based on whether the singleton
+  // weigher is used. If so, the Low Inter-reference Recency Set (LIRS) policy
+  // is enabled. Otherwise the Least Recently Used (LRU) policy is used. This
+  // avoids a race condition when the value's weight changes while it is being
+  // moved between the LIRS stack and queue.
+  //
+  // The Low Inter-reference Recency Set (LIRS) was chosen as the default page
+  // replacement algorithm due to its high hit rate, ability to track both the
+  // recency and frequency, and be implemented with O(1) time complexity. This
+  // algorithm is described in [1] and was evaluated against other algorithms in
+  // [2].
+  //
+  // The Least Recently Used (LRU) page replacement algorithm was chosen for
+  // weighted values due to its simplicity, high hit rate, and ability to be
+  // implemented with O(1) time complexity.
   //
   // [1] LIRS: An Efficient Low Inter-reference Recency Set Replacement to
   // Improve Buffer Cache Performance
@@ -166,21 +177,12 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   @GuardedBy("evictionLock")
   final Node sentinel;
 
-  @GuardedBy("evictionLock") // must write under lock
-  volatile int weightedSize;
-  @GuardedBy("evictionLock") // must write under lock
-  volatile int maximumWeightedSize;
-
-  @GuardedBy("evictionLock")
-  int hotWeightedSize;
-  @GuardedBy("evictionLock")
-  int maximumHotWeightedSize;
-
   volatile int globalRecencyOrder;
   final int maxRecenciesToDrain;
   @GuardedBy("evictionLock")
   int drainedRecencyOrder;
 
+  final Policy policy;
   final Lock evictionLock;
   final Weigher<? super V> weigher;
   final Queue<Runnable> writeQueue;
@@ -218,18 +220,16 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     for (int i = 0; i < segments; i++) {
       segmentLock[i] = new ReentrantLock();
     }
-
-    // The data store and its maximum capacity
     data = new ConcurrentHashMap<K, Node>(builder.initialCapacity, 0.75f, concurrencyLevel);
-    maximumWeightedSize = Math.min(builder.maximumWeightedCapacity, MAXIMUM_CAPACITY);
-    updateMaximumHotWeightedSize();
 
     // The eviction support
-    sentinel = new Node();
     weigher = builder.weigher;
+    policy = (weigher == Weighers.singleton()) ? new LirsPolicy() : new LruPolicy();
+    sentinel = policy.createSentinel();
     evictionLock = new ReentrantLock();
     capacityLimiter = builder.capacityLimiter;
     writeQueue = new ConcurrentLinkedQueue<Runnable>();
+    policy.setCapacity(builder.maximumWeightedCapacity);
 
     recencyQueue = (Queue<RecencyReference>[]) new Queue[segments];
     recencyQueueLength = new AtomicIntegerArray(recencyQueue.length);
@@ -245,9 +245,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
         : new ConcurrentLinkedQueue<Node>();
   }
 
-  /**
-   * Asserts that the object is not null.
-   */
+  /** Asserts that the object is not null. */
   static void checkNotNull(Object o, String message) {
     if (o == null) {
       throw new NullPointerException(message);
@@ -262,7 +260,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * @return the maximum weighted capacity
    */
   public int capacity() {
-    return maximumWeightedSize;
+    return policy.capacity();
   }
 
   /**
@@ -278,58 +276,11 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     }
     evictionLock.lock();
     try {
-      maximumWeightedSize = Math.min(capacity, MAXIMUM_CAPACITY);
-      updateMaximumHotWeightedSize();
+      policy.setCapacity(capacity);
     } finally {
       evictionLock.unlock();
     }
     evictWith(capacityLimiter);
-  }
-
-  /**
-   * Sets the maximum number of entries that can be considered hot by the LIRS
-   * page replacement algorithm based on the maximum weighted size.
-   */
-  @GuardedBy("evictionLock")
-  void updateMaximumHotWeightedSize() {
-    // If the maximum hot size is equal to the maximum size then the page
-    // replacement algorithm degrades to an LRU policy. To avoid this, the
-    // maximum hot size is decreased by one when it would otherwise be equal.
-    int size = (int) (HOT_RATE * maximumWeightedSize);
-    maximumHotWeightedSize = (size == maximumWeightedSize)
-        ? (maximumWeightedSize - 1) : size;
-  }
-
-  /**
-   * Prunes HIR blocks in the bottom of the stack until an HOT block sits in
-   * the stack bottom. If pruned blocks were resident then they remain in the
-   * queue; otherwise they are no longer referenced and are evicted.
-   */
-  @GuardedBy("evictionLock")
-  void pruneStack() {
-    // See section 3.3:
-    // "We define an operation called "stack pruning" on the LIRS stack S,
-    // which removes the HIR blocks in the bottom of the stack until an LIR
-    // block sits in the stack bottom. This operation serves for two purposes:
-    // (1) We ensure the block in the bottom of the stack always belongs to the
-    // LIR block set. (2) After the LIR block in the bottom is removed, those
-    // HIR blocks contiguously located above it will not have chances to change
-    // their status from HIR to LIR, because their recencies are larger than
-    // the new maximum recency of LIR blocks."
-    Node bottom = sentinel.prevInStack;
-    while ((bottom != sentinel) && (bottom.status != Status.HOT)) {
-      if (bottom.status == Status.NON_RESIDENT) {
-        // Notify the listener if the entry was evicted
-        if (data.remove(bottom.key, bottom)) {
-          listenerQueue.add(bottom);
-        }
-        weightedSize -= bottom.weightedValue.weight;
-        bottom.remove();
-      } else {
-        bottom.removeFromStack();
-      }
-      bottom = sentinel.prevInStack;
-    }
   }
 
   /**
@@ -378,7 +329,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     // that if an eviction is still required then a new victim will be chosen
     // for removal.
     while (hasOverflowed(capacityLimiter)) {
-      Node node = nextVictim();
+      Node node = policy.victim();
       if (node == sentinel) {
         // The map has evicted all of its entries and can offer no further aid
         // in fulfilling the limiter's constraint. Note that for the weighted
@@ -391,47 +342,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       if (data.remove(node.key, node)) {
         listenerQueue.add(node);
       }
-      decrementWeightFor(node);
-      node.remove();
-    }
-  }
-
-  /**
-   * Determines the next victim entry to evict from the map.
-   *
-   * @return the node to the entry to evict or the sentinel if empty
-   */
-  Node nextVictim() {
-    // TODO(bmanes): Revisit - forgot why this is a hack due to dynamic resizing
-
-    // See section 3.3 case #3:
-    // "We remove the HIR resident block at the front of list Q (it then
-    // becomes a non-resident block), and replace it out of the cache."
-    Node node = sentinel.nextInQueue;
-    return (node == sentinel) ? sentinel.nextInStack : node;
-  }
-
-  /**
-   * Decrements the weighted size by the node's weight. This method should be
-   * called after the node has been removed from the data map, but it may be
-   * still referenced by concurrent operations.
-   *
-   * @param node the entry that was removed
-   */
-  @GuardedBy("evictionLock")
-  void decrementWeightFor(Node node) {
-    if (weigher == Weighers.singleton()) {
-      weightedSize--;
-    } else {
-      // Decrements under the segment lock to ensure that a concurrent update
-      // to the node's weight has completed.
-      Lock lock = segmentLock[node.segment];
-      lock.lock();
-      try {
-        weightedSize -= node.weightedValue.weight;
-      } finally {
-        lock.unlock();
-      }
+      policy.evict(node);
     }
   }
 
@@ -484,7 +395,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     // A recency queue is chosen by the thread's id so that recencies are evenly
     // distributed between queues. This ensures that hot entries do not cause
     // contention due to the threads trying to append to the same queue.
-    int index = (int) Thread.currentThread().getId() % recencyQueue.length;
+    int index = (int) Thread.currentThread().getId() & segmentMask;
 
     // The recency's global order is acquired in a racy fashion as the increment
     // is not atomic with the insertion. This means that concurrent reads can
@@ -664,19 +575,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     // linked then it does not need to be processed.
     Node node = recency.get();
     if ((node != null) && node.isLinked()) {
-      switch (node.status) {
-        case HOT:
-          node.hotHit();
-          break;
-        case COLD:
-          node.coldHit();
-          break;
-        case NON_RESIDENT:
-          node.miss();
-          break;
-        default:
-          throw new AssertionError();
-      }
+      node.reorder();
     }
   }
 
@@ -743,8 +642,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     @Override
     @GuardedBy("evictionLock")
     public void run() {
-      weightedSize += weight;
-      node.miss();
+      policy.currentSize += weight;
+      node.add();
       evict(capacityLimiter);
     }
   }
@@ -763,8 +662,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     @GuardedBy("evictionLock")
     public void run() {
       if (node.isLinked()) {
-        weightedSize -= node.weightedValue.weight;
-        node.remove();
+        policy.remove(node);
       }
     }
   }
@@ -782,7 +680,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     @Override
     @GuardedBy("evictionLock")
     public void run() {
-      weightedSize += weightDifference;
+      policy.currentSize += weightDifference;
       evict(capacityLimiter);
     }
   }
@@ -805,7 +703,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * @return the combined weight of the values in this map
    */
   public int weightedSize() {
-    return weightedSize;
+    return policy.currentSize;
   }
 
   @Override
@@ -821,13 +719,9 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       for (Node node : data.values()) {
         if (node.isLinked()) {
           data.remove(node.key, node);
-          decrementWeightFor(node);
-          node.prevInStack = node.nextInStack = null;
-          node.prevInQueue = node.nextInQueue = null;
+          policy.evict(node);
         }
       }
-      sentinel.prevInStack = sentinel.nextInStack = sentinel;
-      sentinel.prevInQueue = sentinel.nextInQueue = sentinel;
 
       // Eagerly discards all of the stale recency reorderings
       for (int i = 0; i < recencyQueue.length; i++) {
@@ -923,7 +817,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     Lock lock = segmentLock[segment];
     int weight = weigher.weightOf(value);
     WeightedValue<V> weightedValue = new WeightedValue<V>(value, weight);
-    Node node = new Node(key, weightedValue, segment);
+    Node node = policy.createNode(key, weightedValue, segment);
 
     // maintain per-segment write ordering
     lock.lock();
@@ -1125,6 +1019,295 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   }
 
   /**
+   * A value and its weight.
+   */
+  static final class WeightedValue<V> {
+    final int weight;
+    final V value;
+
+    public WeightedValue(V value, int weight) {
+      if ((weight < 1) || (weight > MAXIMUM_WEIGHT)) {
+        throw new IllegalArgumentException("invalid weight");
+      }
+      this.weight = weight;
+      this.value = value;
+    }
+  }
+
+  abstract class Policy {
+    @GuardedBy("evictionLock") // must write under lock
+    volatile int currentSize;
+    @GuardedBy("evictionLock") // must write under lock
+    volatile int capacity;
+
+    /** Creates a new sentinel node. */
+    abstract Node createSentinel();
+
+    /** Creates a new, unlinked data node. */
+    abstract Node createNode(K key, WeightedValue<V> weightedValue, int segment);
+
+    /** Determines the next victim entry to evict from the map. */
+    @GuardedBy("evictionLock")
+    abstract Node victim();
+
+    @GuardedBy("evictionLock")
+    abstract void setCapacity(int capacity);
+
+    final int capacity() {
+      return capacity;
+    }
+
+    /**
+     * Decrements the weighted size by the node's weight. This method should be
+     * called after the node has been removed from the data map, but it may be
+     * still referenced by concurrent operations.
+     *
+     * @param node the entry that was removed
+     */
+    @GuardedBy("evictionLock")
+    abstract void evict(Node node);
+
+    @GuardedBy("evictionLock")
+    abstract void remove(Node node);
+  }
+
+  final class LruPolicy extends Policy {
+
+    LruPolicy() {
+      if (weigher == Weighers.singleton()) {
+        throw new AssertionError("LRU should only be used with weighted values");
+      }
+    }
+
+    @Override
+    LruNode createSentinel() {
+      return new LruNode();
+    }
+
+    @Override
+    LruNode createNode(K key, WeightedValue<V> weightedValue, int segment) {
+      return new LruNode(key, weightedValue, segment);
+    }
+
+    @Override
+    @GuardedBy("evictionLock")
+    LruNode victim() {
+      return ((LruNode) sentinel).next;
+    }
+
+    @Override
+    @GuardedBy("evictionLock")
+    void setCapacity(int capacity) {
+      this.capacity = Math.min(capacity, MAXIMUM_CAPACITY);
+    }
+
+    @Override
+    @GuardedBy("evictionLock")
+    void evict(Node node) {
+      // Decrements under the segment lock to ensure that a concurrent update
+      // to the node's weight has completed.
+      Lock lock = segmentLock[node.segment];
+      lock.lock();
+      try {
+        currentSize -= node.weightedValue.weight;
+      } finally {
+        lock.unlock();
+      }
+      node.remove();
+    }
+
+    @Override
+    @GuardedBy("evictionLock")
+    void remove(Node node) {
+      currentSize -= node.weightedValue.weight;
+      node.remove();
+    }
+  }
+
+  final class LirsPolicy extends Policy {
+    @GuardedBy("evictionLock")
+    int hotSize;
+    @GuardedBy("evictionLock")
+    int maximumHotSize;
+
+    LirsPolicy() {
+      if (weigher != Weighers.singleton()) {
+        throw new AssertionError("LIRS is incompatible with weighted values");
+      }
+    }
+
+    @Override
+    LirsNode createSentinel() {
+      return new LirsNode();
+    }
+
+    @Override
+    LirsNode createNode(K key, WeightedValue<V> weightedValue, int segment) {
+      return new LirsNode(key, weightedValue, segment);
+    }
+
+    @Override
+    @GuardedBy("evictionLock")
+    LirsNode victim() {
+      // See section 3.3 case #3:
+      // "We remove the HIR resident block at the front of list Q (it then
+      // becomes a non-resident block), and replace it out of the cache."
+      return ((LirsNode) sentinel).nextInQueue;
+    }
+
+    /**
+     * Sets the maximum number of entries that can be considered hot by the LIRS
+     * page replacement algorithm based on the maximum weighted size.
+     */
+    @Override
+    @GuardedBy("evictionLock")
+    void setCapacity(int capacity) {
+      int maxSize = Math.min(capacity, MAXIMUM_CAPACITY);
+      this.capacity = maxSize;
+
+      // If the maximum hot size is equal to the maximum size then the page
+      // replacement algorithm degrades to an LRU policy. To avoid this, the
+      // maximum hot size is decreased by one when it would otherwise be equal.
+      int size = (int) (HOT_RATE * maxSize);
+      maximumHotSize = (size == maxSize) ? (maxSize - 1) : size;
+    }
+
+    @Override
+    @GuardedBy("evictionLock")
+    void evict(Node node) {
+      remove(node);
+    }
+
+    @Override
+    @GuardedBy("evictionLock")
+    void remove(Node node) {
+      currentSize--;
+      node.remove();
+    }
+
+    @GuardedBy("evictionLock")
+    void incrementHotSize() {
+      hotSize++;
+    }
+
+    @GuardedBy("evictionLock")
+    void decrementHotSize() {
+      hotSize--;
+    }
+
+    boolean canMakeHot() {
+      return hotSize < maximumHotSize;
+    }
+  }
+
+  /**
+   * A node contains the key, the weighted value, the segment index, and
+   * linkage pointers on the page-replacement algorithm's data structures.
+   */
+  abstract class Node {
+    protected final K key;
+
+    @GuardedBy("segmentLock") // must write under lock
+    protected volatile WeightedValue<V> weightedValue;
+
+    /** The segment that the node is associated with. */
+    protected final int segment;
+
+    /** Creates a new sentinel node. */
+    Node() {
+      this.key = null;
+      this.segment = -1;
+    }
+
+    /** Creates a new, unlinked data node. */
+    Node(K key, WeightedValue<V> weightedValue, int segment) {
+      this.weightedValue = weightedValue;
+      this.segment = segment;
+      this.key = key;
+    }
+
+    /** Whether the node is linked in the page replacement algorithm. */
+    abstract boolean isLinked();
+
+    /** Adds the node to the page replacement algorithm. */
+    @GuardedBy("evictionLock")
+    abstract void add();
+
+    /** Removes the node from the page replacement algorithm. */
+    @GuardedBy("evictionLock")
+    abstract void remove();
+
+    /** Applies the recency reordering to the page replacement policy. */
+    @GuardedBy("evictionLock")
+    abstract void reorder();
+  }
+
+  final class LruNode extends Node {
+    /**
+     * A link to the entry that was less recently used or the sentinel if this
+     * entry is the least recent.
+     */
+    @GuardedBy("evictionLock")
+    LruNode prev;
+
+    /**
+     * A link to the entry that was more recently used or the sentinel if this
+     * entry is the most recent.
+     */
+    @GuardedBy("evictionLock")
+    LruNode next;
+
+
+    /** Creates a new sentinel node. */
+    LruNode() {
+      this.prev = next = this;
+    }
+
+    /** Creates a new, unlinked data node. */
+    LruNode(K key, WeightedValue<V> weightedValue, int segment) {
+      super(key, weightedValue, segment);
+    }
+
+    @Override
+    @GuardedBy("evictionLock")
+    void remove() {
+      prev.next = next;
+      next.prev = prev;
+      // null to reduce GC pressure
+      prev = next = null;
+    }
+
+    /** Appends the node to the tail of the list. */
+    @Override
+    @GuardedBy("evictionLock")
+    void add() {
+      LruNode head = (LruNode) sentinel;
+      prev = head.prev;
+      next = head;
+      head.prev.next = this;
+      head.prev = this;
+    }
+
+    /** Moves the node to the tail of the list. */
+    @Override
+    @GuardedBy("evictionLock")
+    void reorder() {
+      if (next != sentinel) {
+        prev.next = next;
+        next.prev = prev;
+        add();
+      }
+    }
+
+    /** Whether the node is linked on the list. */
+    @Override
+    @GuardedBy("evictionLock")
+    boolean isLinked() {
+      return (next != null);
+    }
+  }
+
+  /**
    * The page-replacement status of an entry.
    */
   enum Status {
@@ -1146,34 +1329,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     NON_RESIDENT
   }
 
-  /**
-   * A value and its weight.
-   */
-  static final class WeightedValue<V> {
-    final int weight;
-    final V value;
-
-    public WeightedValue(V value, int weight) {
-      if ((weight < 1) || (weight > MAXIMUM_WEIGHT)) {
-        throw new IllegalArgumentException("invalid weight");
-      }
-      this.weight = weight;
-      this.value = value;
-    }
-  }
-
-  /**
-   * An entry that contains the key, the weighted value, the segment index, and
-   * linkage pointers on the page-replacement algorithm's data structures.
-   */
-  final class Node {
-    final K key;
-    @GuardedBy("segmentLock") // must write under lock
-    volatile WeightedValue<V> weightedValue;
-
-    /** The segment that the node is associated with. */
-    final int segment;
-
+  final class LirsNode extends Node {
     /** The LIRS status of the entry. */
     @GuardedBy("evictionLock")
     volatile Status status;
@@ -1188,38 +1344,54 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
      * recently accessed entry at the bottom.
      */
     @GuardedBy("evictionLock")
-    Node prevInStack;
+    LirsNode prevInStack;
     @GuardedBy("evictionLock")
-    Node nextInStack;
+    LirsNode nextInStack;
 
     /**
      * The links on the LIRS queue, Q, which holds all cold entries and supplies
      * the victim entry at the head of the queue for eviction.
      */
     @GuardedBy("evictionLock")
-    Node prevInQueue;
+    LirsNode prevInQueue;
     @GuardedBy("evictionLock")
-    Node nextInQueue;
+    LirsNode nextInQueue;
 
     /** Creates a new sentinel node. */
-    Node() {
-      this.key = null;
-      this.segment = -1;
+    LirsNode() {
       this.prevInStack = nextInStack = this;
       this.prevInQueue = nextInQueue = this;
     }
 
     /** Creates a new, unlinked data node. */
-    Node(K key, WeightedValue<V> weightedValue, int segment) {
-      this.weightedValue = weightedValue;
+    LirsNode(K key, WeightedValue<V> weightedValue, int segment) {
+      super(key, weightedValue, segment);
       this.status = Status.NON_RESIDENT;
-      this.segment = segment;
-      this.key = key;
     }
 
     /** Whether the node is linked on the stack or queue. */
+    @Override
+    @GuardedBy("evictionLock")
     boolean isLinked() {
       return inStack() || inQueue();
+    }
+
+    @Override
+    @GuardedBy("evictionLock")
+    void reorder() {
+      switch (status) {
+        case HOT:
+          hotHit();
+          break;
+        case COLD:
+          coldHit();
+          break;
+        case NON_RESIDENT:
+          add();
+          break;
+        default:
+          throw new AssertionError();
+      }
     }
 
     /* ---------------- LIRS Stack Support -------------- */
@@ -1231,7 +1403,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
         prevInStack.nextInStack = nextInStack;
         nextInStack.prevInStack = prevInStack;
       }
-      addToStackBefore(sentinel.nextInStack);
+      addToStackBefore(((LirsNode) sentinel).nextInStack);
     }
 
     /** Adds or moves the node to the bottom of the stack. */
@@ -1241,12 +1413,12 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
         prevInStack.nextInStack = nextInStack;
         nextInStack.prevInStack = prevInStack;
       }
-      addToStackBefore(sentinel);
+      addToStackBefore((LirsNode) sentinel);
     }
 
     /** Adds this node before the specified node in the stack. */
     @GuardedBy("evictionLock")
-    void addToStackBefore(Node node) {
+    void addToStackBefore(LirsNode node) {
       prevInStack = node.prevInStack;
       nextInStack = node;
       prevInStack.nextInStack = this;
@@ -1282,8 +1454,9 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     /** Adds the node to the tail of the queue. */
     @GuardedBy("evictionLock")
     void addToQueue() {
-      prevInQueue = sentinel.prevInQueue;
-      nextInQueue = sentinel;
+      LirsNode head = (LirsNode) sentinel;
+      prevInQueue = head.prevInQueue;
+      nextInQueue = head;
       prevInQueue.nextInQueue = this;
       nextInQueue.prevInQueue = this;
     }
@@ -1330,6 +1503,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     }
 
     /** Removes the node from the stack and queue. */
+    @Override
     @GuardedBy("evictionLock")
     void remove() {
       if (inQueue()) {
@@ -1343,7 +1517,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     /** Becomes a hot entry. */
     @GuardedBy("evictionLock")
     void makeHot() {
-      addToHotWeightedSize();
+      incrementHotWeightedSize();
       status = Status.HOT;
     }
 
@@ -1357,47 +1531,28 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       moveToQueue_tail();
     }
 
-    void addToHotWeightedSize() {
-      if (weigher == Weighers.singleton()) {
-        hotWeightedSize++;
-      } else {
-        Lock lock = segmentLock[segment];
-        lock.lock();
-        try {
-          hotWeightedSize += weightedValue.weight;
-        } finally {
-          lock.unlock();
-        }
-      }
+    @GuardedBy("evictionLock")
+    void incrementHotWeightedSize() {
+      ((LirsPolicy) policy).incrementHotSize();
     }
 
+    @GuardedBy("evictionLock")
     void subtractFromHotWeightedSize() {
-      if (weigher == Weighers.singleton()) {
-        hotWeightedSize--;
-      } else {
-        Lock lock = segmentLock[segment];
-        lock.lock();
-        try {
-          hotWeightedSize -= weightedValue.weight;
-        } finally {
-          lock.unlock();
-        }
-      }
+      ((LirsPolicy) policy).decrementHotSize();
     }
 
     // FIXME(bmanes): Not used?
     /** Becomes a non-resident entry. */
     @GuardedBy("evictionLock")
     void makeNonResident() {
-      int weight = weightedValue.weight;
       switch (status) {
         case HOT:
-          weightedSize -= weight;
-          hotWeightedSize -= weight;
+          policy.currentSize++;
+          incrementHotWeightedSize();
           status = Status.NON_RESIDENT;
           break;
         case COLD:
-          weightedSize -= weight;
+          policy.currentSize--;
           status = Status.NON_RESIDENT;
           break;
       }
@@ -1407,7 +1562,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     @GuardedBy("evictionLock")
     void hotHit() {
       // See section 3.3, case #1
-      boolean onBottom = (sentinel.prevInStack == this);
+      boolean onBottom = (((LirsNode) sentinel).prevInStack == this);
       moveToStack_top();
       if (onBottom) {
         pruneStack();
@@ -1427,12 +1582,12 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
       if (status != Status.HOT) {
         status = Status.HOT;
-        hotWeightedSize += weightedValue.weight;
+        incrementHotWeightedSize();
       }
       if (inQueue()) {
         removeFromQueue();
       }
-      sentinel.prevInStack.migrateToQueue();
+      ((LirsNode) sentinel).prevInStack.migrateToQueue();
       pruneStack();
     }
 
@@ -1440,9 +1595,10 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
      * Records a hit on a non-resident block. This is how entries join the LIRS
      * stack and queue.
      */
+    @Override
     @GuardedBy("evictionLock")
-    void miss() {
-      if (hotWeightedSize < maximumHotWeightedSize) {
+    void add() {
+      if (((LirsPolicy) policy).canMakeHot()) {
         // When LIR block set is not full, all the referenced blocks are given
         // a hot status until the maximum hot weighted size is reached.
         makeHot();
@@ -1461,12 +1617,45 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
         // LIR block in the bottom of the stack to the end of list with its
         // status changed to HIR. A stack pruning is then conducted.
         makeHot();
-        sentinel.prevInStack.migrateToQueue();
+        ((LirsNode) sentinel).prevInStack.migrateToQueue();
         pruneStack();
       } else {
         // If the node is not in the stack, we leave its status in HIR and
         // place it at the end of queue.
         makeCold();
+      }
+    }
+
+    /**
+     * Prunes HIR blocks in the bottom of the stack until an HOT block sits in
+     * the stack bottom. If pruned blocks were resident then they remain in the
+     * queue; otherwise they are no longer referenced and are evicted.
+     */
+    @GuardedBy("evictionLock")
+    void pruneStack() {
+      // See section 3.3:
+      // "We define an operation called "stack pruning" on the LIRS stack S,
+      // which removes the HIR blocks in the bottom of the stack until an LIR
+      // block sits in the stack bottom. This operation serves for two purposes:
+      // (1) We ensure the block in the bottom of the stack always belongs to the
+      // LIR block set. (2) After the LIR block in the bottom is removed, those
+      // HIR blocks contiguously located above it will not have chances to change
+      // their status from HIR to LIR, because their recencies are larger than
+      // the new maximum recency of LIR blocks."
+      LirsNode head = (LirsNode) sentinel;
+      LirsNode bottom = head.prevInStack;
+      while ((bottom != sentinel) && (bottom.status != Status.HOT)) {
+        if (bottom.status == Status.NON_RESIDENT) {
+          // Notify the listener if the entry was evicted
+          if (data.remove(bottom.key, bottom)) {
+            listenerQueue.add(bottom);
+          }
+          policy.currentSize--;
+          bottom.remove();
+        } else {
+          bottom.removeFromStack();
+        }
+        bottom = head.prevInStack;
       }
     }
   }
@@ -1746,7 +1935,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     SerializationProxy(ConcurrentLinkedHashMap<K, V> map) {
       concurrencyLevel = map.concurrencyLevel;
       capacityLimiter = map.capacityLimiter;
-      capacity = map.maximumWeightedSize;
+      capacity = map.policy.capacity();
       data = new HashMap<K, V>(map);
       listener = map.listener;
       weigher = map.weigher;

@@ -2,6 +2,12 @@ package com.googlecode.concurrentlinkedhashmap;
 
 import com.google.common.collect.ImmutableMap;
 
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.LirsNode;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.LirsPolicy;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.LruNode;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.LruPolicy;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Node;
+
 import org.hamcrest.Description;
 import org.hamcrest.Factory;
 import org.hamcrest.Matcher;
@@ -38,6 +44,7 @@ public final class IsEmptyMap extends TypeSafeDiagnosingMatcher<Map<?, ?>> {
     return matches;
   }
 
+  @SuppressWarnings("unchecked")
   private boolean isEmpty(ConcurrentLinkedHashMap<?, ?> map, Description description) {
     boolean matches = true;
     map.tryToDrainEvictionQueues(false);
@@ -45,14 +52,36 @@ public final class IsEmptyMap extends TypeSafeDiagnosingMatcher<Map<?, ?>> {
     matches &= check(map.data.isEmpty(), "Internal not empty", description);
     matches &= check(map.data.size() == 0, "Internal size != 0", description);
     matches &= check(map.weightedSize() == 0, "Weighted size != 0", description);
-    matches &= check(map.weightedSize == 0, "Internal weighted size != 0", description);
+    matches &= check(map.policy.currentSize == 0, "Internal weighted size != 0", description);
     matches &= check(map.equals(ImmutableMap.of()), "Not equal to empty map", description);
     matches &= check(map.hashCode() == ImmutableMap.of().hashCode(), "hashcode", description);
     matches &= check(map.toString().equals(ImmutableMap.of().toString()), "toString", description);
-    matches &= check(map.sentinel.prevInStack == map.sentinel, "sentinel not linked to prev", description);
-    matches &= check(map.sentinel.nextInStack == map.sentinel, "sentinel not linked to next", description);
-    matches &= check(map.sentinel.prevInQueue == map.sentinel, "sentinel not linked to prev", description);
-    matches &= check(map.sentinel.nextInQueue == map.sentinel, "sentinel not linked to next", description);
+    if (map.policy instanceof LruPolicy) {
+      matches &= checkLru(map, description);
+    } else if (map.policy instanceof LirsPolicy) {
+      matches &= checkLirs(map, description);
+    }
+
+    return matches;
+  }
+
+  @SuppressWarnings("unchecked")
+  private boolean checkLru(ConcurrentLinkedHashMap<?, ?> map, Description description) {
+    boolean matches = true;
+    LruNode sentinel = (LruNode) (Node) map.sentinel;
+    matches &= check(sentinel.prev == sentinel, "sentinel not prev", description);
+    matches &= check(sentinel.next == sentinel, "sentinel not next", description);
+    return matches;
+  }
+
+  @SuppressWarnings("unchecked")
+  private boolean checkLirs(ConcurrentLinkedHashMap<?, ?> map, Description description) {
+    boolean matches = true;
+    LirsNode sentinel = (LirsNode) (Node) map.sentinel;
+    matches &= check(sentinel.prevInStack == sentinel, "sentinel not stack prev", description);
+    matches &= check(sentinel.nextInStack == sentinel, "sentinel not stack next", description);
+    matches &= check(sentinel.prevInQueue == sentinel, "sentinel not queue prev", description);
+    matches &= check(sentinel.nextInQueue == sentinel, "sentinel not queue next", description);
     return matches;
   }
 

@@ -12,6 +12,10 @@ import static org.hamcrest.Matchers.is;
 import static org.testng.Assert.fail;
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.LirsNode;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.LirsPolicy;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.LruNode;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.LruPolicy;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Node;
 
 import org.apache.commons.lang.SerializationUtils;
@@ -317,10 +321,7 @@ public final class MultiThreadedTest extends BaseTest {
 
     // Print the state of the cache
     debug("Cached Elements: %s", cache.toString());
-    debug("Stack Forward:\n%s", lirsToString(cache, Direction.FORWARD, Lirs.STACK));
-    debug("Stack Backward:\n%s", lirsToString(cache, Direction.BACKWARD, Lirs.STACK));
-    debug("Queue Forward:\n%s", lirsToString(cache, Direction.FORWARD, Lirs.QUEUE));;
-    debug("Queue Backward:\n%s", lirsToString(cache, Direction.BACKWARD, Lirs.QUEUE));
+    debugPolicy(cache);
 
     // Print the recorded failures
     for (String failure : failures) {
@@ -329,15 +330,52 @@ public final class MultiThreadedTest extends BaseTest {
     fail("Spun forever", e);
   }
 
+  @SuppressWarnings("unchecked")
+  private void debugPolicy(ConcurrentLinkedHashMap<?, ?> map) {
+    if (map.policy instanceof LruPolicy) {
+      debug("Lru Forward:\n%s", lruToString(map, Direction.FORWARD));
+      debug("Lru Backward:\n%s", lruToString(map, Direction.BACKWARD));
+    } else if (map.policy instanceof LirsPolicy) {
+      debug("Stack Forward:\n%s", lirsToString(map, Direction.FORWARD, Lirs.STACK));
+      debug("Stack Backward:\n%s", lirsToString(map, Direction.BACKWARD, Lirs.STACK));
+      debug("Queue Forward:\n%s", lirsToString(map, Direction.FORWARD, Lirs.QUEUE));;
+      debug("Queue Backward:\n%s", lirsToString(map, Direction.BACKWARD, Lirs.QUEUE));
+    }
+  }
+
   enum Lirs { STACK, QUEUE }
   enum Direction { FORWARD, BACKWARD }
 
-  private static String lirsToString(ConcurrentLinkedHashMap<?, ?> map, Direction direction, Lirs collection) {
+  @SuppressWarnings("unchecked")
+  private static String lruToString(ConcurrentLinkedHashMap<?, ?> map, Direction direction) {
     map.evictionLock.lock();
     try {
       StringBuilder buffer = new StringBuilder("\n");
       Set<Object> seen = newSetFromMap(new IdentityHashMap<Object, Boolean>());
-      ConcurrentLinkedHashMap<?, ?>.Node current = iterate(map.sentinel, direction, collection);
+      LruNode current = iterate((LruNode) (Node) map.sentinel, direction);
+      while (current != map.sentinel) {
+        buffer.append(nodeToString(current)).append("\n");
+        boolean added = seen.add(current);
+        if (!added) {
+          buffer.append("Failure: Loop detected\n");
+          break;
+        }
+        current = iterate(current, direction);
+      }
+      return buffer.toString();
+    } finally {
+      map.evictionLock.unlock();
+    }
+  }
+
+  @SuppressWarnings("unchecked")
+  private static String lirsToString(
+      ConcurrentLinkedHashMap<?, ?> map, Direction direction, Lirs collection) {
+    map.evictionLock.lock();
+    try {
+      StringBuilder buffer = new StringBuilder("\n");
+      Set<Object> seen = newSetFromMap(new IdentityHashMap<Object, Boolean>());
+      LirsNode current = iterate((LirsNode) (Node) map.sentinel, direction, collection);
       while (current != map.sentinel) {
         buffer.append(nodeToString(current)).append("\n");
         boolean added = seen.add(current);
@@ -353,13 +391,18 @@ public final class MultiThreadedTest extends BaseTest {
     }
   }
 
-  private static ConcurrentLinkedHashMap<?, ?>.Node iterate(
-      ConcurrentLinkedHashMap<?, ?>.Node current, Direction direction, Lirs collection) {
+  @SuppressWarnings("unchecked")
+  private static LirsNode iterate(LirsNode current, Direction direction, Lirs collection) {
     if (collection == Lirs.STACK) {
       return (direction == Direction.FORWARD) ? current.nextInStack : current.prevInStack;
     } else {
       return (direction == Direction.FORWARD) ? current.nextInQueue : current.prevInQueue;
     }
+  }
+
+  @SuppressWarnings("unchecked")
+  private static LruNode iterate(LruNode current, Direction direction) {
+    return (direction == Direction.FORWARD) ? current.next : current.prev;
   }
 
   @SuppressWarnings("unchecked")

@@ -4,6 +4,10 @@ import static java.util.Collections.newSetFromMap;
 
 import com.google.common.collect.Lists;
 
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.LirsNode;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.LirsPolicy;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.LruNode;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.LruPolicy;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Node;
 
 import org.hamcrest.Description;
@@ -22,163 +26,235 @@ import java.util.concurrent.locks.ReentrantLock;
  *
  * @author ben.manes@gmail.com (Ben Manes)
  */
+@SuppressWarnings("unchecked")
 public final class IsValidState extends TypeSafeDiagnosingMatcher<ConcurrentLinkedHashMap<?, ?>> {
 
   @Override
   public void describeTo(Description description) {
-    description.appendText("state");
+    description.appendText("valid");
   }
 
   @Override
   protected boolean matchesSafely(ConcurrentLinkedHashMap<?, ?> map, Description description) {
-    boolean matches = true;
-    while (hasPendingReorderings(map)) {
-      map.tryToDrainEvictionQueues(false);
-    }
+    drain(map);
 
-    matches &= check(map.writeQueue.isEmpty(), "writeQueue not empty", description);
-    for (int i = 0; i < map.recencyQueue.length; i++) {
-      matches &= check(map.recencyQueue[i].isEmpty(), "recencyQueue not empty", description);
-      matches &= check(map.recencyQueueLength.get(i) == 0, "recencyQueueLength != 0", description);
-    }
-    matches &= check(map.listenerQueue.isEmpty(), "listenerQueue", description);
-    matches &= check(map.data.size() == map.size(), "Inconsistent size", description);
-    matches &= check(map.weightedSize() == map.weightedSize, "weightedSize", description);
-    matches &= check(map.capacity() == map.maximumWeightedSize, "capacity", description);
-    matches &= check(map.maximumWeightedSize >= map.weightedSize(), "overflow", description);
-    matches &= check(map.sentinel.prevInStack != null, "link corruption", description);
-    matches &= check(map.sentinel.nextInStack != null, "link corruption", description);
-    matches &= check(map.sentinel.prevInQueue != null, "link corruption", description);
-    matches &= check(map.sentinel.nextInQueue != null, "link corruption", description);
-    if (map.isEmpty()) {
-      matches &= new IsEmptyMap().matchesSafely(map, description);
-    }
-    matches &= checkLinks(map, description);
-    matches &= checkLocks(map, description);
-    return matches;
+    Checker checker = new Checker(description);
+    checkMap(map, checker);
+//    checkPolicy(map, checker);
+//    checkSentinel(map, checker);
+    return checker.matches;
   }
 
-  private boolean hasPendingReorderings(ConcurrentLinkedHashMap<?, ?> map) {
-    for (int i = 0; i < map.recencyQueue.length; i++) {
-      if (map.recencyQueueLength.get(i) != 0) {
-        return true;
+  private void drain(ConcurrentLinkedHashMap<?, ?> map) {
+    for (;;) {
+      map.tryToDrainEvictionQueues(false);
+
+      int pending = 0;
+      for (int i = 0; i < map.recencyQueue.length; i++) {
+        pending += map.recencyQueueLength.get(i);
+      }
+      if (pending == 0) {
+        break;
       }
     }
-    return false;
   }
 
-  /** Validates the doubly-linked list. */
-  @SuppressWarnings("unchecked")
-  private boolean checkLinks(ConcurrentLinkedHashMap<?, ?> map, Description description) {
-    int weightedSize = 0;
-    boolean matches = true;
-    matches &= checkSentinel(map, description);
-    Set<Node> seen = newSetFromMap(new IdentityHashMap<Node, Boolean>());
-    Set<Node> seenInStack = newSetFromMap(new IdentityHashMap<Node, Boolean>());
-    Set<Node> seenInQueue = newSetFromMap(new IdentityHashMap<Node, Boolean>());
+  /** Validates the map. */
+  private void checkMap(ConcurrentLinkedHashMap<?, ?> map, Checker checker) {
+    checker.check(map.writeQueue.isEmpty(), "writeQueue not empty ");
+    for (int i = 0; i < map.recencyQueue.length; i++) {
+      checker.check(map.recencyQueue[i].isEmpty(), "recencyQueue not empty");
+      checker.check(map.recencyQueueLength.get(i) == 0, "recencyQueueLength != 0");
+    }
+    checker.check(map.listenerQueue.isEmpty(), "listenerQueue");
+    checker.check(map.data.size() == map.size(), "Inconsistent size");
+    checker.check(map.weightedSize() == map.policy.currentSize, "weightedSize");
+    checker.check(map.weightedSize() <= map.capacity(), "overflowed capacity"
+        + " [" + map.weightedSize() + " / " + map.capacity() + "]");
+    checker.check(map.capacity() == map.policy.capacity, "capacity");
+    if (map.isEmpty()) {
+      checker.check(new IsEmptyMap().matchesSafely(map, checker.description));
+    }
+    for (Lock lock : Lists.asList(map.evictionLock, map.segmentLock)) {
+      boolean isLocked = !((ReentrantLock) lock).isLocked();
+      checker.check(isLocked, "locked");
+    }
+  }
 
-    Node currentInStack = map.sentinel.nextInStack;
-    while (currentInStack != map.sentinel) {
-      matches &= check(seenInStack.add(currentInStack),
-          String.format("Stack loop detected: %s, saw %s in %s",
-              currentInStack, seenInStack, map), description);
-      matches &= checkDataNode(map, currentInStack, description);
+  /** Validates the sentinel node. */
+  private void checkSentinel(ConcurrentLinkedHashMap<?, ?> map, Checker checker) {
+    checker.check(map.sentinel.key == null, "key");
+    checker.check(map.sentinel.segment == -1, "segment");
+    checker.check(map.sentinel.weightedValue == null, "value");
+    checker.check(!map.data.containsValue(map.sentinel), "in map");
+
+    if (map.policy instanceof LruPolicy) {
+      LruNode sentinel = (LruNode) ((Node) map.sentinel);
+      checker.check(sentinel.prev != null, "link corruption");
+      checker.check(sentinel.next != null, "link corruption");
+      checker.check(sentinel.prev.next == sentinel, "circular");
+      checker.check(sentinel.next.prev == sentinel, "circular");
+    } else if (map.policy instanceof LirsPolicy) {
+      LirsNode sentinel = (LirsNode) ((Node) map.sentinel);
+      checker.check(sentinel.prevInStack != null, "link corruption");
+      checker.check(sentinel.nextInStack != null, "link corruption");
+      checker.check(sentinel.prevInQueue != null, "link corruption");
+      checker.check(sentinel.nextInQueue != null, "link corruption");
+      checker.check(sentinel.prevInStack.nextInStack == sentinel, "circular");
+      checker.check(sentinel.nextInStack.prevInStack == sentinel, "circular");
+      checker.check(sentinel.prevInQueue.nextInQueue == sentinel, "circular");
+      checker.check(sentinel.nextInQueue.prevInQueue == sentinel, "circular");
+    }
+  }
+
+  private void checkPolicy(ConcurrentLinkedHashMap<?, ?> map, Checker checker) {
+    if (map.policy instanceof LruPolicy) {
+      checkLru(map, checker);
+    } else if (map.policy instanceof LirsPolicy) {
+      checkLirs(map, checker);
+    } else {
+      checker.check(false, "Unknown page replacement policy");
+    }
+  }
+
+  /** Validates the LRU algorithm. */
+  private void checkLru(ConcurrentLinkedHashMap<?, ?> map, Checker checker) {
+    Set<Node> seen = newSetFromMap(new IdentityHashMap<Node, Boolean>());
+    LruNode sentinel = (LruNode) ((Node) map.sentinel);
+    int weightedSize = 0;
+
+    boolean infinite = false;
+    LruNode current = sentinel.next;
+    while ((current != sentinel) && !infinite) {
+      infinite = seen.add(current);
+      checker.check(infinite, "Loop detected: %s, saw %s in %s", current, seen, map);
+      checkDataNode(map, current, checker);
+      weightedSize += current.weightedValue.weight;
+      current = current.next;
+    }
+    checker.check(map.size() == seen.size(), "Size != list length");
+    checker.check(map.weightedSize() == weightedSize, "WeightedSize != link weights");
+  }
+
+  /** Validates the LIRS algorithm. */
+  private void checkLirs(ConcurrentLinkedHashMap<?, ?> map, Checker checker) {
+    LirsNode sentinel = (LirsNode) ((Node) map.sentinel);
+    boolean infinite = false;
+    int size = 0;
+
+    Set<LirsNode> seen = newSetFromMap(new IdentityHashMap<LirsNode, Boolean>());
+    Set<LirsNode> seenInStack = newSetFromMap(new IdentityHashMap<LirsNode, Boolean>());
+    Set<LirsNode> seenInQueue = newSetFromMap(new IdentityHashMap<LirsNode, Boolean>());
+
+    LirsNode currentInStack = sentinel.nextInStack;
+    while ((currentInStack != map.sentinel) && !infinite) {
+      infinite = seenInStack.add(currentInStack);
+      checker.check(infinite,
+          "Stack loop detected: %s, saw %s in %s", currentInStack, seenInStack, map);
+      checkDataNode(map, currentInStack, checker);
       currentInStack = currentInStack.nextInStack;
     }
 
-    Node currentInQueue = map.sentinel.nextInQueue;
-    while (currentInQueue != map.sentinel) {
-      matches &= check(seenInQueue.add(currentInQueue),
-          String.format("Queue loop detected: %s, saw %s in %s",
-              currentInQueue, seenInQueue, map), description);
-      matches &= checkDataNode(map, currentInQueue, description);
+    LirsNode currentInQueue = sentinel.nextInQueue;
+    while ((currentInQueue != sentinel) && !infinite) {
+      infinite = seenInQueue.add(currentInQueue);
+      checker.check(infinite,
+          "Queue loop detected: %s, saw %s in %s", currentInQueue, seenInQueue, map);
+      checkDataNode(map, currentInQueue, checker);
       currentInQueue = currentInQueue.nextInQueue;
     }
 
     seen.addAll(seenInStack);
     seen.addAll(seenInQueue);
     for (Node node : seen) {
-      weightedSize += node.weightedValue.weight;
+      size += node.weightedValue.weight;
     }
 
-    matches &= check(map.size() == seen.size(), "Size != list length", description);
-    matches &= check(map.weightedSize() == weightedSize, "WeightedSize != link weights", description);
-    return matches;
-  }
-
-  /** Validates the sentinel node. */
-  private boolean checkSentinel(ConcurrentLinkedHashMap<?, ?> map, Description description) {
-    boolean matches = true;
-    matches &= check(map.sentinel.key == null, "key", description);
-    matches &= check(map.sentinel.weightedValue == null, "value", description);
-    matches &= check(map.sentinel.segment == -1, "segment", description);
-    matches &= check(map.sentinel.prevInStack.nextInStack == map.sentinel, "circular", description);
-    matches &= check(map.sentinel.nextInStack.prevInStack == map.sentinel, "circular", description);
-    matches &= check(map.sentinel.prevInQueue.nextInQueue == map.sentinel, "circular", description);
-    matches &= check(map.sentinel.nextInQueue.prevInQueue == map.sentinel, "circular", description);
-    matches &= check(!map.data.containsValue(map.sentinel), "in map", description);
-    return matches;
+    checker.check(map.size() == seen.size(), "Size != list length");
+    checker.check(map.weightedSize() == map.size(), "WeightedSize != Size");
+    checker.check(map.weightedSize() == size, "WeightedSize != link weights");
   }
 
   /** Validates the data node. */
-  @SuppressWarnings("unchecked")
-  private boolean checkDataNode(ConcurrentLinkedHashMap<?, ?> map, Node node,
-      Description description) {
+  private void checkDataNode(ConcurrentLinkedHashMap<?, ?> map, Node node, Checker checker) {
     boolean matches = true;
-    matches &= check(node.key != null, "null key", description);
-    matches &= check(node.weightedValue != null, "null weighted value", description);
-    matches &= check(node.weightedValue.value != null, "null value", description);
-    matches &= check(node.weightedValue.weight ==
-      ((Weigher) map.weigher).weightOf(node.weightedValue.value), "weight", description);
+    checker.check(node.key != null, "null key");
+    checker.check(node.weightedValue != null, "null weighted value");
+    checker.check(node.weightedValue.value != null, "null value");
+    checker.check(node.weightedValue.weight ==
+      ((Weigher) map.weigher).weightOf(node.weightedValue.value), "weight");
 
-    matches &= check(map.containsKey(node.key), "inconsistent", description);
-    matches &= check(map.containsValue(node.weightedValue.value),
-        String.format("Could not find value: %s", node.weightedValue.value), description);
-    matches &= check(map.data.get(node.key) == node, "found wrong node", description);
-    matches &= check(node.isLinked(), "not linked in Lirs", description);
+    checker.check(map.containsKey(node.key), "inconsistent");
+    checker.check(map.containsValue(node.weightedValue.value),
+        String.format("Could not find value: %s", node.weightedValue.value));
+    checker.check(map.data.get(node.key) == node, "found wrong node");
+    checker.check(node.isLinked(), "not linked in Lirs");
+    checker.check(node.segment == map.segmentFor(node.key), "bad segment");
 
+    if (map.policy instanceof LruPolicy) {
+      checkLruNode((LruNode) node, checker);
+    } else if (map.policy instanceof LirsPolicy) {
+      checkLirsNode((LirsNode) node, checker);
+    }
+  }
+
+  /** Validates the LRU node. */
+  void checkLruNode(LruNode node, Checker checker) {
+    checker.check(node.prev != null, "null prev");
+    checker.check(node.next != null, "null next");
+    checker.check(node != node.prev, "circular node");
+    checker.check(node != node.next, "circular node");
+    checker.check(node == node.prev.next, "link corruption");
+    checker.check(node == node.next.prev, "link corruption");
+  }
+
+  /** Validates the LIRS node. */
+  void checkLirsNode(LirsNode node, Checker checker) {
     if (node.inStack()) {
-      matches &= check(node.prevInStack != null, "null prevInStack", description);
-      matches &= check(node.nextInStack != null, "null nextInStack", description);
-      matches &= check(node != node.prevInStack, "circular node", description);
-      matches &= check(node != node.nextInStack, "circular node", description);
-      matches &= check(node == node.prevInStack.nextInStack, "link corruption", description);
-      matches &= check(node == node.nextInStack.prevInStack, "link corruption", description);
+      checker.check(node.prevInStack != null, "null prevInStack");
+      checker.check(node.nextInStack != null, "null nextInStack");
+      checker.check(node != node.prevInStack, "circular node");
+      checker.check(node != node.nextInStack, "circular node");
+      checker.check(node == node.prevInStack.nextInStack, "link corruption");
+      checker.check(node == node.nextInStack.prevInStack, "link corruption");
     } else {
-      matches &= check(node.prevInStack == null, "not null prevInStack", description);
-      matches &= check(node.nextInStack == null, "not null nextInStack", description);
+      checker.check(node.prevInStack == null, "not null prevInStack");
+      checker.check(node.nextInStack == null, "not null nextInStack");
     }
 
     if (node.inQueue()) {
-      matches &= check(node.prevInQueue != null, "null prevInQueue", description);
-      matches &= check(node.nextInQueue != null, "null nextInQueue", description);
-      matches &= check(node != node.prevInQueue, "circular node", description);
-      matches &= check(node != node.nextInQueue, "circular node", description);
-      matches &= check(node == node.prevInQueue.nextInQueue, "link corruption", description);
-      matches &= check(node == node.nextInQueue.prevInQueue, "link corruption", description);
+      checker.check(node.prevInQueue != null, "null prevInQueue");
+      checker.check(node.nextInQueue != null, "null nextInQueue");
+      checker.check(node != node.prevInQueue, "circular node");
+      checker.check(node != node.nextInQueue, "circular node");
+      checker.check(node == node.prevInQueue.nextInQueue, "link corruption");
+      checker.check(node == node.nextInQueue.prevInQueue, "link corruption");
     } else {
-      matches &= check(node.prevInQueue == null, "not null prevInQueue", description);
-      matches &= check(node.nextInQueue == null, "not null nextInQueue", description);
+      checker.check(node.prevInQueue == null, "not null prevInQueue");
+      checker.check(node.nextInQueue == null, "not null nextInQueue");
     }
-    matches &= check(node.segment == map.segmentFor(node.key), "bad segment", description);
-    return matches;
   }
 
-  /** Validates that the locks are not held. */
-  private boolean checkLocks(ConcurrentLinkedHashMap<?, ?> map, Description description) {
-    boolean matches = true;
-    for (Lock lock : Lists.asList(map.evictionLock, map.segmentLock)) {
-      boolean isLocked = !((ReentrantLock) lock).isLocked();
-      matches &= check(isLocked, "locked", description);
-    }
-    return matches;
-  }
+  final class Checker {
+    final Description description;
+    boolean matches;
 
-  private boolean check(boolean expression, String errorMsg, Description description) {
-    if (!expression) {
-      description.appendText(" " + errorMsg);
+    Checker(Description description) {
+      this.description = description;
+      this.matches = true;
     }
-    return expression;
+
+    void check(boolean expression, String message, Object... args) {
+      if (!expression) {
+        String separator = matches ? "" : ", ";
+        description.appendText(separator + String.format(message, args));
+      }
+      check(expression);
+    }
+
+    void check(boolean expression) {
+      matches &= expression;
+    }
   }
 
   @Factory
