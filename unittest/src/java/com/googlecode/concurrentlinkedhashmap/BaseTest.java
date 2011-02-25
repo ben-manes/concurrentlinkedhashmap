@@ -8,6 +8,9 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.testng.Assert.fail;
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.LirsNode;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.LruNode;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Node;
 
 import org.testng.ITestResult;
 import org.testng.annotations.AfterMethod;
@@ -30,6 +33,8 @@ public abstract class BaseTest {
 
   /** Retrieves the maximum weighted capacity to build maps with. */
   protected abstract int capacity();
+
+  /* ---------------- Properties methods ----------- */
 
   protected static int intProperty(String property) {
     return Integer.getInteger(property);
@@ -57,30 +62,34 @@ public abstract class BaseTest {
 
   /* ---------------- Testing aspects -------------- */
 
-  private ConcurrentLinkedHashMap<?, ?> rawMap;
-
-  /** Initializes the test with runtime properties. */
   @BeforeClass(alwaysRun = true)
   public void before() {
     debug = booleanProperty("test.debugMode");
     info("\nRunning %s...\n", getClass().getSimpleName());
   }
 
-  /** Validates the state of a provided map. */
   @AfterMethod(alwaysRun = true)
-  public void verifyValidState(ITestResult result) {
-    boolean successful = result.isSuccess();
+  public void after(ITestResult result) {
     try {
-      if (successful && (rawMap != null)) { // dataProvider used
-        assertThat(rawMap, is(valid()));
+      if (result.isSuccess()) {
+        for (Object provided : result.getParameters()) {
+          validate(provided);
+        }
       }
-    } catch (Throwable caught) {
-      successful = false;
-      fail("Test: " + result.getMethod().getMethodName(), caught);
+    } catch (AssertionError caught) {
+      result.setStatus(ITestResult.FAILURE);
+      result.setThrowable(caught);
     } finally {
-      if (!successful) {
+      if (!result.isSuccess()) {
         info(" * %s: Failed", result.getMethod().getMethodName());
       }
+    }
+  }
+
+  /** Validates the state of the injected parameter. */
+  private static void validate(Object param) {
+    if (param instanceof ConcurrentLinkedHashMap<?, ?>) {
+      assertThat((ConcurrentLinkedHashMap<?, ?>) param, is(valid()));
     }
   }
 
@@ -97,22 +106,21 @@ public abstract class BaseTest {
   /** Provides an empty map for test methods. */
   @DataProvider(name = "emptyMap")
   public Object[][] providesEmptyMap() {
-    rawMap = newEmptyMap();
-    return new Object[][] {{ rawMap }};
+    return new Object[][] {{ newEmptyMap() }};
   }
 
   /** Creates a map with the default capacity. */
   protected <K, V> ConcurrentLinkedHashMap<K, V> newEmptyMap() {
     return new Builder<K, V>()
         .maximumWeightedCapacity(capacity())
+        .weigher(newCustomSingletonWeigher())
         .build();
   }
 
   /** Provides a guarded map for test methods. */
   @DataProvider(name = "guardedMap")
   public Object[][] providesGuardedMap() {
-    rawMap = newGuarded();
-    return new Object[][] {{ rawMap }};
+    return new Object[][] {{ newGuarded() }};
   }
 
   /** Creates a map that fails if an eviction occurs. */
@@ -120,14 +128,14 @@ public abstract class BaseTest {
     return new Builder<K, V>()
         .listener(new GuardingListener<K, V>())
         .maximumWeightedCapacity(capacity())
+        .weigher(newCustomSingletonWeigher())
         .build();
   }
 
   /** Provides a warmed map for test methods. */
   @DataProvider(name = "warmedMap")
   public Object[][] providesWarmedMap() {
-    rawMap = newWarmedMap();
-    return new Object[][] {{ rawMap }};
+    return new Object[][] {{ newWarmedMap() }};
   }
 
   /** Creates a map with warmed to capacity. */
@@ -137,21 +145,14 @@ public abstract class BaseTest {
     return map;
   }
 
-  /**
-   * Populates the map with the half-closed interval [start, end) where the
-   * value is the negation of the key.
-   */
-  protected void warmUp(Map<Integer, Integer> map, int start, int end) {
-    for (Integer i = start; i < end; i++) {
-      assertThat(map.put(i, -i), is(nullValue()));
-    }
-  }
-
   /* ---------------- Weigher providers -------------- */
 
   @DataProvider(name = "singletonWeigher")
   public Object[][] providesSingletonWeigher() {
-    return new Object[][] {{ Weighers.singleton() }};
+    return new Object[][] {{
+      // Weighers.singleton(),
+      newCustomSingletonWeigher()
+    }};
   }
 
   @DataProvider(name = "byteArrayWeigher")
@@ -184,22 +185,30 @@ public abstract class BaseTest {
     return new Object[][] {{ Weighers.map() }};
   }
 
-  /* ---------------- Listener providers -------------- */
+  protected static <V> Weigher<V> newCustomSingletonWeigher() {
+    return new CustomSingletonWeigher<V>();
+  }
 
-  private EvictionListener<?, ?> rawListener;
+  /** A custom singleton weigher, used to coerce to the LRU policy. */
+  private static final class CustomSingletonWeigher<V> implements Weigher<V>, Serializable {
+    private static final long serialVersionUID = 1L;
+    @Override public int weightOf(V value) {
+      return 1;
+    }
+  }
+
+  /* ---------------- Listener providers -------------- */
 
   /** Provides a listener that fails on eviction. */
   @DataProvider(name = "guardingListener")
   public Object[][] providesGuardedListener() {
-    rawListener = new GuardingListener<Object, Object>();
-    return new Object[][] {{ rawListener }};
+    return new Object[][] {{ new GuardingListener<Object, Object>() }};
   }
 
   /** Provides a listener that collects evicted entries. */
   @DataProvider(name = "collectingListener")
   public Object[][] providesMonitorableListener() {
-    rawListener = new CollectingListener<Object, Object>();
-    return new Object[][] {{ rawListener }};
+    return new Object[][] {{ new CollectingListener<Object, Object>() }};
   }
 
   /** A listener that fails if invoked. */
@@ -227,5 +236,28 @@ public abstract class BaseTest {
     }
 
     private static final long serialVersionUID = 1L;
+  }
+
+  /* ---------------- Utility methods ------------- */
+
+  /**
+   * Populates the map with the half-closed interval [start, end) where the
+   * value is the negation of the key.
+   */
+  @SuppressWarnings("unchecked")
+  protected static void warmUp(Map map, int start, int end) {
+    for (Integer i = start; i < end; i++) {
+      assertThat(map.put(i, -i), is(nullValue()));
+    }
+  }
+
+  @SuppressWarnings("unchecked")
+  protected static LruNode asLruNode(Node node) {
+    return (LruNode) node;
+  }
+
+  @SuppressWarnings("unchecked")
+  protected static LirsNode asLirsNode(Node node) {
+    return (LirsNode) node;
   }
 }
