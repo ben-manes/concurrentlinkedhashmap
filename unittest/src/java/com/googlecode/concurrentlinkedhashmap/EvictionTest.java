@@ -21,7 +21,6 @@ import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.RecencyRef
 
 import org.testng.annotations.Test;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -349,22 +348,19 @@ public final class EvictionTest extends BaseTest {
 
     // Perform the merging in the same manner as when draining the queues
     Object[] recencies = new Object[map.maxRecenciesToDrain];
-    List<ConcurrentLinkedHashMap<Integer, Integer>.RecencyReference> overflow =
-      new ArrayList<ConcurrentLinkedHashMap<Integer, Integer>.RecencyReference>();
-    int lastRecencyIndex = map.moveRecenciesFromQueues(recencies, overflow);
+    int maxRecencyIndex = map.moveRecenciesFromQueues(recencies);
 
     // Check that the recencies are in sorted order
     Integer last = null;
-    for (int i = 0; i <= lastRecencyIndex; i++) {
+    for (int i = 0; i <= maxRecencyIndex; i++) {
       @SuppressWarnings("unchecked")
       int order = ((RecencyReference) recencies[i]).recencyOrder;
       if (last != null) {
         assertThat(order, is(equalTo(last + 1)));
       }
     }
-    for (int i = lastRecencyIndex + 1; i < recencies.length; i++) {
+    for (int i = maxRecencyIndex + 1; i < recencies.length; i++) {
       assertThat(recencies[i], is(nullValue()));
     }
-    assertThat(overflow, hasSize(0));
   }
 }

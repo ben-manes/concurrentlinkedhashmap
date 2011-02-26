@@ -387,7 +387,7 @@ public final class ConcurrentMapTest extends BaseTest {
   }
 
   @Test(dataProvider = "guardedMap")
-  public void toString_whenempty(Map<Integer, Integer> map) {
+  public void toString_whenEmpty(Map<Integer, Integer> map) {
     assertThat(map, hasToString(ImmutableMap.of().toString()));
   }
 

@@ -31,6 +31,8 @@ public abstract class BaseTest {
   /** Retrieves the maximum weighted capacity to build maps with. */
   protected abstract int capacity();
 
+  /* ---------------- Properties methods ----------- */
+
   protected static int intProperty(String property) {
     return Integer.getInteger(property);
   }
@@ -57,30 +59,34 @@ public abstract class BaseTest {
 
   /* ---------------- Testing aspects -------------- */
 
-  private ConcurrentLinkedHashMap<?, ?> rawMap;
-
-  /** Initializes the test with runtime properties. */
   @BeforeClass(alwaysRun = true)
   public void before() {
     debug = booleanProperty("test.debugMode");
     info("\nRunning %s...\n", getClass().getSimpleName());
   }
 
-  /** Validates the state of a provided map. */
   @AfterMethod(alwaysRun = true)
-  public void verifyValidState(ITestResult result) {
-    boolean successful = result.isSuccess();
+  public void after(ITestResult result) {
     try {
-      if (successful && (rawMap != null)) { // dataProvider used
-        assertThat(rawMap, is(valid()));
+      if (result.isSuccess()) {
+        for (Object provided : result.getParameters()) {
+          validate(provided);
+        }
       }
-    } catch (Throwable caught) {
-      successful = false;
-      fail("Test: " + result.getMethod().getMethodName(), caught);
+    } catch (AssertionError caught) {
+      result.setStatus(ITestResult.FAILURE);
+      result.setThrowable(caught);
     } finally {
-      if (!successful) {
+      if (!result.isSuccess()) {
         info(" * %s: Failed", result.getMethod().getMethodName());
       }
+    }
+  }
+
+  /** Validates the state of the injected parameter. */
+  private static void validate(Object param) {
+    if (param instanceof ConcurrentLinkedHashMap<?, ?>) {
+      assertThat((ConcurrentLinkedHashMap<?, ?>) param, is(valid()));
     }
   }
 
@@ -97,8 +103,7 @@ public abstract class BaseTest {
   /** Provides an empty map for test methods. */
   @DataProvider(name = "emptyMap")
   public Object[][] providesEmptyMap() {
-    rawMap = newEmptyMap();
-    return new Object[][] {{ rawMap }};
+    return new Object[][] {{ newEmptyMap() }};
   }
 
   /** Creates a map with the default capacity. */
@@ -111,8 +116,7 @@ public abstract class BaseTest {
   /** Provides a guarded map for test methods. */
   @DataProvider(name = "guardedMap")
   public Object[][] providesGuardedMap() {
-    rawMap = newGuarded();
-    return new Object[][] {{ rawMap }};
+    return new Object[][] {{ newGuarded() }};
   }
 
   /** Creates a map that fails if an eviction occurs. */
@@ -126,8 +130,7 @@ public abstract class BaseTest {
   /** Provides a warmed map for test methods. */
   @DataProvider(name = "warmedMap")
   public Object[][] providesWarmedMap() {
-    rawMap = newWarmedMap();
-    return new Object[][] {{ rawMap }};
+    return new Object[][] {{ newWarmedMap() }};
   }
 
   /** Creates a map with warmed to capacity. */
@@ -135,16 +138,6 @@ public abstract class BaseTest {
     ConcurrentLinkedHashMap<Integer, Integer> map = newEmptyMap();
     warmUp(map, 0, capacity());
     return map;
-  }
-
-  /**
-   * Populates the map with the half-closed interval [start, end) where the
-   * value is the negation of the key.
-   */
-  protected void warmUp(Map<Integer, Integer> map, int start, int end) {
-    for (Integer i = start; i < end; i++) {
-      assertThat(map.put(i, -i), is(nullValue()));
-    }
   }
 
   /* ---------------- Weigher providers -------------- */
@@ -186,20 +179,16 @@ public abstract class BaseTest {
 
   /* ---------------- Listener providers -------------- */
 
-  private EvictionListener<?, ?> rawListener;
-
   /** Provides a listener that fails on eviction. */
   @DataProvider(name = "guardingListener")
   public Object[][] providesGuardedListener() {
-    rawListener = new GuardingListener<Object, Object>();
-    return new Object[][] {{ rawListener }};
+    return new Object[][] {{ new GuardingListener<Object, Object>() }};
   }
 
   /** Provides a listener that collects evicted entries. */
   @DataProvider(name = "collectingListener")
   public Object[][] providesMonitorableListener() {
-    rawListener = new CollectingListener<Object, Object>();
-    return new Object[][] {{ rawListener }};
+    return new Object[][] {{ new CollectingListener<Object, Object>() }};
   }
 
   /** A listener that fails if invoked. */
@@ -227,5 +216,17 @@ public abstract class BaseTest {
     }
 
     private static final long serialVersionUID = 1L;
+  }
+
+  /* ---------------- Utility methods ------------- */
+
+  /**
+   * Populates the map with the half-closed interval [start, end) where the
+   * value is the negation of the key.
+   */
+  protected void warmUp(Map<Integer, Integer> map, int start, int end) {
+    for (Integer i = start; i < end; i++) {
+      assertThat(map.put(i, -i), is(nullValue()));
+    }
   }
 }

@@ -25,18 +25,17 @@ import java.util.AbstractCollection;
 import java.util.AbstractMap;
 import java.util.AbstractQueue;
 import java.util.AbstractSet;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicIntegerArray;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -114,14 +113,14 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   // record a memento of the the additions, removals, and accesses that were
   // performed on the map. The write queue is drained at the first opportunity
   // and the read queues are drained after a write or when a queue exceeds its
-  // capacity threshold.
+  // capacity threshold. A strict recency ordering is achieved by observing that
+  // each read queue is in a weakly sorted order, starting from the last drain.
+  // The read queues can be merged in O(n) time so that the recency operations
+  // are applied in the expected order.
   //
   // The Least Recently Used page replacement algorithm was chosen due to its
   // simplicity, high hit rate, and ability to be implemented with O(1) time
-  // complexity. A strict recency ordering is achieved by observing that each
-  // read queue is in a weakly sorted order since the last drain and can be
-  // merged in O(n) time so that the recency operations can be applied in the
-  // expected order.
+  // complexity.
 
   /**
    * Number of cache access operations that can be buffered per recency queue
@@ -139,6 +138,9 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
   /** The maximum weight of a value. */
   static final int MAXIMUM_WEIGHT = 1 << 29;
+
+  /** An executor that runs the task on the caller's thread. */
+  static final Executor sameThreadExecutor = new SameThreadExecutor();
 
   /** A queue that discards all entries. */
   static final Queue<?> discardingQueue = new DiscardingQueue<Object>();
@@ -168,6 +170,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   int drainedRecencyOrder;
 
   final Lock evictionLock;
+  final Executor executor;
   final Weigher<? super V> weigher;
   final Queue<Runnable> writeQueue;
   final CapacityLimiter capacityLimiter;
@@ -212,6 +215,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     // The eviction support
     sentinel = new Node();
     weigher = builder.weigher;
+    executor = builder.executor;
     evictionLock = new ReentrantLock();
     globalRecencyOrder = Integer.MIN_VALUE;
     drainedRecencyOrder = Integer.MIN_VALUE;
@@ -403,7 +407,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     // A recency queue is chosen by the thread's id so that recencies are evenly
     // distributed between queues. This ensures that hot entries do not cause
     // contention due to the threads trying to append to the same queue.
-    int index = (int) Thread.currentThread().getId() % recencyQueue.length;
+    int index = (int) Thread.currentThread().getId() & segmentMask;
 
     // The recency's global order is acquired in a racy fashion as the increment
     // is not atomic with the insertion. This means that concurrent reads can
@@ -462,45 +466,38 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     // the queues.
     Object[] recencies = new Object[maxRecenciesToDrain];
 
-    // The overflow buffer contains the recencies that were polled from a queue,
-    // but that exceeded the capacity of the output array. The draining from the
-    // queue should halt when this occurs and these recencies are applied last.
-    List<RecencyReference> overflow = new ArrayList<RecencyReference>(recencyQueue.length);
-
     // Moves the recencies into the output collections, applies the reorderings,
     // and updates the marker for the starting recency order of the next drain.
-    int lastRecencyIndex = moveRecenciesFromQueues(recencies, overflow);
-    applyRecencyReorderings(recencies, lastRecencyIndex, overflow);
-    updateDrainedRecencyOrder(recencies, lastRecencyIndex);
+    int maxRecencyIndex = moveRecenciesFromQueues(recencies);
+    applyRecencyReorderings(recencies, maxRecencyIndex);
+    updateDrainedRecencyOrder(recencies, maxRecencyIndex);
   }
 
   /**
-   * Moves the recencies from the recency queues into the output collections.
+   * Moves the recencies from the recency queues into the output array.
    *
    * @param recencies the ordered array of the pending recency operations
-   * @param overflow the recencies to apply last due to overflowing the array
    * @return the highest index location of a recency that was added to the array
    */
   @GuardedBy("evictionLock")
-  int moveRecenciesFromQueues(Object[] recencies, List<RecencyReference> overflow) {
-    int lastRecencyIndex = -1;
+  int moveRecenciesFromQueues(Object[] recencies) {
+    int maxRecencyIndex = -1;
     for (int i = 0; i < recencyQueue.length; i++) {
-      int lastIndex = moveRecenciesFromQueue(i, recencies, overflow);
-      lastRecencyIndex = Math.max(lastIndex, lastRecencyIndex);
+      int maxIndex = moveRecenciesFromQueue(i, recencies);
+      maxRecencyIndex = Math.max(maxIndex, maxRecencyIndex);
     }
-    return lastRecencyIndex;
+    return maxRecencyIndex;
   }
 
   /**
-   * Moves the recencies from the specified queue into the output collections.
+   * Moves the recencies from the specified queue into the output array.
    *
    * @param queueIndex the recency queue to drain
    * @param recencies the ordered array of the pending recency operations
-   * @param overflow the recencies to apply last due to overflowing the array
    * @return the highest index location of a recency that was added to the array
    */
   @GuardedBy("evictionLock")
-  int moveRecenciesFromQueue(int queueIndex, Object[] recencies, List<RecencyReference> overflow) {
+  int moveRecenciesFromQueue(int queueIndex, Object[] recencies) {
     // While a queue is being drained it may be concurrently appended to. The
     // number of elements removed are tracked so that the length can be
     // decremented by the delta rather than set to zero.
@@ -522,36 +519,43 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
         continue;
       } else if (index >= recencies.length) {
         // Due to concurrent additions, the recency order exceeds the capacity
-        // of the output array. It is added to the overflow list and remaining
-        // recencies in the queue will be handled by the next drain.
-        overflow.add(recency);
+        // of the output array. It is added to the end as overflow and the
+        // remaining recencies in the queue will be handled by the next drain.
+        maxIndex = recencies.length - 1;
+        addRecencyToChain(recencies, recency, maxIndex);
         break;
       } else {
-        // Add the recency as the head of the chain at the index location
-        recency.next = (RecencyReference) recencies[index];
-        recencies[index] = recency;
+        maxIndex = Math.max(index, maxIndex);
+        addRecencyToChain(recencies, recency, index);
       }
-      maxIndex = Math.max(index, maxIndex);
     }
     recencyQueueLength.addAndGet(queueIndex, -removedFromQueue);
     return maxIndex;
   }
 
   /**
+   * Adds the recency as the head of the chain at the index location.
+   *
+   * @param recencies the ordered array of the pending recency operations
+   * @param recency the pending recency operation
+   * @param index the array location
+   */
+  @GuardedBy("evictionLock")
+  void addRecencyToChain(Object[] recencies, RecencyReference recency, int index) {
+    recency.next = (RecencyReference) recencies[index];
+    recencies[index] = recency;
+  }
+
+  /**
    * Applies the pending recency reorderings to the page replacement policy.
    *
    * @param recencies the ordered array of the pending recency operations
-   * @param lastRecencyIndex the last index of the recencies array
-   * @param overflow the recencies to apply last
+   * @param maxRecencyIndex the maximum index of the recencies array
    */
   @GuardedBy("evictionLock")
-  void applyRecencyReorderings(Object[] recencies, int lastRecencyIndex,
-      List<RecencyReference> overflow) {
-    for (int i = 0; i <= lastRecencyIndex; i++) {
+  void applyRecencyReorderings(Object[] recencies, int maxRecencyIndex) {
+    for (int i = 0; i <= maxRecencyIndex; i++) {
       reorderRecencyiesInChain((RecencyReference) recencies[i]);
-    }
-    for (int i = 0; i < overflow.size(); i++) {
-      reorderRecency(overflow.get(i));
     }
   }
 
@@ -591,12 +595,12 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * Updates the recency order to start the next drain from.
    *
    * @param recencies the ordered array of the recency operations
-   * @param lastRecencyIndex the last index of the recencies array
+   * @param maxRecencyIndex the maximum index of the recencies array
    */
   @GuardedBy("evictionLock")
-  void updateDrainedRecencyOrder(Object[] recencies, int lastRecencyIndex) {
-    if (lastRecencyIndex != -1) {
-      RecencyReference recency = (RecencyReference) recencies[lastRecencyIndex];
+  void updateDrainedRecencyOrder(Object[] recencies, int maxRecencyIndex) {
+    if (maxRecencyIndex >= 0) {
+      RecencyReference recency = (RecencyReference) recencies[maxRecencyIndex];
       drainedRecencyOrder = recency.recencyOrder + 1;
     }
   }
@@ -1337,6 +1341,15 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   }
 
   /**
+   * An executor that runs the task on the caller's thread.
+   */
+  static final class SameThreadExecutor implements Executor {
+    @Override public void execute(Runnable command) {
+      command.run();
+    }
+  }
+
+  /**
    * A queue that discards all additions and is always empty.
    */
   static final class DiscardingQueue<E> extends AbstractQueue<E> {
@@ -1445,6 +1458,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     CapacityLimiter capacityLimiter;
     EvictionListener<K, V> listener;
     Weigher<? super V> weigher;
+    Executor executor;
 
     int maximumWeightedCapacity;
     int concurrencyLevel;
@@ -1453,6 +1467,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     @SuppressWarnings("unchecked")
     public Builder() {
       maximumWeightedCapacity = -1;
+      executor = sameThreadExecutor;
       weigher = Weighers.singleton();
       initialCapacity = DEFAULT_INITIAL_CAPACITY;
       concurrencyLevel = DEFAULT_CONCURRENCY_LEVEL;
@@ -1553,6 +1568,19 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     public Builder<K, V> capacityLimiter(CapacityLimiter capacityLimiter) {
       checkNotNull(capacityLimiter, null);
       this.capacityLimiter = capacityLimiter;
+      return this;
+    }
+
+    /**
+     * Specifies an executor for use in catching up the page replacement policy.
+     * If unspecified, the catching up will be performed on user threads during
+     * write operations (or during read operations, in the absence of writes).
+     *
+     * @throws NullPointerException if the executor is null
+     */
+    Builder<K, V> catchup(Executor executor) {
+      checkNotNull(executor, null);
+      this.executor = executor;
       return this;
     }
 
