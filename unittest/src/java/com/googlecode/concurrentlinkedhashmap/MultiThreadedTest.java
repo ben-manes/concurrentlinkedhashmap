@@ -338,7 +338,7 @@ public final class MultiThreadedTest extends BaseTest {
     } else if (map.policy instanceof LirsPolicy) {
       debug("Stack Forward:\n%s", lirsToString(map, Direction.FORWARD, Lirs.STACK));
       debug("Stack Backward:\n%s", lirsToString(map, Direction.BACKWARD, Lirs.STACK));
-      debug("Queue Forward:\n%s", lirsToString(map, Direction.FORWARD, Lirs.QUEUE));;
+      debug("Queue Forward:\n%s", lirsToString(map, Direction.FORWARD, Lirs.QUEUE));
       debug("Queue Backward:\n%s", lirsToString(map, Direction.BACKWARD, Lirs.QUEUE));
     }
   }

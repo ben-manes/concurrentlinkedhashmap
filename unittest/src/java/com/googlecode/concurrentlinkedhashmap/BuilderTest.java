@@ -10,7 +10,6 @@ import static org.hamcrest.Matchers.sameInstance;
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.DiscardingListener;
-import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.WeightedCapacityLimiter;
 
 import org.testng.annotations.Test;
 
@@ -118,27 +117,5 @@ public final class BuilderTest extends BaseTest {
   public void weigher_withCustom(Builder<Integer, byte[]> builder) {
     builder.weigher(Weighers.byteArray());
     assertThat((Object) builder.build().weigher, is(sameInstance((Object) Weighers.byteArray())));
-  }
-
-  @Test(dataProvider = "builder", expectedExceptions = NullPointerException.class)
-  public void capacityLimiter_withNull(Builder<?, ?> builder) {
-    builder.capacityLimiter(null);
-  }
-
-  @Test(dataProvider = "builder")
-  public void capacityLimiter_withDefault(Builder<Object, Object> builder) {
-    CapacityLimiter capacityLimiter = WeightedCapacityLimiter.INSTANCE;
-    assertThat(builder.build().capacityLimiter, is(sameInstance(capacityLimiter)));
-  }
-
-  @Test(dataProvider = "builder")
-  public void capacityLimiter_withCustom(Builder<Object, Object> builder) {
-    CapacityLimiter capacityLimiter = new CapacityLimiter() {
-      @Override public boolean hasExceededCapacity(ConcurrentLinkedHashMap<?, ?> map) {
-        return false;
-      }
-    };
-    builder.maximumWeightedCapacity(capacity()).capacityLimiter(capacityLimiter);
-    assertThat(builder.build().capacityLimiter, is(sameInstance(capacityLimiter)));
   }
 }

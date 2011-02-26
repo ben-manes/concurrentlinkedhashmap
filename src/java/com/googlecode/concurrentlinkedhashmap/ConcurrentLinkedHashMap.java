@@ -186,7 +186,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   final Lock evictionLock;
   final Weigher<? super V> weigher;
   final Queue<Runnable> writeQueue;
-  final CapacityLimiter capacityLimiter;
   final AtomicIntegerArray recencyQueueLength;
   final Queue<RecencyReference>[] recencyQueue;
 
@@ -227,7 +226,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     policy = (weigher == Weighers.singleton()) ? new LirsPolicy() : new LruPolicy();
     sentinel = policy.createSentinel();
     evictionLock = new ReentrantLock();
-    capacityLimiter = builder.capacityLimiter;
     writeQueue = new ConcurrentLinkedQueue<Runnable>();
     policy.setCapacity(builder.maximumWeightedCapacity);
 
@@ -277,41 +275,13 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     evictionLock.lock();
     try {
       policy.setCapacity(capacity);
-    } finally {
-      evictionLock.unlock();
-    }
-    evictWith(capacityLimiter);
-  }
-
-  /**
-   * Evicts entries from the map while it exceeds the capacity limiter's
-   * constraint or until the map is empty.
-   *
-   * @param capacityLimiter the algorithm to determine whether to evict an entry
-   * @throws NullPointerException if the capacity limiter is null
-   */
-  public void evictWith(CapacityLimiter capacityLimiter) {
-    checkNotNull(capacityLimiter, "null capacity limiter");
-
-    evictionLock.lock();
-    try {
       drainRecencyQueues();
       drainWriteQueue();
-      evict(capacityLimiter);
+      evict();
     } finally {
       evictionLock.unlock();
     }
     notifyListener();
-  }
-
-  /**
-   * Determines whether the map has exceeded its capacity.
-   *
-   * @param capacityLimiter the algorithm to determine whether to evict an entry
-   * @return if the map has overflowed and an entry should be evicted
-   */
-  boolean hasOverflowed(CapacityLimiter capacityLimiter) {
-    return capacityLimiter.hasExceededCapacity(this);
   }
 
   /**
@@ -321,14 +291,14 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * @param capacityLimiter the algorithm to determine whether to evict an entry
    */
   @GuardedBy("evictionLock")
-  void evict(CapacityLimiter capacityLimiter) {
+  void evict() {
     // Attempts to evict entries from the map if it exceeds the maximum
     // capacity. If the eviction fails due to a concurrent removal of the
     // victim, that removal may cancel out the addition that triggered this
     // eviction. The victim is eagerly unlinked before the removal task so
     // that if an eviction is still required then a new victim will be chosen
     // for removal.
-    while (hasOverflowed(capacityLimiter)) {
+    while (policy.hasOverflowed()) {
       Node node = policy.victim();
       if (node == sentinel) {
         // The map has evicted all of its entries and can offer no further aid
@@ -644,7 +614,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     public void run() {
       policy.currentSize += weight;
       node.add();
-      evict(capacityLimiter);
+      evict();
     }
   }
 
@@ -681,7 +651,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     @GuardedBy("evictionLock")
     public void run() {
       policy.currentSize += weightDifference;
-      evict(capacityLimiter);
+      evict();
     }
   }
 
@@ -1055,6 +1025,16 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
     final int capacity() {
       return capacity;
+    }
+
+    /**
+     * Determines whether the map has exceeded its capacity.
+     *
+     * @return if the map has overflowed and an entry should be evicted
+     */
+    @GuardedBy("evictionLock")
+    boolean hasOverflowed() {
+      return currentSize > capacity;
     }
 
     /**
@@ -1606,7 +1586,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
         return;
       }
 
-      evict(capacityLimiter);
+      evict();
 
       // Then we load the requested block X into the freed buffer and place it
       // on the top of stack.
@@ -1892,19 +1872,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     @Override public void onEviction(Object key, Object value) {}
   }
 
-  /**
-   * A capacity limiter that bounds the map by its maximum weighted size.
-   */
-  enum WeightedCapacityLimiter implements CapacityLimiter {
-    INSTANCE;
-
-    @Override
-    @GuardedBy("evictionLock")
-    public boolean hasExceededCapacity(ConcurrentLinkedHashMap<?, ?> map) {
-      return map.weightedSize() > map.capacity();
-    }
-  }
-
   /* ---------------- Serialization Support -------------- */
 
   static final long serialVersionUID = 1;
@@ -1926,7 +1893,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    */
   static final class SerializationProxy<K, V> implements Serializable {
     final EvictionListener<K, V> listener;
-    final CapacityLimiter capacityLimiter;
     final Weigher<? super V> weigher;
     final int concurrencyLevel;
     final Map<K, V> data;
@@ -1934,7 +1900,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
     SerializationProxy(ConcurrentLinkedHashMap<K, V> map) {
       concurrencyLevel = map.concurrencyLevel;
-      capacityLimiter = map.capacityLimiter;
       capacity = map.policy.capacity();
       data = new HashMap<K, V>(map);
       listener = map.listener;
@@ -1945,7 +1910,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       ConcurrentLinkedHashMap<K, V> map = new Builder<K, V>()
           .concurrencyLevel(concurrencyLevel)
           .maximumWeightedCapacity(capacity)
-          .capacityLimiter(capacityLimiter)
           .listener(listener)
           .weigher(weigher)
           .build();
@@ -1977,7 +1941,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     static final int DEFAULT_INITIAL_CAPACITY = 16;
     static final int DEFAULT_CONCURRENCY_LEVEL = 16;
 
-    CapacityLimiter capacityLimiter;
     EvictionListener<K, V> listener;
     Weigher<? super V> weigher;
 
@@ -1991,7 +1954,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       weigher = Weighers.singleton();
       initialCapacity = DEFAULT_INITIAL_CAPACITY;
       concurrencyLevel = DEFAULT_CONCURRENCY_LEVEL;
-      capacityLimiter = WeightedCapacityLimiter.INSTANCE;
       listener = (EvictionListener<K, V>) DiscardingListener.INSTANCE;
     }
 
@@ -2071,23 +2033,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     public Builder<K, V> weigher(Weigher<? super V> weigher) {
       checkNotNull(weigher, null);
       this.weigher = weigher;
-      return this;
-    }
-
-    /**
-     * Specifies an algorithm to determine if the maximum capacity has been
-     * exceeded and that an entry should be evicted from the map. The default
-     * algorithm bounds the map by the maximum weighted capacity. The evaluation
-     * of whether the map has exceeded its capacity is performed after an
-     * insertion or update operation.
-     *
-     * @param capacityLimiter the algorithm to determine whether to evict an
-     *     entry
-     * @throws NullPointerException if the capacity limiter is null
-     */
-    public Builder<K, V> capacityLimiter(CapacityLimiter capacityLimiter) {
-      checkNotNull(capacityLimiter, null);
-      this.capacityLimiter = capacityLimiter;
       return this;
     }
 

@@ -40,8 +40,7 @@ public final class IsValidState extends TypeSafeDiagnosingMatcher<ConcurrentLink
 
     Checker checker = new Checker(description);
     checkMap(map, checker);
-//    checkPolicy(map, checker);
-//    checkSentinel(map, checker);
+    checkPolicy(map, checker);
     return checker.matches;
   }
 
@@ -108,6 +107,7 @@ public final class IsValidState extends TypeSafeDiagnosingMatcher<ConcurrentLink
   }
 
   private void checkPolicy(ConcurrentLinkedHashMap<?, ?> map, Checker checker) {
+    checkSentinel(map, checker);
     if (map.policy instanceof LruPolicy) {
       checkLru(map, checker);
     } else if (map.policy instanceof LirsPolicy) {

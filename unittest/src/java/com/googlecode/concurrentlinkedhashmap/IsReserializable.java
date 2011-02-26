@@ -53,7 +53,6 @@ public final class IsReserializable<T> extends TypeSafeMatcher<T> {
         .append(valid().matches(copy), true)
         .append(data.isEmpty(), emptyMap().matches(original))
         .append(data.isEmpty(), emptyMap().matches(copy))
-        .append(original.capacityLimiter.getClass(), copy.capacityLimiter.getClass())
         .append(original.policy.capacity, copy.policy.capacity)
         .append(original.policy.currentSize, copy.policy.currentSize)
         .append(original.listener.getClass(), copy.listener.getClass())
