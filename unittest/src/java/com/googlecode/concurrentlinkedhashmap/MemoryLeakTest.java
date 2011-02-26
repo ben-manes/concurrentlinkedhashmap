@@ -4,83 +4,81 @@ import static com.googlecode.concurrentlinkedhashmap.ConcurrentTestHarness.timeT
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 
+import org.apache.commons.lang.time.DurationFormatUtils;
+import org.testng.annotations.AfterMethod;
+import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
-import java.util.concurrent.atomic.AtomicInteger;
+import java.text.NumberFormat;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 /**
  * A unit-test to assert that the cache does not have a memory leak by not being
- * able to drain the eviction queues fast enough.
+ * able to drain the recency queues fast enough.
  *
  * @author ben.manes@gmail.com (Ben Manes)
  */
 @Test(groups = "memoryLeak")
-public final class MemoryLeakTest extends BaseTest {
-  private static final String WARNING =
-    "WARNING: This test will run forever and must be manually stopped";
+public final class MemoryLeakTest {
+  private static final long DAY = 86400000;
+  private static final long SECONDS = 1000;
 
-  private static final int ITERATIONS = 100000;
-  private static final int NUM_THREADS = 1000;
+  private static final long TIME_OUT = 1 * DAY;
+  private static final long STATUS_INTERVAL = 5 * SECONDS;
 
-  @Override
-  protected int capacity() {
-    throw new UnsupportedOperationException();
+  private static final int RECENCY_QUEUES = 64;
+  private static final int THREADS = 250;
+
+  private ConcurrentLinkedHashMap<Long, Long> map;
+  private ScheduledExecutorService es;
+
+  @BeforeMethod
+  public void beforeMemoryLeakTest() {
+    map = new Builder<Long, Long>()
+        .maximumWeightedCapacity(THREADS)
+        .concurrencyLevel(RECENCY_QUEUES)
+        .build();
+    es = Executors.newSingleThreadScheduledExecutor();
+    es.scheduleAtFixedRate(newStatusTask(),
+        STATUS_INTERVAL, STATUS_INTERVAL, TimeUnit.MILLISECONDS);
   }
 
-  @Test
+  @AfterMethod
+  public void afterMemoryLeakTest() {
+    es.shutdownNow();
+  }
+
+  @Test(timeOut = TIME_OUT)
   public void memoryLeak() throws InterruptedException {
-    info(WARNING);
-
-    timeTasks(1000, new Runnable() {
-      final Listener listener = new Listener();
-
-      @Override
-      public void run() {
-        int current = (int) Math.random();
-        for (int i = 1;; i++) {
-          listener.map.put(current, current);
-          listener.map.get(current);
-          current++;
-          if ((i % NUM_THREADS) == 0) {
-            printStatus(listener.map);
-          }
+    timeTasks(THREADS, new Runnable() {
+      @Override public void run() {
+        Long id = Thread.currentThread().getId();
+        map.put(id, id);
+        for (;;) {
+          map.get(id);
+          Thread.yield();
         }
       }
     });
   }
 
-  final class Listener implements EvictionListener<Integer, Integer> {
-    final ConcurrentLinkedHashMap<Integer, Integer> map;
-    final AtomicInteger calls;
+  private Runnable newStatusTask() {
+    return new Runnable() {
+      int runningTime;
 
-    Listener() {
-      calls = new AtomicInteger();
-      map = new Builder<Integer, Integer>()
-          .maximumWeightedCapacity(1000)
-          .concurrencyLevel(NUM_THREADS)
-          .initialCapacity(ITERATIONS)
-          .listener(this)
-          .build();
-    }
-
-    @Override
-    public void onEviction(Integer key, Integer value) {
-      calls.incrementAndGet();
-
-      if ((calls.get() % NUM_THREADS) == 0) {
-        debug("Evicted by thread #" + Thread.currentThread().getId());
-        printStatus(map);
+      @Override public void run() {
+        long pending = 0;
+        for (int i = 0; i < map.recencyQueue.length; i++) {
+          pending += map.recencyQueueLength.get(i);
+        }
+        runningTime += STATUS_INTERVAL;
+        String pendingReads = NumberFormat.getInstance().format(pending);
+        String elapsedTime = DurationFormatUtils.formatDuration(runningTime, "H:mm:ss");
+        System.out.printf("---------- %s ----------\n", elapsedTime);
+        System.out.printf("Pending reads = %s\n", pendingReads);
       }
-    }
-  }
-
-  void printStatus(ConcurrentLinkedHashMap<?, ?> map) {
-    long reorders = 0;
-    for (int i = 0; i < map.recencyQueue.length; i++) {
-      reorders += map.recencyQueueLength.get(i);
-    }
-    debug("Write queue size = %d", map.writeQueue.size());
-    debug("Read queues size = %d", reorders);
-    info(WARNING);
+    };
   }
 }

@@ -106,11 +106,10 @@ public final class ConcurrentTestHarness {
     startGate.countDown();
     try {
       endGate.await();
-    } catch (InterruptedException e) {
+    } finally {
       for (Thread thread : threads) {
         thread.stop();
       }
-      throw e;
     }
     long end = System.nanoTime();
     return new TestResult<T>(end - start, toList(results));
