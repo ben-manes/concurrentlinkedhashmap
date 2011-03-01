@@ -361,10 +361,10 @@ public final class MultiThreadedTest extends BaseTest {
   static String nodeToString(Node node) {
     if (node == null) {
       return "null";
-    } else if (node.segment == -1) {
+    } else if (node.getWeightedValue() == null) {
       return "setinel";
     }
-    return node.key + "=" + node.weightedValue.value;
+    return node.key + "=" + node.getWeightedValue().value;
   }
 
   /** Finds the node in the map by walking the list. Returns null if not found. */
