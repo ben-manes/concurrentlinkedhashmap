@@ -2,6 +2,8 @@ package com.googlecode.concurrentlinkedhashmap;
 
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentTestHarness.timeTasks;
 
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 
 import org.apache.commons.lang.time.DurationFormatUtils;
@@ -12,6 +14,7 @@ import org.testng.annotations.Test;
 import java.text.NumberFormat;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -28,7 +31,6 @@ public final class MemoryLeakTest {
   private static final long TIME_OUT = 1 * DAY;
   private static final long STATUS_INTERVAL = 5 * SECONDS;
 
-  private static final int RECENCY_QUEUES = 64;
   private static final int THREADS = 250;
 
   private ConcurrentLinkedHashMap<Long, Long> map;
@@ -38,9 +40,12 @@ public final class MemoryLeakTest {
   public void beforeMemoryLeakTest() {
     map = new Builder<Long, Long>()
         .maximumWeightedCapacity(THREADS)
-        .concurrencyLevel(RECENCY_QUEUES)
         .build();
-    es = Executors.newSingleThreadScheduledExecutor();
+    ThreadFactory threadFactory = new ThreadFactoryBuilder()
+        .setPriority(Thread.MAX_PRIORITY)
+        .setDaemon(true)
+        .build();
+    es = Executors.newSingleThreadScheduledExecutor(threadFactory);
     es.scheduleAtFixedRate(newStatusTask(),
         STATUS_INTERVAL, STATUS_INTERVAL, TimeUnit.MILLISECONDS);
   }
@@ -74,10 +79,10 @@ public final class MemoryLeakTest {
           pending += map.recencyQueueLength.get(i);
         }
         runningTime += STATUS_INTERVAL;
-        String pendingReads = NumberFormat.getInstance().format(pending);
         String elapsedTime = DurationFormatUtils.formatDuration(runningTime, "H:mm:ss");
+        String pendingReads = NumberFormat.getInstance().format(pending);
         System.out.printf("---------- %s ----------\n", elapsedTime);
-        System.out.printf("Pending reads = %s\n", pendingReads);
+        System.out.printf("Pending recencies = %s\n", pendingReads);
       }
     };
   }

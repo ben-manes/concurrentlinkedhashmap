@@ -122,14 +122,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   // simplicity, high hit rate, and ability to be implemented with O(1) time
   // complexity.
 
-  /**
-   * Number of cache access operations that can be buffered per recency queue
-   * before the cache's recency ordering information is updated. This is used
-   * to avoid lock contention by recording a memento of reads and delaying a
-   * lock acquisition until the threshold is crossed or a mutation occurs.
-   */
-  static final int RECENCY_THRESHOLD = 16;
-
   /** The maximum number of segments to allow. */
   static final int MAXIMUM_SEGMENTS = 1 << 16; // slightly conservative
 
@@ -138,6 +130,36 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
   /** The maximum weight of a value. */
   static final int MAXIMUM_WEIGHT = 1 << 29;
+
+  /** The maximum number of pending recency operations per queue. */
+  static final int MAXIMUM_RECENCY_QUEUE_SIZE = 1 << 20;
+
+  /** The number of recency queues to use. */
+  static final int NUMBER_OF_RECENCY_QUEUES;
+
+  /** Mask value for indexing into the recency queues. */
+  static final int RECENCY_QUEUE_MASK;
+
+  /**
+   * Number of cache access operations that can be buffered per recency queue
+   * before the cache's recency ordering information is updated. This is used
+   * to avoid lock contention by recording a memento of reads and delaying a
+   * lock acquisition until the threshold is crossed or a mutation occurs.
+   */
+  static final int RECENCY_THRESHOLD = 16;
+
+  /**
+   * Find power-of-two size best matching the number of available processors.
+   */
+  static {
+    int recencyQueues = 1;
+    int availableProcessors = Runtime.getRuntime().availableProcessors();
+    while (recencyQueues < availableProcessors) {
+      recencyQueues <<= 1;
+    }
+    NUMBER_OF_RECENCY_QUEUES = recencyQueues;
+    RECENCY_QUEUE_MASK = recencyQueues - 1;
+  }
 
   /** An executor that runs the task on the caller's thread. */
   static final Executor sameThreadExecutor = new SameThreadExecutor();
@@ -222,10 +244,10 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     capacityLimiter = builder.capacityLimiter;
     writeQueue = new ConcurrentLinkedQueue<Runnable>();
 
-    recencyQueue = (Queue<RecencyReference>[]) new Queue[segments];
-    recencyQueueLength = new AtomicIntegerArray(recencyQueue.length);
-    maxRecenciesToDrain = (1 + recencyQueue.length) * RECENCY_THRESHOLD;
-    for (int i = 0; i < recencyQueue.length; i++) {
+    recencyQueue = (Queue<RecencyReference>[]) new Queue[NUMBER_OF_RECENCY_QUEUES];
+    recencyQueueLength = new AtomicIntegerArray(NUMBER_OF_RECENCY_QUEUES);
+    maxRecenciesToDrain = (1 + NUMBER_OF_RECENCY_QUEUES) * RECENCY_THRESHOLD;
+    for (int i = 0; i < NUMBER_OF_RECENCY_QUEUES; i++) {
       recencyQueue[i] = new ConcurrentLinkedQueue<RecencyReference>();
     }
 
@@ -407,15 +429,22 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     // A recency queue is chosen by the thread's id so that recencies are evenly
     // distributed between queues. This ensures that hot entries do not cause
     // contention due to the threads trying to append to the same queue.
-    int index = (int) Thread.currentThread().getId() & segmentMask;
+    int index = (int) Thread.currentThread().getId() & RECENCY_QUEUE_MASK;
 
     // The recency's global order is acquired in a racy fashion as the increment
     // is not atomic with the insertion. This means that concurrent reads can
     // have the same ordering and the queues are in a weakly sorted order.
     int recencyOrder = globalRecencyOrder++;
 
-    recencyQueue[index].add(new RecencyReference(node, recencyOrder));
+    // The recency queue is capped to a maximum capacity to avoid stampeding
+    // requests to exceed a tolerance level and cause an out-of-memory error.
     int buffered = recencyQueueLength.incrementAndGet(index);
+    if (buffered > MAXIMUM_RECENCY_QUEUE_SIZE) {
+      recencyQueueLength.decrementAndGet(index);
+    } else {
+      recencyQueue[index].add(new RecencyReference(node, recencyOrder));
+    }
+
     return (buffered <= RECENCY_THRESHOLD);
   }
 

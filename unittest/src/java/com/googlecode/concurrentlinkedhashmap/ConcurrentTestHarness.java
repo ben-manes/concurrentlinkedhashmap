@@ -98,6 +98,7 @@ public final class ConcurrentTestHarness {
           }
         }
       };
+      thread.setDaemon(true);
       thread.start();
       threads.add(thread);
     }
