@@ -33,7 +33,6 @@ public final class IsValidState extends TypeSafeDiagnosingMatcher<ConcurrentLink
       map.tryToDrainEvictionQueues(false);
     }
 
-    matches &= check(map.writeQueue.isEmpty(), "writeQueue not empty", description);
     for (int i = 0; i < map.recencyQueue.length; i++) {
       matches &= check(map.recencyQueue[i].isEmpty(), "recencyQueue not empty", description);
       matches &= check(map.recencyQueueLength.get(i) == 0, "recencyQueueLength != 0", description);

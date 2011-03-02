@@ -1,6 +1,7 @@
 package com.googlecode.concurrentlinkedhashmap;
 
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.MAXIMUM_CAPACITY;
+import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.MAXIMUM_RECENCIES_TO_DRAIN;
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.RECENCY_THRESHOLD;
 import static com.googlecode.concurrentlinkedhashmap.IsValidState.valid;
 import static java.util.Arrays.asList;
@@ -17,7 +18,7 @@ import com.google.common.collect.Lists;
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Node;
-import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.RecencyReference;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.RecencyTask;
 
 import org.testng.annotations.Test;
 
@@ -342,19 +343,19 @@ public final class EvictionTest extends BaseTest {
   @Test(dataProvider = "guardedMap")
   public void applyInRecencyOrder(ConcurrentLinkedHashMap<Integer, Integer> map) {
     // Add a dummy set of recency operations to the queues
-    for (int i = 0; i < map.maxRecenciesToDrain; i++) {
-      map.addToRecencyQueue(null);
+    for (int i = 0; i < MAXIMUM_RECENCIES_TO_DRAIN; i++) {
+      map.addToRecencyQueue(null, false);
     }
 
     // Perform the merging in the same manner as when draining the queues
-    Object[] recencies = new Object[map.maxRecenciesToDrain];
+    Object[] recencies = new Object[MAXIMUM_RECENCIES_TO_DRAIN];
     int maxRecencyIndex = map.moveRecenciesFromQueues(recencies);
 
     // Check that the recencies are in sorted order
     Integer last = null;
     for (int i = 0; i <= maxRecencyIndex; i++) {
       @SuppressWarnings("unchecked")
-      int order = ((RecencyReference) recencies[i]).recencyOrder;
+      int order = ((RecencyTask) recencies[i]).recencyOrder;
       if (last != null) {
         assertThat(order, is(equalTo(last + 1)));
       }

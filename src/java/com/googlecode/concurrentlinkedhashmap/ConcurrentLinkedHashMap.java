@@ -15,6 +15,10 @@
  */
 package com.googlecode.concurrentlinkedhashmap;
 
+import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.DrainStatus.IDLE;
+import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.DrainStatus.PROCESSING;
+import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.DrainStatus.REQUIRED;
+
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 
 import java.io.InvalidObjectException;
@@ -107,14 +111,12 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   // threads so that the amortized cost is slightly higher than performing just
   // the ConcurrentHashMap operation.
   //
-  // This implementation uses a global write queue and multiple read queues to
-  // record a memento of the the additions, removals, and accesses that were
-  // performed on the map. The write queue is drained at the first opportunity
-  // and the read queues are drained after a write or when a queue exceeds its
-  // capacity threshold. A strict recency ordering is achieved by observing that
-  // each read queue is in a weakly sorted order, starting from the last drain.
-  // The read queues can be merged in O(n) time so that the recency operations
-  // are applied in the expected order.
+  // A memento of additions, removals, and accesses that were performed on the
+  // is recorded in a queue. The queues are drained at the first opportunity
+  // after a write or when a queue exceeds its capacity threshold. A strict
+  // ordering is achieved by observing that each queue is in a weakly sorted
+  // order starting from the last drain. The queues can be merged in O(n) time
+  // so that the operations are applied in the expected order.
   //
   // The Least Recently Used page replacement algorithm was chosen due to its
   // simplicity, high hit rate, and ability to be implemented with O(1) time
@@ -135,6 +137,9 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   /** Mask value for indexing into the recency queues. */
   static final int RECENCY_QUEUE_MASK;
 
+  /** The maximum number of recency operations to perform per drain. */
+  static final int MAXIMUM_RECENCIES_TO_DRAIN;
+
   /**
    * Number of cache access operations that can be buffered per recency queue
    * before the cache's recency ordering information is updated. This is used
@@ -143,15 +148,14 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    */
   static final int RECENCY_THRESHOLD = 16;
 
-  /**
-   * Find power-of-two size best matching the number of available processors.
-   */
   static {
+    // Find the power-of-two best matching the number of available processors
     int recencyQueues = 1;
     int availableProcessors = Runtime.getRuntime().availableProcessors();
     while (recencyQueues < availableProcessors) {
       recencyQueues <<= 1;
     }
+    MAXIMUM_RECENCIES_TO_DRAIN = (1 + recencyQueues) * RECENCY_THRESHOLD;
     NUMBER_OF_RECENCY_QUEUES = recencyQueues;
     RECENCY_QUEUE_MASK = recencyQueues - 1;
   }
@@ -161,6 +165,10 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
   /** A queue that discards all entries. */
   static final Queue<?> discardingQueue = new DiscardingQueue<Object>();
+
+  enum DrainStatus { IDLE, REQUIRED, PROCESSING }
+
+  final AtomicReference<DrainStatus> drainStatus;
 
   /** The backing data store holding the key-value associations. */
   final ConcurrentMap<K, Node> data;
@@ -176,17 +184,15 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   volatile int maximumWeightedSize;
 
   volatile int globalRecencyOrder;
-  final int maxRecenciesToDrain;
   @GuardedBy("evictionLock")
   int drainedRecencyOrder;
 
   final Lock evictionLock;
   final Executor executor;
   final Weigher<? super V> weigher;
-  final Queue<Runnable> writeQueue;
   final CapacityLimiter capacityLimiter;
   final AtomicIntegerArray recencyQueueLength;
-  final Queue<RecencyReference>[] recencyQueue;
+  final Queue<RecencyTask>[] recencyQueue;
 
   // These fields provide support for notifying a listener.
   final Queue<Node> listenerQueue;
@@ -214,13 +220,12 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     globalRecencyOrder = Integer.MIN_VALUE;
     drainedRecencyOrder = Integer.MIN_VALUE;
     capacityLimiter = builder.capacityLimiter;
-    writeQueue = new ConcurrentLinkedQueue<Runnable>();
+    drainStatus = new AtomicReference<DrainStatus>(IDLE);
 
-    recencyQueue = (Queue<RecencyReference>[]) new Queue[NUMBER_OF_RECENCY_QUEUES];
+    recencyQueue = (Queue<RecencyTask>[]) new Queue[NUMBER_OF_RECENCY_QUEUES];
     recencyQueueLength = new AtomicIntegerArray(NUMBER_OF_RECENCY_QUEUES);
-    maxRecenciesToDrain = (1 + NUMBER_OF_RECENCY_QUEUES) * RECENCY_THRESHOLD;
     for (int i = 0; i < NUMBER_OF_RECENCY_QUEUES; i++) {
-      recencyQueue[i] = new ConcurrentLinkedQueue<RecencyReference>();
+      recencyQueue[i] = new ConcurrentLinkedQueue<RecencyTask>();
     }
 
     // The notification listener and event queue
@@ -278,7 +283,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     evictionLock.lock();
     try {
       drainRecencyQueues();
-      drainWriteQueue();
       evict(capacityLimiter);
     } finally {
       evictionLock.unlock();
@@ -370,10 +374,10 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * replacement algorithm in choosing the best victim when an eviction is
    * required.
    *
-   * @param node the entry that was accessed
+   * @param task the pending operation to apply
    * @return true if the size does not exceeds the threshold
    */
-  boolean addToRecencyQueue(Node node) {
+  boolean addToRecencyQueue(Runnable task, boolean isWrite) {
     // A recency queue is chosen by the thread's id so that recencies are evenly
     // distributed between queues. This ensures that hot entries do not cause
     // contention due to the threads trying to append to the same queue.
@@ -390,9 +394,13 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     if (buffered > MAXIMUM_RECENCY_QUEUE_SIZE) {
       recencyQueueLength.decrementAndGet(index);
     } else {
-      recencyQueue[index].add(new RecencyReference(node, recencyOrder));
+      recencyQueue[index].add(new RecencyTask(recencyOrder, task, isWrite));
     }
 
+    if (isWrite) {
+      drainStatus.set(REQUIRED);
+      return false;
+    }
     return (buffered <= RECENCY_THRESHOLD);
   }
 
@@ -404,27 +412,17 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    *     are pending writes
    */
   void tryToDrainEvictionQueues(boolean onlyIfWrites) {
-    if (onlyIfWrites && writeQueue.isEmpty()) {
+    if (onlyIfWrites && (drainStatus.get() != REQUIRED)) {
       return;
     }
     if (evictionLock.tryLock()) {
       try {
+        drainStatus.set(PROCESSING);
         drainRecencyQueues();
-        drainWriteQueue();
+        drainStatus.compareAndSet(PROCESSING, IDLE);
       } finally {
         evictionLock.unlock();
       }
-    }
-  }
-
-  /**
-   * Applies the pending updates to the list.
-   */
-  @GuardedBy("evictionLock")
-  void drainWriteQueue() {
-    Runnable task;
-    while ((task = writeQueue.poll()) != null) {
-      task.run();
     }
   }
 
@@ -441,12 +439,12 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     // The merged output is capped to the expected number of recencies plus
     // additional slack to optimistically handle the concurrent additions to
     // the queues.
-    Object[] recencies = new Object[maxRecenciesToDrain];
+    Object[] recencies = new Object[MAXIMUM_RECENCIES_TO_DRAIN];
 
     // Moves the recencies into the output collections, applies the reorderings,
     // and updates the marker for the starting recency order of the next drain.
     int maxRecencyIndex = moveRecenciesFromQueues(recencies);
-    applyRecencyReorderings(recencies, maxRecencyIndex);
+    applyRecencyTasks(recencies, maxRecencyIndex);
     updateDrainedRecencyOrder(recencies, maxRecencyIndex);
   }
 
@@ -478,11 +476,11 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     // While a queue is being drained it may be concurrently appended to. The
     // number of elements removed are tracked so that the length can be
     // decremented by the delta rather than set to zero.
-    Queue<RecencyReference> queue = recencyQueue[queueIndex];
+    Queue<RecencyTask> queue = recencyQueue[queueIndex];
     int removedFromQueue = 0;
 
     int maxIndex = -1;
-    RecencyReference recency;
+    RecencyTask recency;
     while ((recency = queue.poll()) != null) {
       removedFromQueue++;
 
@@ -492,7 +490,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       if (index < 0) {
         // The recency was missed by the last drain (due to the queues being
         // weakly sorted) and can be applied immediately.
-        reorderRecency(recency);
+        applyRecency(recency);
         continue;
       } else if (index >= recencies.length) {
         // Due to concurrent additions, the recency order exceeds the capacity
@@ -518,21 +516,21 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * @param index the array location
    */
   @GuardedBy("evictionLock")
-  void addRecencyToChain(Object[] recencies, RecencyReference recency, int index) {
-    recency.next = (RecencyReference) recencies[index];
+  void addRecencyToChain(Object[] recencies, RecencyTask recency, int index) {
+    recency.next = (RecencyTask) recencies[index];
     recencies[index] = recency;
   }
 
   /**
-   * Applies the pending recency reorderings to the page replacement policy.
+   * Applies the pending recency tasks to the page replacement policy.
    *
    * @param recencies the ordered array of the pending recency operations
    * @param maxRecencyIndex the maximum index of the recencies array
    */
   @GuardedBy("evictionLock")
-  void applyRecencyReorderings(Object[] recencies, int maxRecencyIndex) {
+  void applyRecencyTasks(Object[] recencies, int maxRecencyIndex) {
     for (int i = 0; i <= maxRecencyIndex; i++) {
-      reorderRecencyiesInChain((RecencyReference) recencies[i]);
+      applyRecencyiesInChain((RecencyTask) recencies[i]);
     }
   }
 
@@ -543,10 +541,10 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * @param head the first recency in the chain of recency operations
    */
   @GuardedBy("evictionLock")
-  void reorderRecencyiesInChain(RecencyReference head) {
-    RecencyReference recency = head;
+  void applyRecencyiesInChain(RecencyTask head) {
+    RecencyTask recency = head;
     while (recency != null) {
-      reorderRecency(recency);
+      applyRecency(recency);
       recency = recency.next;
     }
   }
@@ -557,15 +555,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * @param recency the pending recency operation
    */
   @GuardedBy("evictionLock")
-  void reorderRecency(RecencyReference recency) {
-    // An entry may scheduled for reordering despite having been previously
-    // removed. This can occur when the entry was concurrently read while a
-    // writer was removing it. If the entry was garbage collected or no longer
-    // linked then it does not need to be processed.
-    Node node = recency.get();
-    if ((node != null) && node.isLinked()) {
-      node.moveToTail();
-    }
+  void applyRecency(RecencyTask recency) {
+    recency.run();
   }
 
   /**
@@ -577,7 +568,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   @GuardedBy("evictionLock")
   void updateDrainedRecencyOrder(Object[] recencies, int maxRecencyIndex) {
     if (maxRecencyIndex >= 0) {
-      RecencyReference recency = (RecencyReference) recencies[maxRecencyIndex];
+      RecencyTask recency = (RecencyTask) recencies[maxRecencyIndex];
       drainedRecencyOrder = recency.recencyOrder + 1;
     }
   }
@@ -603,16 +594,49 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     }
   }
 
+  final class RecencyTask implements Runnable {
+    final int recencyOrder;
+    final boolean isWrite;
+    final Runnable task;
+    RecencyTask next;
+
+    RecencyTask(int recencyOrder, Runnable task, boolean isWrite) {
+      this.recencyOrder = recencyOrder;
+      this.isWrite = isWrite;
+      this.task = task;
+    }
+
+    @Override
+    @GuardedBy("evictionLock")
+    public void run() {
+      task.run();
+    }
+
+    boolean isWrite() {
+      return isWrite;
+    }
+  }
+
   /**
    * A reference to a list node with its recency order.
    */
-  final class RecencyReference extends WeakReference<Node> {
-    final int recencyOrder;
-    RecencyReference next;
+  class RecencyReference extends WeakReference<Node> implements Runnable {
 
-    public RecencyReference(Node node, int recencyOrder) {
+    public RecencyReference(Node node) {
       super(node);
-      this.recencyOrder = recencyOrder;
+    }
+
+    @Override
+    @GuardedBy("evictionLock")
+    public void run() {
+      // An entry may scheduled for reordering despite having been previously
+      // removed. This can occur when the entry was concurrently read while a
+      // writer was removing it. If the entry was garbage collected or no longer
+      // linked then it does not need to be processed.
+      Node node = get();
+      if ((node != null) && node.isLinked()) {
+        node.moveToTail();
+      }
     }
   }
 
@@ -664,16 +688,18 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   /**
    * Updates the weighted size and evicts an entry on overflow.
    */
-  final class UpdateTask implements Runnable {
+  final class UpdateTask extends RecencyReference {
     final int weightDifference;
 
-    public UpdateTask(int weightDifference) {
+    public UpdateTask(Node node, int weightDifference) {
+      super(node);
       this.weightDifference = weightDifference;
     }
 
     @Override
     @GuardedBy("evictionLock")
     public void run() {
+      super.run();
       weightedSize += weightDifference;
       evict(capacityLimiter);
     }
@@ -708,8 +734,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     // linkage fields are null'ed out to reduce GC pressure.
     evictionLock.lock();
     try {
-      drainWriteQueue();
-
       Node current = sentinel.next;
       while (current != sentinel) {
         data.remove(current.key, current);
@@ -723,12 +747,16 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       sentinel.next = sentinel;
       sentinel.prev = sentinel;
 
-      // Eagerly discards all of the stale recency reorderings
+      // Drain the queues to apply the writes and discard the reorderings
       for (int i = 0; i < recencyQueue.length; i++) {
-        Queue<?> queue = recencyQueue[i];
+        Queue<RecencyTask> queue = recencyQueue[i];
+        RecencyTask task;
         int removed = 0;
-        while (queue.poll() != null) {
+        while ((task = queue.poll()) != null) {
           removed++;
+          if (task.isWrite()) {
+            task.run();
+          }
         }
         recencyQueueLength.addAndGet(i, -removed);
       }
@@ -771,7 +799,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     boolean delayReorder = true;
     Node node = data.get(key);
     if (node != null) {
-      delayReorder = addToRecencyQueue(node);
+      delayReorder = addToRecencyQueue(new RecencyReference(node), false);
       value = node.getWeightedValue().value;
     }
     processEvents(delayReorder);
@@ -802,22 +830,21 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     checkNotNull(key, "null key");
     checkNotNull(value, "null value");
 
-    Node prior;
     V oldValue = null;
-    int weightedDifference = 0;
     boolean delayReorder = true;
-    final int weight = weigher.weightOf(value);
+    int weight = weigher.weightOf(value);
     WeightedValue<V> weightedValue = WeightedValue.create(value, weight);
     Node node = new Node(key, weightedValue);
 
     boolean repeat;
     do {
       repeat = false;
-      prior = data.putIfAbsent(node.key, node);
+      Node prior = data.putIfAbsent(node.key, node);
       if (prior == null) {
-        writeQueue.add(new AddTask(node, weight));
+        delayReorder = addToRecencyQueue(new AddTask(node, weight), true);
       } else if (onlyIfAbsent) {
         oldValue = prior.getWeightedValue().value;
+        delayReorder = addToRecencyQueue(new RecencyReference(prior), false);
       } else {
         for (;;) {
           WeightedValue<V> oldWeightedValue = prior.getWeightedValue();
@@ -827,20 +854,17 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
           }
 
           if (prior.casWeightedValue(oldWeightedValue, weightedValue)) {
-            weightedDifference = weight - oldWeightedValue.weight;
+            int weightedDifference = weight - oldWeightedValue.weight;
             oldValue = oldWeightedValue.value;
+            delayReorder = (weightedDifference == 0)
+                ? addToRecencyQueue(new RecencyReference(prior), false)
+                : addToRecencyQueue(new UpdateTask(node, weightedDifference), true);
             break;
           }
         }
       }
     } while (repeat);
 
-    if (prior != null) {
-      if (weightedDifference != 0) {
-        writeQueue.add(new UpdateTask(weightedDifference));
-      }
-      delayReorder = addToRecencyQueue(prior);
-    }
     processEvents(delayReorder);
     return oldValue;
   }
@@ -857,8 +881,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       WeightedValue<V> weightedValue = node.getWeightedValue();
       WeightedValue<V> tombstone = WeightedValue.createPendingRemoval(weightedValue);
       if (node.casWeightedValue(weightedValue, tombstone)) {
-        writeQueue.add(new RemovalTask(node));
-        processEvents(true);
+        addToRecencyQueue(new RemovalTask(node), true);
+        processEvents(false);
         return weightedValue.value;
       }
     }
@@ -879,17 +903,16 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       if (node.getWeightedValue().value.equals(value)) {
         WeightedValue<V> tombstone = WeightedValue.createPendingRemoval(weightedValue);
         if (node.casWeightedValue(weightedValue, tombstone)) {
-          writeQueue.add(new RemovalTask(node));
-          data.remove(key, node);
           removed = true;
+          data.remove(key, node);
+          addToRecencyQueue(new RemovalTask(node), true);
+          processEvents(false);
           break;
         }
       } else {
         break;
       }
     }
-
-    processEvents(true);
     return removed;
   }
 
@@ -898,37 +921,27 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     checkNotNull(key, "null key");
     checkNotNull(value, "null value");
 
-    Node node;
-    V prior = null;
-    int weightedDifference = 0;
-    boolean delayReorder = false;
     int weight = weigher.weightOf(value);
     WeightedValue<V> weightedValue = WeightedValue.create(value, weight);
 
     for (;;) {
-      node = data.get(key);
+      Node node = data.get(key);
       if (node == null) {
-        break;
+        return null;
       }
       WeightedValue<V> oldWeightedValue = node.getWeightedValue();
       if (oldWeightedValue.isTombstone()) {
-        break;
+        return null;
       }
       if (node.casWeightedValue(oldWeightedValue, weightedValue)) {
-        weightedDifference = weight - oldWeightedValue.weight;
-        prior = oldWeightedValue.value;
-        break;
+        int weightedDifference = weight - oldWeightedValue.weight;
+        boolean delayReorder = (weightedDifference == 0)
+            ? addToRecencyQueue(new RecencyReference(node), false)
+            : addToRecencyQueue(new UpdateTask(node, weightedDifference), true);
+        processEvents(delayReorder);
+        return oldWeightedValue.value;
       }
     }
-
-    if (node != null) {
-      if (weightedDifference != 0) {
-        writeQueue.add(new UpdateTask(weightedDifference));
-      }
-      delayReorder = addToRecencyQueue(node);
-    }
-    processEvents(delayReorder);
-    return prior;
   }
 
   @Override
@@ -937,36 +950,25 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     checkNotNull(oldValue, "null oldValue");
     checkNotNull(newValue, "null newValue");
 
-    Node node;
-    boolean delayReorder = false;
     int weight = weigher.weightOf(newValue);
-    WeightedValue<V> oldWeightedValue = null;
     WeightedValue<V> newWeightedValue = WeightedValue.create(newValue, weight);
 
-    node = data.get(key);
-    if (node != null) {
-      for (;;) {
-        WeightedValue<V> weightedValue = node.getWeightedValue();
-        if (weightedValue.isTombstone() || !oldValue.equals(weightedValue.value)) {
-          node = null;
-          break;
-        }
-        if (node.casWeightedValue(weightedValue, newWeightedValue)) {
-          oldWeightedValue = weightedValue;
-          break;
-        }
+    Node node = data.get(key);
+    if (node == null) {
+      return false;
+    }
+    for (;;) {
+      WeightedValue<V> weightedValue = node.getWeightedValue();
+      if (weightedValue.isTombstone() || !oldValue.equals(weightedValue.value)) {
+        return false;
+      }
+      if (node.casWeightedValue(weightedValue, newWeightedValue)) {
+        int weightedDifference = weight - weightedValue.weight;
+        addToRecencyQueue(new UpdateTask(node, weightedDifference), true);
+        processEvents(false);
+        return true;
       }
     }
-    // perform outside of lock
-    if (node != null) {
-      if (oldWeightedValue != null) {
-        int weightedDifference = weight - oldWeightedValue.weight;
-        writeQueue.add(new UpdateTask(weightedDifference));
-      }
-      delayReorder = addToRecencyQueue(node);
-    }
-    processEvents(delayReorder);
-    return (oldWeightedValue != null);
   }
 
   @Override
