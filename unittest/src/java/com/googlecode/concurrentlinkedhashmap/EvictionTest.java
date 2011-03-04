@@ -1,7 +1,6 @@
 package com.googlecode.concurrentlinkedhashmap;
 
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.MAXIMUM_CAPACITY;
-import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.MAXIMUM_RECENCIES_TO_DRAIN;
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.RECENCY_THRESHOLD;
 import static com.googlecode.concurrentlinkedhashmap.IsValidState.valid;
 import static java.util.Arrays.asList;
@@ -11,20 +10,22 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.nullValue;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Node;
-import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.RecencyTask;
 
+import org.testng.Assert;
 import org.testng.annotations.Test;
 
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * A unit-test for the page replacement algorithm and its public methods.
@@ -341,27 +342,44 @@ public final class EvictionTest extends BaseTest {
   }
 
   @Test(dataProvider = "guardedMap")
-  public void applyInRecencyOrder(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    // Add a dummy set of recency operations to the queues
-    for (int i = 0; i < MAXIMUM_RECENCIES_TO_DRAIN; i++) {
-      map.addToRecencyQueue(null, false);
-    }
-
-    // Perform the merging in the same manner as when draining the queues
-    Object[] recencies = new Object[MAXIMUM_RECENCIES_TO_DRAIN];
-    int maxRecencyIndex = map.moveRecenciesFromQueues(recencies);
-
-    // Check that the recencies are in sorted order
-    Integer last = null;
-    for (int i = 0; i <= maxRecencyIndex; i++) {
-      @SuppressWarnings("unchecked")
-      int order = ((RecencyTask) recencies[i]).recencyOrder;
-      if (last != null) {
-        assertThat(order, is(equalTo(last + 1)));
+  public void applyInRecencyOrder(final ConcurrentLinkedHashMap<Integer, Integer> map)
+      throws InterruptedException {
+    final AtomicInteger tasks = new AtomicInteger();
+    final AtomicInteger executed = new AtomicInteger();
+    final class Task implements Runnable {
+      final int id = tasks.getAndIncrement();
+      @Override public void run() {
+        assertThat(id, is(executed.getAndIncrement()));
       }
     }
-    for (int i = maxRecencyIndex + 1; i < recencies.length; i++) {
-      assertThat(recencies[i], is(nullValue()));
+    final BlockingQueue<Object> ping = new SynchronousQueue<Object>();
+    final BlockingQueue<Object> pong = new SynchronousQueue<Object>();
+
+    // even tasks
+    new Thread() {
+      @Override public void run() {
+        for (int i = 0; i < RECENCY_THRESHOLD; i++) {
+          try {
+            ping.take();
+            map.addToRecencyQueue(new Task(), false);
+            pong.put(new Object());
+          } catch (InterruptedException e) {
+            Assert.fail();
+          }
+        }
+      }
+    }.start();
+
+    // odd tasks
+    for (int i = 0; i < RECENCY_THRESHOLD; i++) {
+      ping.put(new Object());
+      pong.take();
+      map.addToRecencyQueue(new Task(), false);
     }
+
+    // force a drain
+    map.tryToDrainEvictionQueues(false);
+    assertThat(executed.get(), is(equalTo(tasks.get())));
+    assertThat(executed.get(), is(2 * RECENCY_THRESHOLD));
   }
 }
