@@ -1050,7 +1050,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * Returns a unmodifiable snapshot {@link Map} view of the mappings contained
    * in this map. The map's collections return the mappings whose order of
    * iteration is the descending order in which its entries are considered
-   * eligible for eviction, from the most-likely to be retained to the
+   * eligible for retention, from the most-likely to be retained to the
    * least-likely.
    *
    * @return an descending snapshot view of this map
@@ -1063,7 +1063,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * Returns a unmodifiable snapshot {@link Map} view of the mappings contained
    * in this map. The map's collections return the mappings whose order of
    * iteration is the descending order in which its entries are considered
-   * eligible for eviction, from the most-likely to be retained to the
+   * eligible for retention, from the most-likely to be retained to the
    * least-likely.
    *
    * @param limit the maximum number of keys in the returned map
