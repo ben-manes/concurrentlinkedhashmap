@@ -20,6 +20,7 @@ import org.testng.annotations.Test;
 
 import java.util.Arrays;
 import java.util.IdentityHashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map.Entry;
 import java.util.Queue;
@@ -335,21 +336,23 @@ public final class MultiThreadedTest extends BaseTest {
     return listToString(map, false);
   }
 
+  @SuppressWarnings("unchecked")
   private static String listToString(ConcurrentLinkedHashMap<?, ?> map, boolean forward) {
     map.evictionLock.lock();
     try {
       StringBuilder buffer = new StringBuilder("\n");
       Set<Object> seen = newSetFromMap(new IdentityHashMap<Object, Boolean>());
-      ConcurrentLinkedHashMap<?, ?>.Node current = forward
-          ? map.sentinel.next : map.sentinel.prev;
-      while (current != map.sentinel) {
-        buffer.append(nodeToString(current)).append("\n");
-        boolean added = seen.add(current);
+      Iterator<? extends Node> iterator = forward
+          ? map.evictionDeque.iterator()
+          : map.evictionDeque.descendingIterator();
+      while (iterator.hasNext()) {
+        Node node = iterator.next();
+        buffer.append(nodeToString(node)).append("\n");
+        boolean added = seen.add(node);
         if (!added) {
           buffer.append("Failure: Loop detected\n");
           break;
         }
-        current = forward ? current.next : current.prev;
       }
       return buffer.toString();
     } finally {
@@ -372,12 +375,10 @@ public final class MultiThreadedTest extends BaseTest {
       Object key, ConcurrentLinkedHashMap<?, ?> map) {
     map.evictionLock.lock();
     try {
-      ConcurrentLinkedHashMap<?, ?>.Node current = map.sentinel.next;
-      while (current != map.sentinel) {
-        if (current.equals(key)) {
-          return current;
+      for (Node node : map.evictionDeque) {
+        if (node.key.equals(key)) {
+          return node;
         }
-        current = current.next;
       }
       return null;
     } finally {

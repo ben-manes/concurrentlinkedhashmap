@@ -24,41 +24,34 @@ public final class IsEmptyMap extends TypeSafeDiagnosingMatcher<Map<?, ?>> {
 
   @Override
   protected boolean matchesSafely(Map<?, ?> map, Description description) {
-    boolean matches = true;
-    matches &= new IsEmptyCollection().matchesSafely(map.keySet(), description);
-    matches &= new IsEmptyCollection().matchesSafely(map.values(), description);
-    matches &= new IsEmptyCollection().matchesSafely(map.entrySet(), description);
-    matches &= check(map.isEmpty(), "Not empty", description);
-    matches &= check(map.equals(ImmutableMap.of()), "Not equal to empty map", description);
-    matches &= check(map.hashCode() == ImmutableMap.of().hashCode(), "hashcode", description);
-    matches &= check(map.toString().equals(ImmutableMap.of().toString()), "toString", description);
+    DescriptionBuilder builder = new DescriptionBuilder(description);
+
+    builder.expect(new IsEmptyCollection().matchesSafely(map.keySet(), description));
+    builder.expect(new IsEmptyCollection().matchesSafely(map.values(), description));
+    builder.expect(new IsEmptyCollection().matchesSafely(map.entrySet(), description));
+    builder.expect(map.isEmpty(), "Not empty");
+    builder.expectEqual(map, ImmutableMap.of(), "Not equal to empty map");
+    builder.expectEqual(map.hashCode(), ImmutableMap.of().hashCode(), "hashcode");
+    builder.expectEqual(map.toString(), ImmutableMap.of().toString(), "toString");
     if (map instanceof ConcurrentLinkedHashMap<?, ?>) {
-      matches &= isEmpty((ConcurrentLinkedHashMap<?, ?>) map, description);
+      checkIsEmpty((ConcurrentLinkedHashMap<?, ?>) map, builder);
     }
-    return matches;
+    return builder.matches();
   }
 
-  private boolean isEmpty(ConcurrentLinkedHashMap<?, ?> map, Description description) {
-    boolean matches = true;
+  private void checkIsEmpty(ConcurrentLinkedHashMap<?, ?> map, DescriptionBuilder builder) {
     map.tryToDrainEvictionQueues(false);
-    matches &= check(map.size() == 0, "Size != 0", description);
-    matches &= check(map.data.isEmpty(), "Internal not empty", description);
-    matches &= check(map.data.size() == 0, "Internal size != 0", description);
-    matches &= check(map.weightedSize() == 0, "Weighted size != 0", description);
-    matches &= check(map.weightedSize == 0, "Internal weighted size != 0", description);
-    matches &= check(map.equals(ImmutableMap.of()), "Not equal to empty map", description);
-    matches &= check(map.hashCode() == ImmutableMap.of().hashCode(), "hashcode", description);
-    matches &= check(map.toString().equals(ImmutableMap.of().toString()), "toString", description);
-    matches &= check(map.sentinel.prev == map.sentinel, "sentinel not linked to prev", description);
-    matches &= check(map.sentinel.next == map.sentinel, "sentinel not linked to next", description);
-    return matches;
-  }
 
-  private boolean check(boolean expression, String errorMsg, Description description) {
-    if (!expression) {
-      description.appendText(" " + errorMsg);
-    }
-    return expression;
+    builder.expectEqual(map.size(), 0, "Size != 0");
+    builder.expect(map.data.isEmpty(), "Internal not empty");
+    builder.expectEqual(map.data.size(), 0, "Internal size != 0");
+    builder.expectEqual(map.weightedSize(), 0, "Weighted size != 0");
+    builder.expectEqual(map.weightedSize, 0, "Internal weighted size != 0");
+    builder.expectEqual(map, ImmutableMap.of(), "Not equal to empty map");
+    builder.expectEqual(map.hashCode(), ImmutableMap.of().hashCode(), "hashcode");
+    builder.expectEqual(map.toString(), ImmutableMap.of().toString(), "toString");
+    builder.expectEqual(map.evictionDeque.peekFirst(), null, "first not null ");
+    builder.expectEqual(map.evictionDeque.peekLast(), null, "last not null");
   }
 
   @Factory

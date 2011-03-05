@@ -31,9 +31,11 @@ import java.util.AbstractQueue;
 import java.util.AbstractSet;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -55,12 +57,11 @@ import java.util.concurrent.locks.ReentrantLock;
  * through a {@link Builder}.
  * <p>
  * An entry is evicted from the map when the <tt>weighted capacity</tt> exceeds
- * a threshold determined by a {@link CapacityLimiter}. The default limiter
- * bounds the map by its <tt>maximum weighted capacity</tt>. A {@link Weigher}
- * instance determines how many units of capacity that a value consumes. The
- * default weigher assigns each value a weight of <tt>1</tt> to bound the map by
- * the total number of key-value pairs. A map that holds collections may choose
- * to weigh values by the number of elements in the collection and bound the map
+ * its <tt>maximum weighted capacity</tt> threshold. A {@link Weigher} instance
+ * determines how many units of capacity that a value consumes. The default
+ * weigher assigns each value a weight of <tt>1</tt> to bound the map by the
+ * total number of key-value pairs. A map that holds collections may choose to
+ * weigh values by the number of elements in the collection and bound the map
  * by the total number of elements that it contains. A change to a value that
  * modifies its weight requires that an update operation is performed on the
  * map.
@@ -128,25 +129,25 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   /** The maximum weight of a value. */
   static final int MAXIMUM_WEIGHT = 1 << 29;
 
-  /** The maximum number of pending recency operations per queue. */
-  static final int MAXIMUM_RECENCY_QUEUE_SIZE = 1 << 20;
+  /** The maximum number of pending operations per buffer. */
+  static final int MAXIMUM_BUFFER_SIZE = 1 << 20;
 
-  /** The number of recency queues to use. */
-  static final int NUMBER_OF_RECENCY_QUEUES;
+  /** The number of buffers to use. */
+  static final int NUMBER_OF_BUFFERS;
 
-  /** Mask value for indexing into the recency queues. */
-  static final int RECENCY_QUEUE_MASK;
+  /** Mask value for indexing into the buffers. */
+  static final int BUFFER_MASK;
 
-  /** The maximum number of recency operations to perform per drain. */
-  static final int MAXIMUM_RECENCIES_TO_DRAIN;
+  /** The maximum number of pending operations to perform per drain. */
+  static final int MAXIMUM_OPERATIONS_TO_DRAIN;
 
   /**
-   * Number of cache access operations that can be buffered per recency queue
+   * Number of cache operations that can be buffered per recency queue
    * before the cache's recency ordering information is updated. This is used
    * to avoid lock contention by recording a memento of reads and delaying a
    * lock acquisition until the threshold is crossed or a mutation occurs.
    */
-  static final int RECENCY_THRESHOLD = 16;
+  static final int BUFFER_THRESHOLD = 16;
 
   static {
     // Find the power-of-two best matching the number of available processors
@@ -155,9 +156,9 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     while (recencyQueues < availableProcessors) {
       recencyQueues <<= 1;
     }
-    MAXIMUM_RECENCIES_TO_DRAIN = (1 + recencyQueues) * RECENCY_THRESHOLD;
-    NUMBER_OF_RECENCY_QUEUES = recencyQueues;
-    RECENCY_QUEUE_MASK = recencyQueues - 1;
+    MAXIMUM_OPERATIONS_TO_DRAIN = (1 + recencyQueues) * BUFFER_THRESHOLD;
+    NUMBER_OF_BUFFERS = recencyQueues;
+    BUFFER_MASK = recencyQueues - 1;
   }
 
   /** An executor that runs the task on the caller's thread. */
@@ -176,12 +177,12 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
   // These fields provide support to bound the map by a maximum capacity.
   @GuardedBy("evictionLock")
-  final Node sentinel;
+  final EvictionDeque evictionDeque;
 
   @GuardedBy("evictionLock") // must write under lock
   volatile int weightedSize;
   @GuardedBy("evictionLock") // must write under lock
-  volatile int maximumWeightedSize;
+  volatile int capacity;
 
   volatile int globalRecencyOrder;
   @GuardedBy("evictionLock")
@@ -190,9 +191,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   final Lock evictionLock;
   final Executor executor;
   final Weigher<? super V> weigher;
-  final CapacityLimiter capacityLimiter;
-  final AtomicIntegerArray recencyQueueLength;
-  final Queue<RecencyTask>[] recencyQueue;
+  final AtomicIntegerArray bufferLength;
+  final Queue<OrderedTask>[] buffers;
 
   // These fields provide support for notifying a listener.
   final Queue<Node> listenerQueue;
@@ -209,23 +209,22 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   private ConcurrentLinkedHashMap(Builder<K, V> builder) {
     // The data store and its maximum capacity
     concurrencyLevel = builder.concurrencyLevel;
-    maximumWeightedSize = Math.min(builder.maximumWeightedCapacity, MAXIMUM_CAPACITY);
+    capacity = Math.min(builder.capacity, MAXIMUM_CAPACITY);
     data = new ConcurrentHashMap<K, Node>(builder.initialCapacity, 0.75f, concurrencyLevel);
 
     // The eviction support
-    sentinel = new Node();
     weigher = builder.weigher;
     executor = builder.executor;
     evictionLock = new ReentrantLock();
+    evictionDeque = new EvictionDeque();
     globalRecencyOrder = Integer.MIN_VALUE;
     drainedRecencyOrder = Integer.MIN_VALUE;
-    capacityLimiter = builder.capacityLimiter;
     drainStatus = new AtomicReference<DrainStatus>(IDLE);
 
-    recencyQueue = (Queue<RecencyTask>[]) new Queue[NUMBER_OF_RECENCY_QUEUES];
-    recencyQueueLength = new AtomicIntegerArray(NUMBER_OF_RECENCY_QUEUES);
-    for (int i = 0; i < NUMBER_OF_RECENCY_QUEUES; i++) {
-      recencyQueue[i] = new ConcurrentLinkedQueue<RecencyTask>();
+    buffers = (Queue<OrderedTask>[]) new Queue[NUMBER_OF_BUFFERS];
+    bufferLength = new AtomicIntegerArray(NUMBER_OF_BUFFERS);
+    for (int i = 0; i < NUMBER_OF_BUFFERS; i++) {
+      buffers[i] = new ConcurrentLinkedQueue<OrderedTask>();
     }
 
     // The notification listener and event queue
@@ -252,7 +251,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * @return the maximum weighted capacity
    */
   public int capacity() {
-    return maximumWeightedSize;
+    return capacity;
   }
 
   /**
@@ -266,24 +265,12 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     if (capacity < 0) {
       throw new IllegalArgumentException();
     }
-    this.maximumWeightedSize = Math.min(capacity, MAXIMUM_CAPACITY);
-    evictWith(capacityLimiter);
-  }
-
-  /**
-   * Evicts entries from the map while it exceeds the capacity limiter's
-   * constraint or until the map is empty.
-   *
-   * @param capacityLimiter the algorithm to determine whether to evict an entry
-   * @throws NullPointerException if the capacity limiter is null
-   */
-  public void evictWith(CapacityLimiter capacityLimiter) {
-    checkNotNull(capacityLimiter, "null capacity limiter");
+    this.capacity = Math.min(capacity, MAXIMUM_CAPACITY);
 
     evictionLock.lock();
     try {
       drainRecencyQueues();
-      evict(capacityLimiter);
+      evict();
     } finally {
       evictionLock.unlock();
     }
@@ -292,38 +279,31 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
   /**
    * Determines whether the map has exceeded its capacity.
-   *
-   * @param capacityLimiter the algorithm to determine whether to evict an entry
-   * @return if the map has overflowed and an entry should be evicted
    */
-  boolean hasOverflowed(CapacityLimiter capacityLimiter) {
-    return capacityLimiter.hasExceededCapacity(this);
+  boolean hasOverflowed() {
+    return weightedSize > capacity;
   }
 
   /**
    * Evicts entries from the map while it exceeds the capacity and appends
    * evicted entries to the listener queue for processing.
-   *
-   * @param capacityLimiter the algorithm to determine whether to evict an entry
    */
   @GuardedBy("evictionLock")
-  void evict(CapacityLimiter capacityLimiter) {
+  void evict() {
     // Attempts to evict entries from the map if it exceeds the maximum
     // capacity. If the eviction fails due to a concurrent removal of the
     // victim, that removal may cancel out the addition that triggered this
     // eviction. The victim is eagerly unlinked before the removal task so
     // that if an eviction is still required then a new victim will be chosen
     // for removal.
-    while (hasOverflowed(capacityLimiter)) {
-      Node node = sentinel.next;
-      if (node == sentinel) {
-        // The map has evicted all of its entries and can offer no further aid
-        // in fulfilling the limiter's constraint. Note that for the weighted
-        // capacity limiter, pending operations will adjust the size to reflect
+    while (hasOverflowed()) {
+      if (evictionDeque.isEmpty()) {
+        // If weighted, pending operations will adjust the size to reflect
         // the correct weight.
         return;
       }
 
+      Node node = evictionDeque.poll();
       boolean evicted = data.remove(node.key, node);
       WeightedValue<V> weightedValue;
       for (;;) {
@@ -339,8 +319,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       }
 
       decrementWeightFor(node);
-      node.remove();
-
       if (evicted) {
         // Notify the listener if the entry was evicted
         listenerQueue.add(node);
@@ -375,13 +353,12 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * required.
    *
    * @param task the pending operation to apply
-   * @return true if the size does not exceeds the threshold
    */
   void addToRecencyQueue(Runnable task, boolean isWrite) {
     // A recency queue is chosen by the thread's id so that recencies are evenly
     // distributed between queues. This ensures that hot entries do not cause
     // contention due to the threads trying to append to the same queue.
-    int index = (int) Thread.currentThread().getId() & RECENCY_QUEUE_MASK;
+    int index = (int) Thread.currentThread().getId() & BUFFER_MASK;
 
     // The recency's global order is acquired in a racy fashion as the increment
     // is not atomic with the insertion. This means that concurrent reads can
@@ -390,11 +367,11 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
     // The recency queue is capped to a maximum capacity to avoid stampeding
     // requests to exceed a tolerance level and cause an out-of-memory error.
-    int buffered = recencyQueueLength.incrementAndGet(index);
-    if (buffered > MAXIMUM_RECENCY_QUEUE_SIZE) {
-      recencyQueueLength.decrementAndGet(index);
+    int buffered = bufferLength.incrementAndGet(index);
+    if (buffered > MAXIMUM_BUFFER_SIZE) {
+      bufferLength.decrementAndGet(index);
     } else {
-      recencyQueue[index].add(new RecencyTask(recencyOrder, task, isWrite));
+      buffers[index].add(new OrderedTask(recencyOrder, task, isWrite));
     }
 
     boolean delayReorder;
@@ -402,7 +379,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       delayReorder = false;
       drainStatus.set(REQUIRED);
     } else {
-      delayReorder = (buffered <= RECENCY_THRESHOLD);
+      delayReorder = (buffered <= BUFFER_THRESHOLD);
     }
     processEvents(delayReorder);
   }
@@ -442,7 +419,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     // The merged output is capped to the expected number of recencies plus
     // additional slack to optimistically handle the concurrent additions to
     // the queues.
-    Object[] recencies = new Object[MAXIMUM_RECENCIES_TO_DRAIN];
+    OrderedTask[] recencies = new OrderedTask[MAXIMUM_OPERATIONS_TO_DRAIN];
 
     // Moves the recencies into the output collections, applies the reorderings,
     // and updates the marker for the starting recency order of the next drain.
@@ -458,9 +435,9 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * @return the highest index location of a recency that was added to the array
    */
   @GuardedBy("evictionLock")
-  int moveRecenciesFromQueues(Object[] recencies) {
+  int moveRecenciesFromQueues(OrderedTask[] recencies) {
     int maxRecencyIndex = -1;
-    for (int i = 0; i < recencyQueue.length; i++) {
+    for (int i = 0; i < buffers.length; i++) {
       int maxIndex = moveRecenciesFromQueue(i, recencies);
       maxRecencyIndex = Math.max(maxIndex, maxRecencyIndex);
     }
@@ -475,15 +452,15 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * @return the highest index location of a recency that was added to the array
    */
   @GuardedBy("evictionLock")
-  int moveRecenciesFromQueue(int queueIndex, Object[] recencies) {
+  int moveRecenciesFromQueue(int queueIndex, OrderedTask[] recencies) {
     // While a queue is being drained it may be concurrently appended to. The
     // number of elements removed are tracked so that the length can be
     // decremented by the delta rather than set to zero.
-    Queue<RecencyTask> queue = recencyQueue[queueIndex];
+    Queue<OrderedTask> queue = buffers[queueIndex];
     int removedFromQueue = 0;
 
     int maxIndex = -1;
-    RecencyTask recency;
+    OrderedTask recency;
     while ((recency = queue.poll()) != null) {
       removedFromQueue++;
 
@@ -507,7 +484,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
         addRecencyToChain(recencies, recency, index);
       }
     }
-    recencyQueueLength.addAndGet(queueIndex, -removedFromQueue);
+    bufferLength.addAndGet(queueIndex, -removedFromQueue);
     return maxIndex;
   }
 
@@ -519,8 +496,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * @param index the array location
    */
   @GuardedBy("evictionLock")
-  void addRecencyToChain(Object[] recencies, RecencyTask recency, int index) {
-    recency.next = (RecencyTask) recencies[index];
+  void addRecencyToChain(OrderedTask[] recencies, OrderedTask recency, int index) {
+    recency.next = recencies[index];
     recencies[index] = recency;
   }
 
@@ -531,9 +508,9 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * @param maxRecencyIndex the maximum index of the recencies array
    */
   @GuardedBy("evictionLock")
-  void applyRecencyTasks(Object[] recencies, int maxRecencyIndex) {
+  void applyRecencyTasks(OrderedTask[] recencies, int maxRecencyIndex) {
     for (int i = 0; i <= maxRecencyIndex; i++) {
-      applyRecencyiesInChain((RecencyTask) recencies[i]);
+      applyRecencyiesInChain(recencies[i]);
     }
   }
 
@@ -544,8 +521,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * @param head the first recency in the chain of recency operations
    */
   @GuardedBy("evictionLock")
-  void applyRecencyiesInChain(RecencyTask head) {
-    RecencyTask recency = head;
+  void applyRecencyiesInChain(OrderedTask head) {
+    OrderedTask recency = head;
     while (recency != null) {
       applyRecency(recency);
       recency = recency.next;
@@ -558,7 +535,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * @param recency the pending recency operation
    */
   @GuardedBy("evictionLock")
-  void applyRecency(RecencyTask recency) {
+  void applyRecency(OrderedTask recency) {
     recency.run();
   }
 
@@ -569,9 +546,9 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * @param maxRecencyIndex the maximum index of the recencies array
    */
   @GuardedBy("evictionLock")
-  void updateDrainedRecencyOrder(Object[] recencies, int maxRecencyIndex) {
+  void updateDrainedRecencyOrder(OrderedTask[] recencies, int maxRecencyIndex) {
     if (maxRecencyIndex >= 0) {
-      RecencyTask recency = (RecencyTask) recencies[maxRecencyIndex];
+      OrderedTask recency = recencies[maxRecencyIndex];
       drainedRecencyOrder = recency.recencyOrder + 1;
     }
   }
@@ -597,13 +574,13 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     }
   }
 
-  final class RecencyTask implements Runnable {
+  static final class OrderedTask implements Runnable {
     final int recencyOrder;
     final boolean isWrite;
     final Runnable task;
-    RecencyTask next;
+    OrderedTask next;
 
-    RecencyTask(int recencyOrder, Runnable task, boolean isWrite) {
+    OrderedTask(int recencyOrder, Runnable task, boolean isWrite) {
       this.recencyOrder = recencyOrder;
       this.isWrite = isWrite;
       this.task = task;
@@ -637,8 +614,9 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       // writer was removing it. If the entry was garbage collected or no longer
       // linked then it does not need to be processed.
       Node node = get();
-      if ((node != null) && node.isLinked()) {
-        node.moveToTail();
+      if ((node != null) && evictionDeque.contains(node)) {
+        evictionDeque.remove(node);
+        evictionDeque.add(node);
       }
     }
   }
@@ -662,8 +640,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       if (node.getWeightedValue().isTombstone()) {
         return; // ignore out-of-order write operations
       }
-      node.appendToTail();
-      evict(capacityLimiter);
+      evictionDeque.add(node);
+      evict();
     }
   }
 
@@ -681,9 +659,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     @GuardedBy("evictionLock")
     public void run() {
       WeightedValue<V> weightedValue = node.getWeightedValue();
-      if (node.isLinked()) {
-        node.remove();
-      }
+      evictionDeque.remove(node);
       weightedSize -= Math.abs(weightedValue.weight);
     }
   }
@@ -704,7 +680,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     public void run() {
       super.run();
       weightedSize += weightDifference;
-      evict(capacityLimiter);
+      evict();
     }
   }
 
@@ -737,23 +713,17 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     // linkage fields are null'ed out to reduce GC pressure.
     evictionLock.lock();
     try {
-      Node current = sentinel.next;
-      while (current != sentinel) {
-        data.remove(current.key, current);
-        decrementWeightFor(current);
-        current.set(WeightedValue.createRemoved(current.getWeightedValue()));
-
-        current = current.next;
-        current.prev.prev = null;
-        current.prev.next = null;
+      Node node;
+      while ((node = evictionDeque.poll()) != null) {
+        data.remove(node.key, node);
+        decrementWeightFor(node);
+        node.set(WeightedValue.createRemoved(node.getWeightedValue()));
       }
-      sentinel.next = sentinel;
-      sentinel.prev = sentinel;
 
       // Drain the queues to apply the writes and discard the reorderings
-      for (int i = 0; i < recencyQueue.length; i++) {
-        Queue<RecencyTask> queue = recencyQueue[i];
-        RecencyTask task;
+      for (int i = 0; i < buffers.length; i++) {
+        Queue<OrderedTask> queue = buffers[i];
+        OrderedTask task;
         int removed = 0;
         while ((task = queue.poll()) != null) {
           removed++;
@@ -761,7 +731,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
             task.run();
           }
         }
-        recencyQueueLength.addAndGet(i, -removed);
+        bufferLength.addAndGet(i, -removed);
       }
     } finally {
       evictionLock.unlock();
@@ -1004,9 +974,252 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     }
   }
 
+  /** A {@link Deque} that manages the eviction order. */
+  final class EvictionDeque extends AbstractQueue<Node> implements Deque<Node> {
+    final Node sentinel = new Node();
+
+    @Override
+    @GuardedBy("evictionLock")
+    public int size() {
+      int size = 0;
+      for (Node node : this) {
+        size++;
+      }
+      return size;
+    }
+
+    @Override
+    @GuardedBy("evictionLock")
+    public boolean isEmpty() {
+      return (sentinel.next == sentinel);
+    }
+
+    @GuardedBy("evictionLock")
+    void checkNotEmpty() {
+      if (isEmpty()) {
+        throw new NoSuchElementException();
+      }
+    }
+
+    @Override
+    @GuardedBy("evictionLock")
+    public boolean contains(Object o) {
+      Node node = (Node) o;
+      return (node.next != null);
+    }
+
+    @Override
+    @GuardedBy("evictionLock")
+    public boolean offer(Node node) {
+      return offerLast(node);
+    }
+
+    @Override
+    @GuardedBy("evictionLock")
+    public boolean offerFirst(Node node) {
+      node.next = sentinel.next;
+      node.prev = sentinel;
+      sentinel.next.prev = node;
+      sentinel.next = node;
+      return true;
+    }
+
+    @Override
+    @GuardedBy("evictionLock")
+    public boolean offerLast(Node node) {
+      node.prev = sentinel.prev;
+      node.next = sentinel;
+      sentinel.prev.next = node;
+      sentinel.prev = node;
+      return true;
+    }
+
+    @Override
+    @GuardedBy("evictionLock")
+    public Node peek() {
+      return peekFirst();
+    }
+
+    @Override
+    @GuardedBy("evictionLock")
+    public Node peekFirst() {
+      Node next = sentinel.next;
+      return (next == sentinel) ? null : next;
+    }
+
+    @Override
+    @GuardedBy("evictionLock")
+    public Node peekLast() {
+      Node prev = sentinel.prev;
+      return (prev == sentinel) ? null : prev;
+    }
+
+    @Override
+    @GuardedBy("evictionLock")
+    public Node poll() {
+      return pollFirst();
+    }
+
+    @Override
+    @GuardedBy("evictionLock")
+    public Node pollFirst() {
+      Node next = sentinel.next;
+      if (next == sentinel) {
+        return null;
+      }
+
+      remove(next);
+      return next;
+    }
+
+    @Override
+    @GuardedBy("evictionLock")
+    public Node pollLast() {
+      Node prev = sentinel.prev;
+      if (prev == sentinel) {
+        return null;
+      }
+
+      remove(prev);
+      return prev;
+    }
+
+    @Override
+    @GuardedBy("evictionLock")
+    public boolean remove(Object o) {
+      if (!contains(o)) {
+        return false;
+      }
+      Node node = (Node) o;
+      node.prev.next = node.next;
+      node.next.prev = node.prev;
+      node.prev = node.next = null;
+      return true;
+    }
+
+    @Override
+    @GuardedBy("evictionLock")
+    public Node removeFirst() {
+      checkNotEmpty();
+      return pollFirst();
+    }
+
+    @Override
+    @GuardedBy("evictionLock")
+    public boolean removeFirstOccurrence(Object o) {
+      return remove(o);
+    }
+
+    @Override
+    @GuardedBy("evictionLock")
+    public Node removeLast() {
+      checkNotEmpty();
+      return pollLast();
+    }
+
+    @Override
+    @GuardedBy("evictionLock")
+    public boolean removeLastOccurrence(Object o) {
+      return remove(o);
+    }
+
+    @Override
+    @GuardedBy("evictionLock")
+    public void addFirst(Node e) {
+      if (!offerFirst(e)) {
+        throw new IllegalStateException();
+      }
+    }
+
+    @Override
+    @GuardedBy("evictionLock")
+    public void addLast(Node e) {
+      if (!offerLast(e)) {
+        throw new IllegalStateException();
+      }
+    }
+
+    @Override
+    @GuardedBy("evictionLock")
+    public Node getFirst() {
+      checkNotEmpty();
+      return peekFirst();
+    }
+
+    @Override
+    @GuardedBy("evictionLock")
+    public Node getLast() {
+      checkNotEmpty();
+      return peekLast();
+    }
+
+    @Override
+    @GuardedBy("evictionLock")
+    public Node pop() {
+      return removeFirst();
+    }
+
+    @Override
+    @GuardedBy("evictionLock")
+    public void push(Node e) {
+      addFirst(e);
+    }
+
+    @Override
+    @GuardedBy("evictionLock")
+    public Iterator<Node> iterator() {
+      return new AbstractLinkedIterator() {
+        @Override Node computeNext() {
+          return curser.next;
+        }
+      };
+    }
+
+    @Override
+    @GuardedBy("evictionLock")
+    public Iterator<Node> descendingIterator() {
+      return new AbstractLinkedIterator() {
+        @Override Node computeNext() {
+          return curser.prev;
+        }
+      };
+    }
+
+    abstract class AbstractLinkedIterator implements Iterator<Node> {
+      Node curser;
+
+      AbstractLinkedIterator() {
+        curser = sentinel;
+        curser = computeNext();
+      }
+
+      @Override
+      public boolean hasNext() {
+        return (curser != sentinel);
+      }
+
+      @Override
+      public Node next() {
+        if (!hasNext()) {
+          throw new NoSuchElementException();
+        }
+        Node next = curser;
+        curser = computeNext();
+        return next;
+      }
+
+      @Override
+      public void remove() {
+        throw new UnsupportedOperationException();
+      }
+
+      abstract Node computeNext();
+    }
+  }
+
   /**
-   * A node contains the key, the weighted value, and linkage pointers on the
-   * page-replacement algorithm's data structures.
+   * A node contains the key, the weighted value, and the linkage pointers on
+   * the page-replacement algorithm's data structures.
    */
   @SuppressWarnings("serial")
   final class Node extends AtomicReference<WeightedValue<V>> {
@@ -1052,45 +1265,9 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     WeightedValue<V> getAndSetWeightedValue(WeightedValue<V> newValue) {
       return getAndSet(newValue);
     }
-
-    /** Removes the node from the list. */
-    @GuardedBy("evictionLock")
-    void remove() {
-      prev.next = next;
-      next.prev = prev;
-      // null to reduce GC pressure
-      prev = next = null;
-    }
-
-    /** Appends the node to the tail of the list. */
-    @GuardedBy("evictionLock")
-    void appendToTail() {
-      prev = sentinel.prev;
-      next = sentinel;
-      sentinel.prev.next = this;
-      sentinel.prev = this;
-    }
-
-    /** Moves the node to the tail of the list. */
-    @GuardedBy("evictionLock")
-    void moveToTail() {
-      if (next != sentinel) {
-        prev.next = next;
-        next.prev = prev;
-        appendToTail();
-      }
-    }
-
-    /** Whether the node is linked on the list. */
-    @GuardedBy("evictionLock")
-    boolean isLinked() {
-      return (next != null);
-    }
   }
 
-  /**
-   * An adapter to safely externalize the keys.
-   */
+  /** An adapter to safely externalize the keys. */
   final class KeySet extends AbstractSet<K> {
     final ConcurrentLinkedHashMap<K, V> map = ConcurrentLinkedHashMap.this;
 
@@ -1130,9 +1307,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     }
   }
 
-  /**
-   * An adapter to safely externalize the key iterator.
-   */
+  /** An adapter to safely externalize the key iterator. */
   final class KeyIterator implements Iterator<K> {
     final EntryIterator iterator = new EntryIterator(data.values().iterator());
 
@@ -1152,9 +1327,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     }
   }
 
-  /**
-   * An adapter to safely externalize the values.
-   */
+  /** An adapter to safely externalize the values. */
   final class Values extends AbstractCollection<V> {
 
     @Override
@@ -1178,9 +1351,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     }
   }
 
-  /**
-   * An adapter to safely externalize the value iterator.
-   */
+  /** An adapter to safely externalize the value iterator. */
   final class ValueIterator implements Iterator<V> {
     final EntryIterator iterator = new EntryIterator(data.values().iterator());
 
@@ -1200,9 +1371,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     }
   }
 
-  /**
-   * An adapter to safely externalize the entries.
-   */
+  /** An adapter to safely externalize the entries. */
   final class EntrySet extends AbstractSet<Entry<K, V>> {
     final ConcurrentLinkedHashMap<K, V> map = ConcurrentLinkedHashMap.this;
 
@@ -1246,9 +1415,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     }
   }
 
-  /**
-   * An adapter to safely externalize the entry iterator.
-   */
+  /** An adapter to safely externalize the entry iterator. */
   final class EntryIterator implements Iterator<Entry<K, V>> {
     final Iterator<Node> iterator;
     Node current;
@@ -1278,9 +1445,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     }
   }
 
-  /**
-   * An entry that allows updates to write through to the map.
-   */
+  /** An entry that allows updates to write through to the map. */
   final class WriteThroughEntry extends SimpleEntry<K, V> {
     static final long serialVersionUID = 1;
 
@@ -1299,18 +1464,14 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     }
   }
 
-  /**
-   * An executor that runs the task on the caller's thread.
-   */
+  /** An executor that runs the task on the caller's thread. */
   static final class SameThreadExecutor implements Executor {
     @Override public void execute(Runnable command) {
       command.run();
     }
   }
 
-  /**
-   * A queue that discards all additions and is always empty.
-   */
+  /** A queue that discards all additions and is always empty. */
   static final class DiscardingQueue<E> extends AbstractQueue<E> {
     @Override public boolean add(E e) { return true; }
     @Override public boolean offer(E e) { return true; }
@@ -1320,26 +1481,11 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     @Override public Iterator<E> iterator() { return Collections.<E>emptyList().iterator(); }
   }
 
-  /**
-   * A listener that ignores all notifications.
-   */
+  /** A listener that ignores all notifications. */
   enum DiscardingListener implements EvictionListener<Object, Object> {
     INSTANCE;
 
     @Override public void onEviction(Object key, Object value) {}
-  }
-
-  /**
-   * A capacity limiter that bounds the map by its maximum weighted size.
-   */
-  enum WeightedCapacityLimiter implements CapacityLimiter {
-    INSTANCE;
-
-    @Override
-    @GuardedBy("evictionLock")
-    public boolean hasExceededCapacity(ConcurrentLinkedHashMap<?, ?> map) {
-      return map.weightedSize() > map.capacity();
-    }
   }
 
   /* ---------------- Serialization Support -------------- */
@@ -1363,7 +1509,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    */
   static final class SerializationProxy<K, V> implements Serializable {
     final EvictionListener<K, V> listener;
-    final CapacityLimiter capacityLimiter;
     final Weigher<? super V> weigher;
     final int concurrencyLevel;
     final Map<K, V> data;
@@ -1371,8 +1516,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
     SerializationProxy(ConcurrentLinkedHashMap<K, V> map) {
       concurrencyLevel = map.concurrencyLevel;
-      capacityLimiter = map.capacityLimiter;
-      capacity = map.maximumWeightedSize;
+      capacity = map.capacity;
       data = new HashMap<K, V>(map);
       listener = map.listener;
       weigher = map.weigher;
@@ -1382,7 +1526,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       ConcurrentLinkedHashMap<K, V> map = new Builder<K, V>()
           .concurrencyLevel(concurrencyLevel)
           .maximumWeightedCapacity(capacity)
-          .capacityLimiter(capacityLimiter)
           .listener(listener)
           .weigher(weigher)
           .build();
@@ -1401,36 +1544,31 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * a named parameter syntax. It can be used in the following manner:
    * <p>
    * <pre>
-   * {@code
-   *   // a cache of the groups that a user belongs to
-   *   ConcurrentMap<User, Set<Group>> groups = new Builder<User, Set<Group>>()
-   *       .weigher(Weighers.<Group>set())
-   *       .maximumWeightedCapacity(5000)
-   *       .build();
-   * }
+   * ConcurrentMap<Vertices, Set<Edge>> graph = new Builder<Vertice, Set<Edge>>()
+   *     .weigher(Weighers.<Group>set())
+   *     .maximumCapacity(5000)
+   *     .build();
    * </pre>
    */
   public static final class Builder<K, V> {
     static final int DEFAULT_INITIAL_CAPACITY = 16;
     static final int DEFAULT_CONCURRENCY_LEVEL = 16;
 
-    CapacityLimiter capacityLimiter;
     EvictionListener<K, V> listener;
     Weigher<? super V> weigher;
     Executor executor;
 
-    int maximumWeightedCapacity;
+    int capacity;
     int concurrencyLevel;
     int initialCapacity;
 
     @SuppressWarnings("unchecked")
     public Builder() {
-      maximumWeightedCapacity = -1;
+      capacity = -1;
       executor = sameThreadExecutor;
       weigher = Weighers.singleton();
       initialCapacity = DEFAULT_INITIAL_CAPACITY;
       concurrencyLevel = DEFAULT_CONCURRENCY_LEVEL;
-      capacityLimiter = WeightedCapacityLimiter.INSTANCE;
       listener = (EvictionListener<K, V>) DiscardingListener.INSTANCE;
     }
 
@@ -1455,16 +1593,15 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
      * Specifies the maximum weighted capacity to coerces the map to and may
      * exceed it temporarily.
      *
-     * @param maximumWeightedCapacity the weighted threshold to bound the map
-     *     by
+     * @param capacity the weighted threshold to bound the map by
      * @throws IllegalArgumentException if the maximumWeightedCapacity is
      *     negative
      */
-    public Builder<K, V> maximumWeightedCapacity(int maximumWeightedCapacity) {
-      if (maximumWeightedCapacity < 0) {
+    public Builder<K, V> maximumWeightedCapacity(int capacity) {
+      if (capacity < 0) {
         throw new IllegalArgumentException();
       }
-      this.maximumWeightedCapacity = maximumWeightedCapacity;
+      this.capacity = capacity;
       return this;
     }
 
@@ -1514,23 +1651,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     }
 
     /**
-     * Specifies an algorithm to determine if the maximum capacity has been
-     * exceeded and that an entry should be evicted from the map. The default
-     * algorithm bounds the map by the maximum weighted capacity. The evaluation
-     * of whether the map has exceeded its capacity is performed after an
-     * insertion or update operation.
-     *
-     * @param capacityLimiter the algorithm to determine whether to evict an
-     *     entry
-     * @throws NullPointerException if the capacity limiter is null
-     */
-    public Builder<K, V> capacityLimiter(CapacityLimiter capacityLimiter) {
-      checkNotNull(capacityLimiter, null);
-      this.capacityLimiter = capacityLimiter;
-      return this;
-    }
-
-    /**
      * Specifies an executor for use in catching up the page replacement policy.
      * If unspecified, the catching up will be performed on user threads during
      * write operations (or during read operations, in the absence of writes).
@@ -1550,7 +1670,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
      *     not set
      */
     public ConcurrentLinkedHashMap<K, V> build() {
-      if (maximumWeightedCapacity < 0) {
+      if (capacity < 0) {
         throw new IllegalStateException();
       }
       return new ConcurrentLinkedHashMap<K, V>(this);

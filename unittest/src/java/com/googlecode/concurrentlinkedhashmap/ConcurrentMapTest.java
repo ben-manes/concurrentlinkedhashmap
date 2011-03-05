@@ -24,7 +24,6 @@ import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 
 import org.testng.annotations.Test;
 
-import java.io.Serializable;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.Map;
@@ -47,7 +46,7 @@ public final class ConcurrentMapTest extends BaseTest {
     return 100;
   }
 
-  @Test(dataProvider = "guardedMap")
+  @Test(groups = "clear_whenEmpty", dataProvider = "guardedMap")
   public void clear_whenEmpty(Map<Integer, Integer> map) {
     map.clear();
     assertThat(map, is(emptyMap()));
@@ -415,7 +414,6 @@ public final class ConcurrentMapTest extends BaseTest {
       EvictionListener<Integer, Collection<Integer>> listener) {
     Map<Integer, Collection<Integer>> map =
       new Builder<Integer, Collection<Integer>>()
-          .capacityLimiter(new SerializableCapacityLimiter())
           .weigher(Weighers.<Integer>collection())
           .maximumWeightedCapacity(500)
           .initialCapacity(100)
@@ -424,13 +422,6 @@ public final class ConcurrentMapTest extends BaseTest {
           .build();
     map.put(1, singletonList(2));
     assertThat(map, is(reserializable()));
-  }
-
-  @SuppressWarnings("serial")
-  static final class SerializableCapacityLimiter implements CapacityLimiter, Serializable {
-    @Override public boolean hasExceededCapacity(ConcurrentLinkedHashMap<?, ?> map) {
-      return false;
-    }
   }
 
   /* ---------------- Key Set -------------- */

@@ -1,7 +1,7 @@
 package com.googlecode.concurrentlinkedhashmap;
 
+import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.BUFFER_THRESHOLD;
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.MAXIMUM_CAPACITY;
-import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.RECENCY_THRESHOLD;
 import static com.googlecode.concurrentlinkedhashmap.IsValidState.valid;
 import static java.util.Arrays.asList;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -113,57 +113,6 @@ public final class EvictionTest extends BaseTest {
     }
   }
 
-  @Test
-  public void evictWith_neverDiscard() {
-    checkEvictWith(new CapacityLimiter() {
-      @Override public boolean hasExceededCapacity(ConcurrentLinkedHashMap<?, ?> map) {
-        return false;
-      }
-    }, capacity());
-  }
-
-  @Test
-  public void evictWith_alwaysDiscard() {
-    checkEvictWith(new CapacityLimiter() {
-      @Override public boolean hasExceededCapacity(ConcurrentLinkedHashMap<?, ?> map) {
-        return true;
-      }
-    }, 0);
-  }
-
-  @Test
-  public void evictWith_decrease() {
-    final int maxSize = capacity() / 2;
-    checkEvictWith(new CapacityLimiter() {
-      @Override public boolean hasExceededCapacity(ConcurrentLinkedHashMap<?, ?> map) {
-        return map.size() > maxSize;
-      }
-    }, maxSize);
-  }
-
-  private void checkEvictWith(CapacityLimiter capacityLimiter, int expectedSize) {
-    CollectingListener<Integer, Integer> listener = new CollectingListener<Integer, Integer>();
-    ConcurrentLinkedHashMap<Integer, Integer> map = new Builder<Integer, Integer>()
-        .maximumWeightedCapacity(capacity())
-        .listener(listener)
-        .build();
-    warmUp(map, 0, capacity());
-    map.evictWith(capacityLimiter);
-
-    assertThat(map, is(valid()));
-    assertThat(map.size(), is(expectedSize));
-    assertThat(listener.evicted, hasSize(capacity() - expectedSize));
-  }
-
-  @Test(dataProvider = "warmedMap", expectedExceptions = IllegalStateException.class)
-  public void evictWith_fails(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    map.evictWith(new CapacityLimiter() {
-      @Override public boolean hasExceededCapacity(ConcurrentLinkedHashMap<?, ?> map) {
-        throw new IllegalStateException();
-      }
-    });
-  }
-
   @Test(dataProvider = "collectingListener")
   public void evict_alwaysDiscard(CollectingListener<Integer, Integer> listener) {
     ConcurrentLinkedHashMap<Integer, Integer> map = new Builder<Integer, Integer>()
@@ -257,10 +206,8 @@ public final class EvictionTest extends BaseTest {
       Integer... expect) {
     map.tryToDrainEvictionQueues(false);
     List<Integer> evictionList = Lists.newArrayList();
-    ConcurrentLinkedHashMap<Integer, Integer>.Node current = map.sentinel.next;
-    while (current != map.sentinel) {
-      evictionList.add(current.key);
-      current = current.next;
+    for (ConcurrentLinkedHashMap<Integer, Integer>.Node node : map.evictionDeque) {
+      evictionList.add(node.key);
     }
     assertThat(map.size(), is(equalTo(expect.length)));
     assertThat(map.keySet(), containsInAnyOrder(expect));
@@ -269,40 +216,40 @@ public final class EvictionTest extends BaseTest {
 
   @Test(dataProvider = "warmedMap")
   public void updateRecency_onGet(final ConcurrentLinkedHashMap<Integer, Integer> map) {
-    final ConcurrentLinkedHashMap<Integer, Integer>.Node originalHead = map.sentinel.next;
+    final ConcurrentLinkedHashMap<Integer, Integer>.Node first = map.evictionDeque.peek();
     updateRecency(map, new Runnable() {
       @Override public void run() {
-        map.get(originalHead.key);
+        map.get(first.key);
       }
     });
   }
 
   @Test(dataProvider = "warmedMap")
   public void updateRecency_onPutIfAbsent(final ConcurrentLinkedHashMap<Integer, Integer> map) {
-    final ConcurrentLinkedHashMap<Integer, Integer>.Node originalHead = map.sentinel.next;
+    final ConcurrentLinkedHashMap<Integer, Integer>.Node first = map.evictionDeque.peek();
     updateRecency(map, new Runnable() {
       @Override public void run() {
-        map.putIfAbsent(originalHead.key, originalHead.key);
+        map.putIfAbsent(first.key, first.key);
       }
     });
   }
 
   @Test(dataProvider = "warmedMap")
   public void updateRecency_onPut(final ConcurrentLinkedHashMap<Integer, Integer> map) {
-    final ConcurrentLinkedHashMap<Integer, Integer>.Node originalHead = map.sentinel.next;
+    final ConcurrentLinkedHashMap<Integer, Integer>.Node first = map.evictionDeque.peek();
     updateRecency(map, new Runnable() {
       @Override public void run() {
-        map.put(originalHead.key, originalHead.key);
+        map.put(first.key, first.key);
       }
     });
   }
 
   @Test(dataProvider = "warmedMap")
   public void updateRecency_onReplace(final ConcurrentLinkedHashMap<Integer, Integer> map) {
-    final ConcurrentLinkedHashMap<Integer, Integer>.Node originalHead = map.sentinel.next;
+    final ConcurrentLinkedHashMap<Integer, Integer>.Node first = map.evictionDeque.peek();
     updateRecency(map, new Runnable() {
       @Override public void run() {
-        map.replace(originalHead.key, originalHead.key);
+        map.replace(first.key, first.key);
       }
     });
   }
@@ -310,35 +257,35 @@ public final class EvictionTest extends BaseTest {
   @Test(dataProvider = "warmedMap")
   public void updateRecency_onReplaceConditionally(
       final ConcurrentLinkedHashMap<Integer, Integer> map) {
-    final ConcurrentLinkedHashMap<Integer, Integer>.Node originalHead = map.sentinel.next;
+    final ConcurrentLinkedHashMap<Integer, Integer>.Node first = map.evictionDeque.peek();
     updateRecency(map, new Runnable() {
       @Override public void run() {
-        map.replace(originalHead.key, originalHead.key, originalHead.key);
+        map.replace(first.key, first.key, first.key);
       }
     });
   }
 
   @SuppressWarnings("unchecked")
   private void updateRecency(ConcurrentLinkedHashMap<?, ?> map, Runnable operation) {
-    Node originalHead = map.sentinel.next;
+    Node first = map.evictionDeque.peek();
 
     operation.run();
     map.drainRecencyQueues();
 
-    assertThat(map.sentinel.next, is(not(originalHead)));
-    assertThat(map.sentinel.prev, is(originalHead));
+    assertThat(map.evictionDeque.peekFirst(), is(not(first)));
+    assertThat(map.evictionDeque.peekLast(), is(first));
     assertThat(map, is(valid()));
   }
 
   @Test(dataProvider = "warmedMap")
   public void drainRecencyQueue(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    for (int i = 0; i < RECENCY_THRESHOLD; i++) {
+    for (int i = 0; i < BUFFER_THRESHOLD; i++) {
       map.get(1);
     }
-    int index = (int) Thread.currentThread().getId() % map.recencyQueue.length;
-    assertThat(map.recencyQueueLength.get(index), is(equalTo(RECENCY_THRESHOLD)));
+    int index = (int) Thread.currentThread().getId() % map.buffers.length;
+    assertThat(map.bufferLength.get(index), is(equalTo(BUFFER_THRESHOLD)));
     map.get(1);
-    assertThat(map.recencyQueueLength.get(index), is(equalTo(0)));
+    assertThat(map.bufferLength.get(index), is(equalTo(0)));
   }
 
   @Test(dataProvider = "guardedMap")
@@ -358,7 +305,7 @@ public final class EvictionTest extends BaseTest {
     // even tasks
     new Thread() {
       @Override public void run() {
-        for (int i = 0; i < RECENCY_THRESHOLD; i++) {
+        for (int i = 0; i < BUFFER_THRESHOLD; i++) {
           try {
             ping.take();
             map.addToRecencyQueue(new Task(), false);
@@ -371,7 +318,7 @@ public final class EvictionTest extends BaseTest {
     }.start();
 
     // odd tasks
-    for (int i = 0; i < RECENCY_THRESHOLD; i++) {
+    for (int i = 0; i < BUFFER_THRESHOLD; i++) {
       ping.put(new Object());
       pong.take();
       map.addToRecencyQueue(new Task(), false);
@@ -380,6 +327,6 @@ public final class EvictionTest extends BaseTest {
     // force a drain
     map.tryToDrainEvictionQueues(false);
     assertThat(executed.get(), is(equalTo(tasks.get())));
-    assertThat(executed.get(), is(2 * RECENCY_THRESHOLD));
+    assertThat(executed.get(), is(2 * BUFFER_THRESHOLD));
   }
 }
