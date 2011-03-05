@@ -21,8 +21,11 @@ import org.testng.Assert;
 import org.testng.annotations.Test;
 
 import java.util.Collection;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -38,6 +41,88 @@ public final class EvictionTest extends BaseTest {
   @Override
   protected int capacity() {
     return 100;
+  }
+
+  @Test(dataProvider = "warmedMap")
+  public void ascendingKeySet(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    Map<Integer, Integer> expected = new LinkedHashMap<Integer, Integer>();
+    warmUp(expected, 0, 100);
+
+    assertThat(map.ascendingKeySet(), is(equalTo(expected.keySet())));
+  }
+
+  @Test(dataProvider = "warmedMap")
+  public void ascendingKeySet_snapshot(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    Map<Integer, Integer> expected = new LinkedHashMap<Integer, Integer>();
+    warmUp(expected, 0, 100);
+
+    Set<Integer> original = map.ascendingKeySet();
+    map.put(capacity(), -capacity());
+
+    assertThat(original, is(equalTo(expected.keySet())));
+  }
+
+  @Test(dataProvider = "warmedMap")
+  public void descendingKeySet(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    Set<Integer> expected = new LinkedHashSet<Integer>();
+    for (int i = 99; i >= 0; i--) {
+      expected.add(i);
+    }
+    assertThat(map.descendingKeySet(), is(equalTo(expected)));
+  }
+
+  @Test(dataProvider = "warmedMap")
+  public void descendingKeySet_snapshot(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    Set<Integer> expected = new LinkedHashSet<Integer>();
+    for (int i = 99; i >= 0; i--) {
+      expected.add(i);
+    }
+
+    Set<Integer> original = map.descendingKeySet();
+    map.put(capacity(), -capacity());
+
+    assertThat(original, is(equalTo(expected)));
+  }
+
+  @Test(dataProvider = "warmedMap")
+  public void ascendingMap(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    Map<Integer, Integer> expected = new LinkedHashMap<Integer, Integer>();
+    warmUp(expected, 0, 100);
+
+    assertThat(map.ascendingMap(), is(equalTo(expected)));
+  }
+
+  @Test(dataProvider = "warmedMap")
+  public void ascendingMap_snapshot(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    Map<Integer, Integer> expected = new LinkedHashMap<Integer, Integer>();
+    warmUp(expected, 0, 100);
+
+    Map<Integer, Integer> original = map.ascendingMap();
+    map.put(capacity(), -capacity());
+
+    assertThat(original, is(equalTo(expected)));
+  }
+
+  @Test(dataProvider = "warmedMap")
+  public void descendingMap(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    Map<Integer, Integer> expected = new LinkedHashMap<Integer, Integer>();
+    for (int i = 99; i >= 0; i--) {
+      expected.put(i, -i);
+    }
+    assertThat(map.descendingMap(), is(equalTo(expected)));
+  }
+
+  @Test(dataProvider = "warmedMap")
+  public void descendingMap_snapshot(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    Map<Integer, Integer> expected = new LinkedHashMap<Integer, Integer>();
+    for (int i = 99; i >= 0; i--) {
+      expected.put(i, -i);
+    }
+
+    Map<Integer, Integer> original = map.descendingMap();
+    map.put(capacity(), -capacity());
+
+    assertThat(original, is(equalTo(expected)));
   }
 
   @Test(dataProvider = "warmedMap")

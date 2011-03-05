@@ -109,16 +109,16 @@ public final class MultiThreadedTest extends BaseTest {
   }
 
   /**
-   * Executes operations against the cache to simulate random load.
+   * Executes operations against the map to simulate random load.
    */
   private final class Thrasher implements Runnable {
-    private final ConcurrentLinkedHashMap<Integer, Integer> cache;
+    private final ConcurrentLinkedHashMap<Integer, Integer> map;
     private final List<List<Integer>> sets;
     private final AtomicInteger index;
 
-    public Thrasher(ConcurrentLinkedHashMap<Integer, Integer> cache, List<List<Integer>> sets) {
+    public Thrasher(ConcurrentLinkedHashMap<Integer, Integer> map, List<List<Integer>> sets) {
       this.index = new AtomicInteger();
-      this.cache = cache;
+      this.map = map;
       this.sets = sets;
     }
 
@@ -131,17 +131,17 @@ public final class MultiThreadedTest extends BaseTest {
       for (Integer key : sets.get(id)) {
         Operation operation = ops[random.nextInt(ops.length)];
         try {
-          operation.execute(cache, key);
+          operation.execute(map, key);
         } catch (RuntimeException e) {
           String error =
               String.format("Failed: key %s on operation %s for node %s",
-                  key, operation, nodeToString(findNode(key, cache)));
+                  key, operation, nodeToString(findNode(key, map)));
           failures.add(error);
           throw e;
         } catch (Throwable thr) {
           String error =
               String.format("Halted: key %s on operation %s for node %s",
-                  key, operation, nodeToString(findNode(key, cache)));
+                  key, operation, nodeToString(findNode(key, map)));
           failures.add(error);
         }
       }
@@ -228,6 +228,26 @@ public final class MultiThreadedTest extends BaseTest {
           checkNotNull(i);
         }
         cache.keySet().toArray(new Integer[cache.size()]);
+      }
+    },
+   ASCENDING() {
+      @Override void execute(ConcurrentLinkedHashMap<Integer, Integer> cache, Integer key) {
+        for (Integer i : cache.ascendingKeySet()) {
+          checkNotNull(i);
+        }
+        for (Entry<Integer, Integer> entry : cache.ascendingMap().entrySet()) {
+          checkNotNull(entry);
+        }
+      }
+    },
+    DESCENDING() {
+      @Override void execute(ConcurrentLinkedHashMap<Integer, Integer> cache, Integer key) {
+        for (Integer i : cache.descendingKeySet()) {
+          checkNotNull(i);
+        }
+        for (Entry<Integer, Integer> entry : cache.descendingMap().entrySet()) {
+          checkNotNull(entry);
+        }
       }
     },
     VALUES() {

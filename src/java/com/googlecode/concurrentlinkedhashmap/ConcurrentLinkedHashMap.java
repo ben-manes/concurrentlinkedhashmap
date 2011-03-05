@@ -34,6 +34,8 @@ import java.util.Collections;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Queue;
@@ -89,7 +91,8 @@ import java.util.concurrent.locks.ReentrantLock;
  * Like {@link java.util.Hashtable} but unlike {@link HashMap}, this class
  * does <em>not</em> allow <tt>null</tt> to be used as a key or value. Unlike
  * {@link java.util.LinkedHashMap}, this class does <em>not</em> provide
- * predictable iteration order.
+ * predictable iteration order. A snapshot order of the keys and entries may be
+ * obtained in ascending and descending order of retention.
  *
  * @author ben.manes@gmail.com (Ben Manes)
  * @param <K> the type of keys maintained by this map
@@ -930,6 +933,48 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     return (ks != null) ? ks : (keySet = new KeySet());
   }
 
+  /**
+   * Returns a unmodifiable snapshot {@link Set} view of the keys contained in
+   * this map. The set's iterator returns the keys whose order of iteration is
+   * the ascending order in which its entries are considered eligible for
+   * retention, from the least-likely to be retained to the most-likely.
+   *
+   * @return an ascending snapshot view of the keys in this map
+   */
+  public Set<K> ascendingKeySet() {
+    return orderedKeySet(true);
+  }
+
+  /**
+   * Returns a unmodifiable snapshot {@link Set} view of the keys contained in
+   * this map. The set's iterator returns the keys whose order of iteration is
+   * the descending order in which its entries are considered eligible for
+   * retention, from the most-likely to be retained to the least-likely.
+   *
+   * @return an descending snapshot view of the keys in this map
+   */
+  public Set<K> descendingKeySet() {
+    return orderedKeySet(false);
+  }
+
+  Set<K> orderedKeySet(boolean ascending) {
+    evictionLock.lock();
+    try {
+      drainRecencyQueues();
+
+      Set<K> keys = new LinkedHashSet<K>(evictionDeque.size());
+      Iterator<Node> iterator = ascending
+          ? evictionDeque.iterator()
+          : evictionDeque.descendingIterator();
+      while (iterator.hasNext()) {
+        keys.add(iterator.next().key);
+      }
+      return Collections.unmodifiableSet(keys);
+    } finally {
+      evictionLock.unlock();
+    }
+  }
+
   @Override
   public Collection<V> values() {
     Collection<V> vs = values;
@@ -940,6 +985,51 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   public Set<Entry<K, V>> entrySet() {
     Set<Entry<K, V>> es = entrySet;
     return (es != null) ? es : (entrySet = new EntrySet());
+  }
+
+  /**
+   * Returns a unmodifiable snapshot {@link Map} view of the mappings contained
+   * in this map. The map's collections return the mappings whose order of
+   * iteration is the ascending order in which its entries are considered
+   * eligible for retention, from the least-likely to be retained to the
+   * most-likely.
+   *
+   * @return an ascending snapshot view of this map
+   */
+  public Map<K, V> ascendingMap() {
+    return orderedMap(true);
+  }
+
+  /**
+   * Returns a unmodifiable snapshot {@link Map} view of the mappings contained
+   * in this map. The map's collections return the mappings whose order of
+   * iteration is the descending order in which its entries are considered
+   * eligible for eviction, from the most-likely to be retained to the
+   * least-likely.
+   *
+   * @return an descending snapshot view of this map
+   */
+  public Map<K, V> descendingMap() {
+    return orderedMap(false);
+  }
+
+  Map<K, V> orderedMap(boolean ascending) {
+    evictionLock.lock();
+    try {
+      drainRecencyQueues();
+
+      Map<K, V> map = new LinkedHashMap<K, V>(evictionDeque.size());
+      Iterator<Node> iterator = ascending
+          ? evictionDeque.iterator()
+          : evictionDeque.descendingIterator();
+      while (iterator.hasNext()) {
+        Node node = iterator.next();
+        map.put(node.key, node.getWeightedValue().value);
+      }
+      return Collections.unmodifiableMap(map);
+    } finally {
+      evictionLock.unlock();
+    }
   }
 
   /**
@@ -977,14 +1067,11 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   /** A {@link Deque} that manages the eviction order. */
   final class EvictionDeque extends AbstractQueue<Node> implements Deque<Node> {
     final Node sentinel = new Node();
+    int size;
 
     @Override
     @GuardedBy("evictionLock")
     public int size() {
-      int size = 0;
-      for (Node node : this) {
-        size++;
-      }
       return size;
     }
 
@@ -1021,6 +1108,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       node.prev = sentinel;
       sentinel.next.prev = node;
       sentinel.next = node;
+      size++;
       return true;
     }
 
@@ -1031,6 +1119,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       node.next = sentinel;
       sentinel.prev.next = node;
       sentinel.prev = node;
+      size++;
       return true;
     }
 
@@ -1094,6 +1183,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       node.prev.next = node.next;
       node.next.prev = node.prev;
       node.prev = node.next = null;
+      size--;
       return true;
     }
 
@@ -1260,10 +1350,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
     boolean casWeightedValue(WeightedValue<V> expect, WeightedValue<V> update) {
       return compareAndSet(expect, update);
-    }
-
-    WeightedValue<V> getAndSetWeightedValue(WeightedValue<V> newValue) {
-      return getAndSet(newValue);
     }
   }
 
