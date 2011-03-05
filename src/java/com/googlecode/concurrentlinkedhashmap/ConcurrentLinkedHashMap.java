@@ -938,6 +938,11 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * this map. The set's iterator returns the keys whose order of iteration is
    * the ascending order in which its entries are considered eligible for
    * retention, from the least-likely to be retained to the most-likely.
+   * <p>
+   * Beware that, unlike in {@link #keySet()}, obtaining the set is <em>NOT</em>
+   * a constant-time operation. Because of the asynchronous nature of the page
+   * replacement policy, determining the retention ordering requires a traversal
+   * of the keys.
    *
    * @return an ascending snapshot view of the keys in this map
    */
@@ -950,6 +955,11 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * this map. The set's iterator returns the keys whose order of iteration is
    * the ascending order in which its entries are considered eligible for
    * retention, from the least-likely to be retained to the most-likely.
+   * <p>
+   * Beware that, unlike in {@link #keySet()}, obtaining the set is <em>NOT</em>
+   * a constant-time operation. Because of the asynchronous nature of the page
+   * replacement policy, determining the retention ordering requires a traversal
+   * of the keys.
    *
    * @param limit the maximum number of keys in the returned set
    * @return an ascending snapshot view of the keys in this map
@@ -964,6 +974,11 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * this map. The set's iterator returns the keys whose order of iteration is
    * the descending order in which its entries are considered eligible for
    * retention, from the most-likely to be retained to the least-likely.
+   * <p>
+   * Beware that, unlike in {@link #keySet()}, obtaining the set is <em>NOT</em>
+   * a constant-time operation. Because of the asynchronous nature of the page
+   * replacement policy, determining the retention ordering requires a traversal
+   * of the keys.
    *
    * @return an descending snapshot view of the keys in this map
    */
@@ -976,6 +991,11 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * this map. The set's iterator returns the keys whose order of iteration is
    * the descending order in which its entries are considered eligible for
    * retention, from the most-likely to be retained to the least-likely.
+   * <p>
+   * Beware that, unlike in {@link #keySet()}, obtaining the set is <em>NOT</em>
+   * a constant-time operation. Because of the asynchronous nature of the page
+   * replacement policy, determining the retention ordering requires a traversal
+   * of the keys.
    *
    * @param limit the maximum number of keys in the returned set
    * @return an descending snapshot view of the keys in this map
@@ -1024,6 +1044,11 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * iteration is the ascending order in which its entries are considered
    * eligible for retention, from the least-likely to be retained to the
    * most-likely.
+   * <p>
+   * Beware that obtaining the mappings is <em>NOT</em> a constant-time
+   * operation. Because of the asynchronous nature of the page replacement
+   * policy, determining the retention ordering requires a traversal of the
+   * entries.
    *
    * @return an ascending snapshot view of this map
    */
@@ -1037,6 +1062,11 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * iteration is the ascending order in which its entries are considered
    * eligible for retention, from the least-likely to be retained to the
    * most-likely.
+   * <p>
+   * Beware that obtaining the mappings is <em>NOT</em> a constant-time
+   * operation. Because of the asynchronous nature of the page replacement
+   * policy, determining the retention ordering requires a traversal of the
+   * entries.
    *
    * @param limit the maximum number of keys in the returned map
    * @return an ascending snapshot view of this map
@@ -1052,6 +1082,11 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * iteration is the descending order in which its entries are considered
    * eligible for retention, from the most-likely to be retained to the
    * least-likely.
+   * <p>
+   * Beware that obtaining the mappings is <em>NOT</em> a constant-time
+   * operation. Because of the asynchronous nature of the page replacement
+   * policy, determining the retention ordering requires a traversal of the
+   * entries.
    *
    * @return an descending snapshot view of this map
    */
@@ -1065,6 +1100,11 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * iteration is the descending order in which its entries are considered
    * eligible for retention, from the most-likely to be retained to the
    * least-likely.
+   * <p>
+   * Beware that obtaining the mappings is <em>NOT</em> a constant-time
+   * operation. Because of the asynchronous nature of the page replacement
+   * policy, determining the retention ordering requires a traversal of the
+   * entries.
    *
    * @param limit the maximum number of keys in the returned map
    * @return an descending snapshot view of this map
