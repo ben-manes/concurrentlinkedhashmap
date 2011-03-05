@@ -942,7 +942,21 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * @return an ascending snapshot view of the keys in this map
    */
   public Set<K> ascendingKeySet() {
-    return orderedKeySet(true);
+    return orderedKeySet(true, Integer.MAX_VALUE);
+  }
+
+  /**
+   * Returns a unmodifiable snapshot {@link Set} view of the keys contained in
+   * this map. The set's iterator returns the keys whose order of iteration is
+   * the ascending order in which its entries are considered eligible for
+   * retention, from the least-likely to be retained to the most-likely.
+   *
+   * @param limit the maximum number of keys in the returned set
+   * @return an ascending snapshot view of the keys in this map
+   * @throws IllegalArgumentException if the limit is negative
+   */
+  public Set<K> ascendingKeySetWithLimit(int limit) {
+    return orderedKeySet(true, limit);
   }
 
   /**
@@ -954,10 +968,27 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * @return an descending snapshot view of the keys in this map
    */
   public Set<K> descendingKeySet() {
-    return orderedKeySet(false);
+    return orderedKeySet(false, Integer.MAX_VALUE);
   }
 
-  Set<K> orderedKeySet(boolean ascending) {
+  /**
+   * Returns a unmodifiable snapshot {@link Set} view of the keys contained in
+   * this map. The set's iterator returns the keys whose order of iteration is
+   * the descending order in which its entries are considered eligible for
+   * retention, from the most-likely to be retained to the least-likely.
+   *
+   * @param limit the maximum number of keys in the returned set
+   * @return an descending snapshot view of the keys in this map
+   * @throws IllegalArgumentException if the limit is negative
+   */
+  public Set<K> descendingKeySetWithLimit(int limit) {
+    return orderedKeySet(false, limit);
+  }
+
+  Set<K> orderedKeySet(boolean ascending, int limit) {
+    if (limit < 0) {
+      throw new IllegalArgumentException();
+    }
     evictionLock.lock();
     try {
       drainRecencyQueues();
@@ -966,7 +997,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       Iterator<Node> iterator = ascending
           ? evictionDeque.iterator()
           : evictionDeque.descendingIterator();
-      while (iterator.hasNext()) {
+      while (iterator.hasNext() && (limit > keys.size())) {
         keys.add(iterator.next().key);
       }
       return Collections.unmodifiableSet(keys);
@@ -997,7 +1028,22 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * @return an ascending snapshot view of this map
    */
   public Map<K, V> ascendingMap() {
-    return orderedMap(true);
+    return orderedMap(true, Integer.MAX_VALUE);
+  }
+
+  /**
+   * Returns a unmodifiable snapshot {@link Map} view of the mappings contained
+   * in this map. The map's collections return the mappings whose order of
+   * iteration is the ascending order in which its entries are considered
+   * eligible for retention, from the least-likely to be retained to the
+   * most-likely.
+   *
+   * @param limit the maximum number of keys in the returned map
+   * @return an ascending snapshot view of this map
+   * @throws IllegalArgumentException if the limit is negative
+   */
+  public Map<K, V> ascendingMapWithLimit(int limit) {
+    return orderedMap(true, limit);
   }
 
   /**
@@ -1010,10 +1056,28 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * @return an descending snapshot view of this map
    */
   public Map<K, V> descendingMap() {
-    return orderedMap(false);
+    return orderedMap(false, Integer.MAX_VALUE);
   }
 
-  Map<K, V> orderedMap(boolean ascending) {
+  /**
+   * Returns a unmodifiable snapshot {@link Map} view of the mappings contained
+   * in this map. The map's collections return the mappings whose order of
+   * iteration is the descending order in which its entries are considered
+   * eligible for eviction, from the most-likely to be retained to the
+   * least-likely.
+   *
+   * @param limit the maximum number of keys in the returned map
+   * @return an descending snapshot view of this map
+   * @throws IllegalArgumentException if the limit is negative
+   */
+  public Map<K, V> descendingMapWithLimit(int limit) {
+    return orderedMap(false, limit);
+  }
+
+  Map<K, V> orderedMap(boolean ascending, int limit) {
+    if (limit < 0) {
+      throw new IllegalArgumentException();
+    }
     evictionLock.lock();
     try {
       drainRecencyQueues();
@@ -1022,7 +1086,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       Iterator<Node> iterator = ascending
           ? evictionDeque.iterator()
           : evictionDeque.descendingIterator();
-      while (iterator.hasNext()) {
+      while (iterator.hasNext() && (limit > map.size())) {
         Node node = iterator.next();
         map.put(node.key, node.getWeightedValue().value);
       }

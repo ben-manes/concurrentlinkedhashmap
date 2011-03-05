@@ -2,6 +2,8 @@ package com.googlecode.concurrentlinkedhashmap;
 
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.BUFFER_THRESHOLD;
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.MAXIMUM_CAPACITY;
+import static com.googlecode.concurrentlinkedhashmap.IsEmptyCollection.emptyCollection;
+import static com.googlecode.concurrentlinkedhashmap.IsEmptyMap.emptyMap;
 import static com.googlecode.concurrentlinkedhashmap.IsValidState.valid;
 import static java.util.Arrays.asList;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -43,10 +45,12 @@ public final class EvictionTest extends BaseTest {
     return 100;
   }
 
+  /* ---------------- Ascending KeySet -------------- */
+
   @Test(dataProvider = "warmedMap")
   public void ascendingKeySet(ConcurrentLinkedHashMap<Integer, Integer> map) {
     Map<Integer, Integer> expected = new LinkedHashMap<Integer, Integer>();
-    warmUp(expected, 0, 100);
+    warmUp(expected, 0, capacity());
 
     assertThat(map.ascendingKeySet(), is(equalTo(expected.keySet())));
   }
@@ -54,7 +58,7 @@ public final class EvictionTest extends BaseTest {
   @Test(dataProvider = "warmedMap")
   public void ascendingKeySet_snapshot(ConcurrentLinkedHashMap<Integer, Integer> map) {
     Map<Integer, Integer> expected = new LinkedHashMap<Integer, Integer>();
-    warmUp(expected, 0, 100);
+    warmUp(expected, 0, capacity());
 
     Set<Integer> original = map.ascendingKeySet();
     map.put(capacity(), -capacity());
@@ -63,9 +67,48 @@ public final class EvictionTest extends BaseTest {
   }
 
   @Test(dataProvider = "warmedMap")
+  public void ascendingKeySetWithLimit_greaterThan(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    Map<Integer, Integer> expected = new LinkedHashMap<Integer, Integer>();
+    warmUp(expected, 0, capacity() / 2);
+
+    assertThat(map.ascendingKeySetWithLimit(capacity() / 2), is(equalTo(expected.keySet())));
+  }
+
+  @Test(dataProvider = "warmedMap")
+  public void ascendingKeySetWithLimit_lessThan(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    Map<Integer, Integer> expected = new LinkedHashMap<Integer, Integer>();
+    warmUp(expected, 0, capacity());
+
+    assertThat(map.ascendingKeySetWithLimit(capacity() * 2), is(equalTo(expected.keySet())));
+  }
+
+  @Test(dataProvider = "warmedMap")
+  public void ascendingKeySetWithLimit_snapshot(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    Map<Integer, Integer> expected = new LinkedHashMap<Integer, Integer>();
+    warmUp(expected, 0, capacity() / 2);
+
+    Set<Integer> original = map.ascendingKeySetWithLimit(capacity() / 2);
+    map.put(capacity(), -capacity());
+
+    assertThat(original, is(equalTo(expected.keySet())));
+  }
+
+  @Test(dataProvider = "warmedMap")
+  public void ascendingKeySetWithLimit_zero(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    assertThat(map.ascendingKeySetWithLimit(0), is(emptyCollection()));
+  }
+
+  @Test(dataProvider = "warmedMap", expectedExceptions = IllegalArgumentException.class)
+  public void ascendingKeySetWithLimit_negative(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    map.ascendingKeySetWithLimit(-1);
+  }
+
+  /* ---------------- Descending KeySet -------------- */
+
+  @Test(dataProvider = "warmedMap")
   public void descendingKeySet(ConcurrentLinkedHashMap<Integer, Integer> map) {
     Set<Integer> expected = new LinkedHashSet<Integer>();
-    for (int i = 99; i >= 0; i--) {
+    for (int i = capacity() - 1; i >= 0; i--) {
       expected.add(i);
     }
     assertThat(map.descendingKeySet(), is(equalTo(expected)));
@@ -74,7 +117,7 @@ public final class EvictionTest extends BaseTest {
   @Test(dataProvider = "warmedMap")
   public void descendingKeySet_snapshot(ConcurrentLinkedHashMap<Integer, Integer> map) {
     Set<Integer> expected = new LinkedHashSet<Integer>();
-    for (int i = 99; i >= 0; i--) {
+    for (int i = capacity() - 1; i >= 0; i--) {
       expected.add(i);
     }
 
@@ -85,9 +128,52 @@ public final class EvictionTest extends BaseTest {
   }
 
   @Test(dataProvider = "warmedMap")
+  public void descendingKeySetWithLimit_greaterThan(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    Set<Integer> expected = new LinkedHashSet<Integer>();
+    for (int i = capacity() - 1; i >= capacity() / 2; i--) {
+      expected.add(i);
+    }
+    assertThat(map.descendingKeySetWithLimit(capacity() / 2), is(equalTo(expected)));
+  }
+
+  @Test(dataProvider = "warmedMap")
+  public void descendingKeySetWithLimit_lessThan(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    Set<Integer> expected = new LinkedHashSet<Integer>();
+    for (int i = capacity() - 1; i >= 0; i--) {
+      expected.add(i);
+    }
+    assertThat(map.descendingKeySetWithLimit(capacity() * 2), is(equalTo(expected)));
+  }
+
+  @Test(dataProvider = "warmedMap")
+  public void descendingKeySetWithLimit_snapshot(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    Set<Integer> expected = new LinkedHashSet<Integer>();
+    for (int i = capacity() - 1; i >= capacity() / 2; i--) {
+      expected.add(i);
+    }
+
+    Set<Integer> original = map.descendingKeySetWithLimit(capacity() / 2);
+    map.put(capacity(), -capacity());
+
+    assertThat(original, is(equalTo(expected)));
+  }
+
+  @Test(dataProvider = "warmedMap")
+  public void descendingKeySetWithLimit_zero(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    assertThat(map.descendingKeySetWithLimit(0), is(emptyCollection()));
+  }
+
+  @Test(dataProvider = "warmedMap", expectedExceptions = IllegalArgumentException.class)
+  public void descendingKeySetWithLimit_negative(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    map.descendingKeySetWithLimit(-1);
+  }
+
+  /* ---------------- Ascending Map -------------- */
+
+  @Test(dataProvider = "warmedMap")
   public void ascendingMap(ConcurrentLinkedHashMap<Integer, Integer> map) {
     Map<Integer, Integer> expected = new LinkedHashMap<Integer, Integer>();
-    warmUp(expected, 0, 100);
+    warmUp(expected, 0, capacity());
 
     assertThat(map.ascendingMap(), is(equalTo(expected)));
   }
@@ -95,7 +181,7 @@ public final class EvictionTest extends BaseTest {
   @Test(dataProvider = "warmedMap")
   public void ascendingMap_snapshot(ConcurrentLinkedHashMap<Integer, Integer> map) {
     Map<Integer, Integer> expected = new LinkedHashMap<Integer, Integer>();
-    warmUp(expected, 0, 100);
+    warmUp(expected, 0, capacity());
 
     Map<Integer, Integer> original = map.ascendingMap();
     map.put(capacity(), -capacity());
@@ -104,9 +190,48 @@ public final class EvictionTest extends BaseTest {
   }
 
   @Test(dataProvider = "warmedMap")
+  public void ascendingMapWithLimit_greaterThan(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    Map<Integer, Integer> expected = new LinkedHashMap<Integer, Integer>();
+    warmUp(expected, 0, capacity() / 2);
+
+    assertThat(map.ascendingMapWithLimit(capacity() / 2), is(equalTo(expected)));
+  }
+
+  @Test(dataProvider = "warmedMap")
+  public void ascendingMapWithLimit_lessThan(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    Map<Integer, Integer> expected = new LinkedHashMap<Integer, Integer>();
+    warmUp(expected, 0, capacity());
+
+    assertThat(map.ascendingMapWithLimit(capacity() * 2), is(equalTo(expected)));
+  }
+
+  @Test(dataProvider = "warmedMap")
+  public void ascendingMapWithLimit_snapshot(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    Map<Integer, Integer> expected = new LinkedHashMap<Integer, Integer>();
+    warmUp(expected, 0, capacity() / 2);
+
+    Map<Integer, Integer> original = map.ascendingMapWithLimit(capacity() / 2);
+    map.put(capacity(), -capacity());
+
+    assertThat(original, is(equalTo(expected)));
+  }
+
+  @Test(dataProvider = "warmedMap")
+  public void ascendingMapWithLimit_zero(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    assertThat(map.ascendingMapWithLimit(0), is(emptyMap()));
+  }
+
+  @Test(dataProvider = "warmedMap", expectedExceptions = IllegalArgumentException.class)
+  public void ascendingMapWithLimit_negative(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    map.ascendingMapWithLimit(-1);
+  }
+
+  /* ---------------- Descending Map -------------- */
+
+  @Test(dataProvider = "warmedMap")
   public void descendingMap(ConcurrentLinkedHashMap<Integer, Integer> map) {
     Map<Integer, Integer> expected = new LinkedHashMap<Integer, Integer>();
-    for (int i = 99; i >= 0; i--) {
+    for (int i = capacity() - 1; i >= 0; i--) {
       expected.put(i, -i);
     }
     assertThat(map.descendingMap(), is(equalTo(expected)));
@@ -115,7 +240,7 @@ public final class EvictionTest extends BaseTest {
   @Test(dataProvider = "warmedMap")
   public void descendingMap_snapshot(ConcurrentLinkedHashMap<Integer, Integer> map) {
     Map<Integer, Integer> expected = new LinkedHashMap<Integer, Integer>();
-    for (int i = 99; i >= 0; i--) {
+    for (int i = capacity() - 1; i >= 0; i--) {
       expected.put(i, -i);
     }
 
@@ -124,6 +249,49 @@ public final class EvictionTest extends BaseTest {
 
     assertThat(original, is(equalTo(expected)));
   }
+
+  @Test(dataProvider = "warmedMap")
+  public void descendingMapWithLimit_greaterThan(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    Map<Integer, Integer> expected = new LinkedHashMap<Integer, Integer>();
+    for (int i = capacity() - 1; i >= capacity() / 2; i--) {
+      expected.put(i, -i);
+    }
+    assertThat(map.descendingMapWithLimit(capacity() / 2), is(equalTo(expected)));
+  }
+
+  @Test(dataProvider = "warmedMap")
+  public void descendingMapWithLimit_lessThan(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    Map<Integer, Integer> expected = new LinkedHashMap<Integer, Integer>();
+    for (int i = capacity() - 1; i >= 0; i--) {
+      expected.put(i, -i);
+    }
+    assertThat(map.descendingMapWithLimit(capacity() * 2), is(equalTo(expected)));
+  }
+
+  @Test(dataProvider = "warmedMap")
+  public void descendingMapWithLimit_snapshot(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    Map<Integer, Integer> expected = new LinkedHashMap<Integer, Integer>();
+    for (int i = capacity() - 1; i >= capacity() / 2; i--) {
+      expected.put(i, -i);
+    }
+
+    Map<Integer, Integer> original = map.descendingMapWithLimit(capacity() / 2);
+    map.put(capacity(), -capacity());
+
+    assertThat(original, is(equalTo(expected)));
+  }
+
+  @Test(dataProvider = "warmedMap")
+  public void descendingMapWithLimit_zero(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    assertThat(map.descendingMapWithLimit(0), is(emptyMap()));
+  }
+
+  @Test(dataProvider = "warmedMap", expectedExceptions = IllegalArgumentException.class)
+  public void descendingMapWithLimit_negative(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    map.descendingMapWithLimit(-1);
+  }
+
+  /* ---------------- Capacity -------------- */
 
   @Test(dataProvider = "warmedMap")
   public void capacity_increase(ConcurrentLinkedHashMap<Integer, Integer> map) {
@@ -180,6 +348,8 @@ public final class EvictionTest extends BaseTest {
       assertThat(map.capacity(), is(equalTo(capacity())));
     }
   }
+
+  /* ---------------- Eviction -------------- */
 
   @Test(dataProvider = "builder", expectedExceptions = IllegalStateException.class)
   public void evictionListener_fails(Builder<Integer, Integer> builder) {
