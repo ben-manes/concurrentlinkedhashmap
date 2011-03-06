@@ -1,7 +1,9 @@
 package com.googlecode.concurrentlinkedhashmap;
 
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.BUFFER_THRESHOLD;
+import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.MAXIMUM_BUFFER_SIZE;
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.MAXIMUM_CAPACITY;
+import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.bufferIndex;
 import static com.googlecode.concurrentlinkedhashmap.IsEmptyCollection.emptyCollection;
 import static com.googlecode.concurrentlinkedhashmap.IsEmptyMap.emptyMap;
 import static com.googlecode.concurrentlinkedhashmap.IsValidState.valid;
@@ -537,7 +539,7 @@ public final class EvictionTest extends BaseTest {
     for (int i = 0; i < BUFFER_THRESHOLD; i++) {
       map.get(1);
     }
-    int index = (int) Thread.currentThread().getId() % map.buffers.length;
+    int index = bufferIndex();
     assertThat(map.bufferLength.get(index), is(equalTo(BUFFER_THRESHOLD)));
     map.get(1);
     assertThat(map.bufferLength.get(index), is(equalTo(0)));
@@ -583,5 +585,37 @@ public final class EvictionTest extends BaseTest {
     map.tryToDrainEvictionQueues(false);
     assertThat(executed.get(), is(equalTo(tasks.get())));
     assertThat(executed.get(), is(2 * BUFFER_THRESHOLD));
+  }
+
+  @Test(dataProvider = "guardedMap")
+  public void exceedsMaximumBufferSize_onRead(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    int index = bufferIndex();
+    map.bufferLength.set(index, MAXIMUM_BUFFER_SIZE);
+
+    final boolean[] ran = { false };
+    map.addToRecencyQueue(new Runnable() {
+      @Override public void run() {
+        ran[0] = true;
+      }
+    }, false);
+    assertThat(ran[0], is(false));
+    assertThat(map.buffers[index].size(), is(0));
+    map.bufferLength.set(index, 0);
+  }
+
+  @Test(dataProvider = "guardedMap")
+  public void exceedsMaximumBufferSize_onWrite(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    int index = bufferIndex();
+    map.bufferLength.set(index, MAXIMUM_BUFFER_SIZE);
+
+    final boolean[] ran = { false };
+    map.addToRecencyQueue(new Runnable() {
+      @Override public void run() {
+        ran[0] = true;
+      }
+    }, true);
+    assertThat(ran[0], is(true));
+    assertThat(map.buffers[index].size(), is(0));
+    map.bufferLength.set(index, 0);
   }
 }

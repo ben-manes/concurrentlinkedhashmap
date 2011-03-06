@@ -91,7 +91,7 @@ import java.util.concurrent.locks.ReentrantLock;
  * Like {@link java.util.Hashtable} but unlike {@link HashMap}, this class
  * does <em>not</em> allow <tt>null</tt> to be used as a key or value. Unlike
  * {@link java.util.LinkedHashMap}, this class does <em>not</em> provide
- * predictable iteration order. A snapshot order of the keys and entries may be
+ * predictable iteration order. A snapshot of the keys and entries may be
  * obtained in ascending and descending order of retention.
  *
  * @author ben.manes@gmail.com (Ben Manes)
@@ -358,23 +358,19 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * @param task the pending operation to apply
    */
   void addToRecencyQueue(Runnable task, boolean isWrite) {
-    // A recency queue is chosen by the thread's id so that recencies are evenly
-    // distributed between queues. This ensures that hot entries do not cause
-    // contention due to the threads trying to append to the same queue.
-    int index = (int) Thread.currentThread().getId() & BUFFER_MASK;
-
     // The recency's global order is acquired in a racy fashion as the increment
     // is not atomic with the insertion. This means that concurrent reads can
     // have the same ordering and the queues are in a weakly sorted order.
     int recencyOrder = globalRecencyOrder++;
 
-    // The recency queue is capped to a maximum capacity to avoid stampeding
-    // requests to exceed a tolerance level and cause an out-of-memory error.
+    int index = bufferIndex();
     int buffered = bufferLength.incrementAndGet(index);
-    if (buffered > MAXIMUM_BUFFER_SIZE) {
-      bufferLength.decrementAndGet(index);
-    } else {
+
+    // A buffer may discard a read task if its length exceeds a tolerance level
+    if ((buffered <= MAXIMUM_BUFFER_SIZE) || isWrite) {
       buffers[index].add(new OrderedTask(recencyOrder, task, isWrite));
+    } else {
+      bufferLength.decrementAndGet(index);
     }
 
     boolean delayReorder;
@@ -385,6 +381,14 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       delayReorder = (buffered <= BUFFER_THRESHOLD);
     }
     processEvents(delayReorder);
+  }
+
+  /** Returns the index to the buffer that the task should be scheduled on. */
+  static int bufferIndex() {
+    // A buffer is chosen by the thread's id so that read tasks are evenly
+    // distributed. This ensures that hot entries do not suffer contention due
+    // to the threads trying to append to the same buffer.
+    return (int) Thread.currentThread().getId() & BUFFER_MASK;
   }
 
   /**
@@ -961,7 +965,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * replacement policy, determining the retention ordering requires a traversal
    * of the keys.
    *
-   * @param limit the maximum number of keys in the returned set
+   * @param limit the maximum size of the returned set
    * @return an ascending snapshot view of the keys in this map
    * @throws IllegalArgumentException if the limit is negative
    */
@@ -997,7 +1001,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * replacement policy, determining the retention ordering requires a traversal
    * of the keys.
    *
-   * @param limit the maximum number of keys in the returned set
+   * @param limit the maximum size of the returned set
    * @return an descending snapshot view of the keys in this map
    * @throws IllegalArgumentException if the limit is negative
    */
@@ -1013,7 +1017,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     try {
       drainRecencyQueues();
 
-      Set<K> keys = new LinkedHashSet<K>(evictionDeque.size());
+      int size = Math.min(limit, evictionDeque.size());
+      Set<K> keys = new LinkedHashSet<K>(size);
       Iterator<Node> iterator = ascending
           ? evictionDeque.iterator()
           : evictionDeque.descendingIterator();
@@ -1068,7 +1073,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * policy, determining the retention ordering requires a traversal of the
    * entries.
    *
-   * @param limit the maximum number of keys in the returned map
+   * @param limit the maximum size of the returned map
    * @return an ascending snapshot view of this map
    * @throws IllegalArgumentException if the limit is negative
    */
@@ -1106,7 +1111,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * policy, determining the retention ordering requires a traversal of the
    * entries.
    *
-   * @param limit the maximum number of keys in the returned map
+   * @param limit the maximum size of the returned map
    * @return an descending snapshot view of this map
    * @throws IllegalArgumentException if the limit is negative
    */
@@ -1122,7 +1127,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     try {
       drainRecencyQueues();
 
-      Map<K, V> map = new LinkedHashMap<K, V>(evictionDeque.size());
+      int size = Math.min(limit, evictionDeque.size());
+      Map<K, V> map = new LinkedHashMap<K, V>(size);
       Iterator<Node> iterator = ascending
           ? evictionDeque.iterator()
           : evictionDeque.descendingIterator();
