@@ -46,7 +46,7 @@ public final class ConcurrentMapTest extends BaseTest {
     return 100;
   }
 
-  @Test(groups = "clear_whenEmpty", dataProvider = "guardedMap")
+  @Test(dataProvider = "guardedMap")
   public void clear_whenEmpty(Map<Integer, Integer> map) {
     map.clear();
     assertThat(map, is(emptyMap()));

@@ -50,7 +50,7 @@ public final class IsEmptyMap extends TypeSafeDiagnosingMatcher<Map<?, ?>> {
     builder.expectEqual(map, ImmutableMap.of(), "Not equal to empty map");
     builder.expectEqual(map.hashCode(), ImmutableMap.of().hashCode(), "hashcode");
     builder.expectEqual(map.toString(), ImmutableMap.of().toString(), "toString");
-    builder.expectEqual(map.evictionDeque.peekFirst(), null, "first not null ");
+    builder.expectEqual(map.evictionDeque.peekFirst(), null, "first not null: " + map.evictionDeque);
     builder.expectEqual(map.evictionDeque.peekLast(), null, "last not null");
   }
 

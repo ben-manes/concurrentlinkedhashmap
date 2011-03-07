@@ -31,13 +31,11 @@ import java.util.AbstractQueue;
 import java.util.AbstractSet;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Deque;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
-import java.util.NoSuchElementException;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -180,7 +178,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
   // These fields provide support to bound the map by a maximum capacity.
   @GuardedBy("evictionLock")
-  final EvictionDeque evictionDeque;
+  final LinkedDeque<Node> evictionDeque;
 
   @GuardedBy("evictionLock") // must write under lock
   volatile int weightedSize;
@@ -219,9 +217,9 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     weigher = builder.weigher;
     executor = builder.executor;
     evictionLock = new ReentrantLock();
-    evictionDeque = new EvictionDeque();
     globalRecencyOrder = Integer.MIN_VALUE;
     drainedRecencyOrder = Integer.MIN_VALUE;
+    evictionDeque = new LinkedDeque<Node>();
     drainStatus = new AtomicReference<DrainStatus>(IDLE);
 
     buffers = (Queue<OrderedTask>[]) new Queue[NUMBER_OF_BUFFERS];
@@ -622,8 +620,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       // linked then it does not need to be processed.
       Node node = get();
       if ((node != null) && evictionDeque.contains(node)) {
-        evictionDeque.remove(node);
-        evictionDeque.add(node);
+        evictionDeque.moveToBack(node);
       }
     }
   }
@@ -666,8 +663,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     @GuardedBy("evictionLock")
     public void run() {
       WeightedValue<V> weightedValue = node.getWeightedValue();
-      evictionDeque.remove(node);
       weightedSize -= Math.abs(weightedValue.weight);
+      evictionDeque.remove(node);
     }
   }
 
@@ -1142,9 +1139,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     }
   }
 
-  /**
-   * A value and its weight.
-   */
+  /** A value and its weight. */
+  @Immutable
   static final class WeightedValue<V> {
     final int weight;
     final V value;
@@ -1174,277 +1170,17 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     }
   }
 
-  /** A {@link Deque} that manages the eviction order. */
-  final class EvictionDeque extends AbstractQueue<Node> implements Deque<Node> {
-    final Node sentinel = new Node();
-    int size;
-
-    @Override
-    @GuardedBy("evictionLock")
-    public int size() {
-      return size;
-    }
-
-    @Override
-    @GuardedBy("evictionLock")
-    public boolean isEmpty() {
-      return (sentinel.next == sentinel);
-    }
-
-    @GuardedBy("evictionLock")
-    void checkNotEmpty() {
-      if (isEmpty()) {
-        throw new NoSuchElementException();
-      }
-    }
-
-    @Override
-    @GuardedBy("evictionLock")
-    public boolean contains(Object o) {
-      Node node = (Node) o;
-      return (node.next != null);
-    }
-
-    @Override
-    @GuardedBy("evictionLock")
-    public boolean offer(Node node) {
-      return offerLast(node);
-    }
-
-    @Override
-    @GuardedBy("evictionLock")
-    public boolean offerFirst(Node node) {
-      node.next = sentinel.next;
-      node.prev = sentinel;
-      sentinel.next.prev = node;
-      sentinel.next = node;
-      size++;
-      return true;
-    }
-
-    @Override
-    @GuardedBy("evictionLock")
-    public boolean offerLast(Node node) {
-      node.prev = sentinel.prev;
-      node.next = sentinel;
-      sentinel.prev.next = node;
-      sentinel.prev = node;
-      size++;
-      return true;
-    }
-
-    @Override
-    @GuardedBy("evictionLock")
-    public Node peek() {
-      return peekFirst();
-    }
-
-    @Override
-    @GuardedBy("evictionLock")
-    public Node peekFirst() {
-      Node next = sentinel.next;
-      return (next == sentinel) ? null : next;
-    }
-
-    @Override
-    @GuardedBy("evictionLock")
-    public Node peekLast() {
-      Node prev = sentinel.prev;
-      return (prev == sentinel) ? null : prev;
-    }
-
-    @Override
-    @GuardedBy("evictionLock")
-    public Node poll() {
-      return pollFirst();
-    }
-
-    @Override
-    @GuardedBy("evictionLock")
-    public Node pollFirst() {
-      Node next = sentinel.next;
-      if (next == sentinel) {
-        return null;
-      }
-
-      remove(next);
-      return next;
-    }
-
-    @Override
-    @GuardedBy("evictionLock")
-    public Node pollLast() {
-      Node prev = sentinel.prev;
-      if (prev == sentinel) {
-        return null;
-      }
-
-      remove(prev);
-      return prev;
-    }
-
-    @Override
-    @GuardedBy("evictionLock")
-    public boolean remove(Object o) {
-      if (!contains(o)) {
-        return false;
-      }
-      Node node = (Node) o;
-      node.prev.next = node.next;
-      node.next.prev = node.prev;
-      node.prev = node.next = null;
-      size--;
-      return true;
-    }
-
-    @Override
-    @GuardedBy("evictionLock")
-    public Node removeFirst() {
-      checkNotEmpty();
-      return pollFirst();
-    }
-
-    @Override
-    @GuardedBy("evictionLock")
-    public boolean removeFirstOccurrence(Object o) {
-      return remove(o);
-    }
-
-    @Override
-    @GuardedBy("evictionLock")
-    public Node removeLast() {
-      checkNotEmpty();
-      return pollLast();
-    }
-
-    @Override
-    @GuardedBy("evictionLock")
-    public boolean removeLastOccurrence(Object o) {
-      return remove(o);
-    }
-
-    @Override
-    @GuardedBy("evictionLock")
-    public void addFirst(Node e) {
-      if (!offerFirst(e)) {
-        throw new IllegalStateException();
-      }
-    }
-
-    @Override
-    @GuardedBy("evictionLock")
-    public void addLast(Node e) {
-      if (!offerLast(e)) {
-        throw new IllegalStateException();
-      }
-    }
-
-    @Override
-    @GuardedBy("evictionLock")
-    public Node getFirst() {
-      checkNotEmpty();
-      return peekFirst();
-    }
-
-    @Override
-    @GuardedBy("evictionLock")
-    public Node getLast() {
-      checkNotEmpty();
-      return peekLast();
-    }
-
-    @Override
-    @GuardedBy("evictionLock")
-    public Node pop() {
-      return removeFirst();
-    }
-
-    @Override
-    @GuardedBy("evictionLock")
-    public void push(Node e) {
-      addFirst(e);
-    }
-
-    @Override
-    @GuardedBy("evictionLock")
-    public Iterator<Node> iterator() {
-      return new AbstractLinkedIterator() {
-        @Override Node computeNext() {
-          return curser.next;
-        }
-      };
-    }
-
-    @Override
-    @GuardedBy("evictionLock")
-    public Iterator<Node> descendingIterator() {
-      return new AbstractLinkedIterator() {
-        @Override Node computeNext() {
-          return curser.prev;
-        }
-      };
-    }
-
-    abstract class AbstractLinkedIterator implements Iterator<Node> {
-      Node curser;
-
-      AbstractLinkedIterator() {
-        curser = sentinel;
-        curser = computeNext();
-      }
-
-      @Override
-      public boolean hasNext() {
-        return (curser != sentinel);
-      }
-
-      @Override
-      public Node next() {
-        if (!hasNext()) {
-          throw new NoSuchElementException();
-        }
-        Node next = curser;
-        curser = computeNext();
-        return next;
-      }
-
-      @Override
-      public void remove() {
-        throw new UnsupportedOperationException();
-      }
-
-      abstract Node computeNext();
-    }
-  }
-
   /**
    * A node contains the key, the weighted value, and the linkage pointers on
    * the page-replacement algorithm's data structures.
    */
   @SuppressWarnings("serial")
-  final class Node extends AtomicReference<WeightedValue<V>> {
+  final class Node extends AtomicReference<WeightedValue<V>> implements Linked<Node> {
     final K key;
-
-    /**
-     * A link to the entry that was less recently used or the sentinel if this
-     * entry is the least recent.
-     */
     @GuardedBy("evictionLock")
     Node prev;
-
-    /**
-     * A link to the entry that was more recently used or the sentinel if this
-     * entry is the most recent.
-     */
     @GuardedBy("evictionLock")
     Node next;
-
-    /** Creates a new sentinel node. */
-    Node() {
-      this.key = null;
-      this.prev = this;
-      this.next = this;
-    }
 
     /** Creates a new, unlinked node. */
     Node(K key, WeightedValue<V> weightedValue) {
@@ -1452,6 +1188,30 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       this.key = key;
       this.prev = null;
       this.next = null;
+    }
+
+    @Override
+    @GuardedBy("evictionLock")
+    public Node getPrevious() {
+      return prev;
+    }
+
+    @Override
+    @GuardedBy("evictionLock")
+    public void setPrevious(Node prev) {
+      this.prev = prev;
+    }
+
+    @Override
+    @GuardedBy("evictionLock")
+    public Node getNext() {
+      return next;
+    }
+
+    @Override
+    @GuardedBy("evictionLock")
+    public void setNext(Node next) {
+      this.next = next;
     }
 
     WeightedValue<V> getWeightedValue() {
