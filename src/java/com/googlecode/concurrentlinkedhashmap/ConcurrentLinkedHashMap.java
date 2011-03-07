@@ -18,6 +18,9 @@ package com.googlecode.concurrentlinkedhashmap;
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.DrainStatus.IDLE;
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.DrainStatus.PROCESSING;
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.DrainStatus.REQUIRED;
+import static java.util.Collections.emptyList;
+import static java.util.Collections.unmodifiableMap;
+import static java.util.Collections.unmodifiableSet;
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 
@@ -30,7 +33,6 @@ import java.util.AbstractMap;
 import java.util.AbstractQueue;
 import java.util.AbstractSet;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -166,7 +168,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   static final Executor sameThreadExecutor = new SameThreadExecutor();
 
   /** A queue that discards all entries. */
-  static final Queue<?> discardingQueue = new DiscardingQueue<Object>();
+  static final Queue<?> discardingQueue = new DiscardingQueue();
 
   enum DrainStatus { IDLE, REQUIRED, PROCESSING }
 
@@ -1024,7 +1026,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       while (iterator.hasNext() && (limit > keys.size())) {
         keys.add(iterator.next().key);
       }
-      return Collections.unmodifiableSet(keys);
+      return unmodifiableSet(keys);
     } finally {
       evictionLock.unlock();
     }
@@ -1135,7 +1137,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
         Node node = iterator.next();
         map.put(node.key, node.getWeightedValue().value);
       }
-      return Collections.unmodifiableMap(map);
+      return unmodifiableMap(map);
     } finally {
       evictionLock.unlock();
     }
@@ -1430,13 +1432,15 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   }
 
   /** A queue that discards all additions and is always empty. */
-  static final class DiscardingQueue<E> extends AbstractQueue<E> {
-    @Override public boolean add(E e) { return true; }
-    @Override public boolean offer(E e) { return true; }
-    @Override public E poll() { return null; }
-    @Override public E peek() { return null; }
+  static final class DiscardingQueue extends AbstractQueue<Object> {
+    static final Iterator<Object> iter = emptyList().iterator();
+
+    @Override public boolean add(Object e) { return true; }
+    @Override public boolean offer(Object e) { return true; }
+    @Override public Object poll() { return null; }
+    @Override public Object peek() { return null; }
     @Override public int size() { return 0; }
-    @Override public Iterator<E> iterator() { return Collections.<E>emptyList().iterator(); }
+    @Override public Iterator<Object> iterator() { return iter; }
   }
 
   /** A listener that ignores all notifications. */

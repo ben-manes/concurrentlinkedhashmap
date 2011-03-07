@@ -103,7 +103,9 @@
    depends="compile"
    description="Generates API documentation in HTML format."
   >
-    <javadoc sourcepath="${api.src.dir}" destdir="${javadoc.build.dir}"/>
+    <javadoc sourcepath="${api.src.dir}" destdir="${javadoc.build.dir}">
+      <link offline="false" href="http://download.oracle.com/javase/6/docs/api/" /> 
+    </javadoc>
   </target>
 
   <target
