@@ -32,12 +32,12 @@ import java.util.NoSuchElementException;
  * Any usage that violates this assumption will result in non-deterministic
  * behavior.
  * <p>
- * The iterators returned by this class's <tt>iterator</tt> method are
- * <em>not</em> <i>fail-fast</i>: If the deque is modified at any time after the
- * iterator is created, in any way except through the iterator's own
- * <tt>remove</tt> method, the iterator will be in an unknown state. Thus, in
- * the face of concurrent modification, the iterator risks arbitrary,
- * non-deterministic behavior at an undetermined time in the future.
+ * The iterators returned by this class are <em>not</em> <i>fail-fast</i>: If
+ * the deque is modified at any time after the iterator is created, in any way
+ * except through the iterator's own <tt>remove</tt> method, the iterator will
+ * be in an unknown state. Thus, in the face of concurrent modification, the
+ * iterator risks arbitrary, non-deterministic behavior at an undetermined time
+ * in the future.
  *
  * @author ben.manes@gmail.com (Ben Manes)
  * @param <E> the type of elements held in this collection
@@ -45,6 +45,14 @@ import java.util.NoSuchElementException;
  */
 @NotThreadSafe
 final class LinkedDeque<E extends Linked<E>> extends AbstractQueue<E> implements Deque<E> {
+
+  // The class implements a doubly-linked list with an algorithm specifically
+  // optimized for the virtual machine. The first and last elements are
+  // manipulated instead of a slightly more convenient sentinel element to avoid
+  // the insertion of null checks (with NPE throws) in the byte code. The links
+  // to a removed element are cleared to help a generational garbage collector
+  // if the discarded elements inhabit more than one generation.
+
   /**
    * Pointer to first node.
    * Invariant: (first == null && last == null) ||
@@ -61,7 +69,12 @@ final class LinkedDeque<E extends Linked<E>> extends AbstractQueue<E> implements
 
   int size;
 
-  /** Links e as first element. */
+  /**
+   * Links the element to the front of the deque so that it becomes the first
+   * element.
+   *
+   * @param e the unlinked element
+   */
   void linkFirst(final E e) {
     final E f = first;
     first = e;
@@ -75,7 +88,12 @@ final class LinkedDeque<E extends Linked<E>> extends AbstractQueue<E> implements
     size++;
   }
 
-  /** Links e as last element. */
+  /**
+   * Links the element to the back of the deque so that it becomes the last
+   * element.
+   *
+   * @param e the unlinked element
+   */
   void linkLast(final E e) {
     final E previousLast = last;
     last = e;
@@ -89,7 +107,7 @@ final class LinkedDeque<E extends Linked<E>> extends AbstractQueue<E> implements
     size++;
   }
 
-  /** Unlinks non-null first node f. */
+  /** Unlinks the non-null first element. */
   E unlinkFirst() {
     final E f = first;
     final E next = f.getNext();
@@ -105,7 +123,7 @@ final class LinkedDeque<E extends Linked<E>> extends AbstractQueue<E> implements
     return f;
   }
 
-  /** Unlinks non-null last node l. */
+  /** Unlinks the non-null last element. */
   E unlinkLast() {
     final E l = last;
     final E prev = l.getPrevious();
@@ -120,7 +138,7 @@ final class LinkedDeque<E extends Linked<E>> extends AbstractQueue<E> implements
     return l;
   }
 
-  /** Unlinks non-null node e. */
+  /** Unlinks the non-null element. */
   void unlink(E e) {
     final E prev = e.getPrevious();
     final E next = e.getNext();
@@ -141,6 +159,12 @@ final class LinkedDeque<E extends Linked<E>> extends AbstractQueue<E> implements
     size--;
   }
 
+  /**
+   * Moves the element to the front of the deque so that it becomes the first
+   * element.
+   *
+   * @param e the linked element
+   */
   public void moveToFront(E e) {
     if (e != first) {
       unlink(e);
@@ -148,16 +172,17 @@ final class LinkedDeque<E extends Linked<E>> extends AbstractQueue<E> implements
     }
   }
 
+  /**
+   * Moves the element to the back of the deque so that it becomes the last
+   * element.
+   *
+   * @param e the linked element
+   */
   public void moveToBack(E e) {
     if (e != last) {
       unlink(e);
       linkLast(e);
     }
-  }
-
-  @Override
-  public int size() {
-    return size;
   }
 
   @Override
@@ -169,6 +194,23 @@ final class LinkedDeque<E extends Linked<E>> extends AbstractQueue<E> implements
     if (isEmpty()) {
       throw new NoSuchElementException();
     }
+  }
+
+  @Override
+  public int size() {
+    return size;
+  }
+
+  @Override
+  public void clear() {
+    for (E e = first; e != null;) {
+      E next = e.getNext();
+      e.setPrevious(null);
+      e.setNext(null);
+      e = next;
+    }
+    first = last = null;
+    size = 0;
   }
 
   @Override
