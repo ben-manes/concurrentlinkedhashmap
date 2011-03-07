@@ -196,7 +196,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   final Queue<OrderedTask>[] buffers;
 
   // These fields provide support for notifying a listener.
-  final Queue<Node> listenerQueue;
+  final Queue<Node> pendingNotifications;
   final EvictionListener<K, V> listener;
 
   transient Set<K> keySet;
@@ -230,7 +230,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
     // The notification listener and event queue
     listener = builder.listener;
-    listenerQueue = (listener == DiscardingListener.INSTANCE)
+    pendingNotifications = (listener == DiscardingListener.INSTANCE)
         ? (Queue<Node>) discardingQueue
         : new ConcurrentLinkedQueue<Node>();
   }
@@ -322,7 +322,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       decrementWeightFor(node);
       if (evicted) {
         // Notify the listener if the entry was evicted
-        listenerQueue.add(node);
+        pendingNotifications.add(node);
       } else {
         // Allow the pending removal task to no-op
         node.set(WeightedValue.createRemoved(weightedValue));
@@ -332,8 +332,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
   /**
    * Decrements the weighted size by the node's weight. This method should be
-   * called after the node has been removed from the data map, but it may be
-   * still referenced by concurrent operations.
+   * called after the node's state has been marked as removed to ensure that
+   * concurrent operations due not change the weight.
    *
    * @param node the entry that was removed
    */
@@ -574,7 +574,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    */
   void notifyListener() {
     Node node;
-    while ((node = listenerQueue.poll()) != null) {
+    while ((node = pendingNotifications.poll()) != null) {
       listener.onEviction(node.key, node.getWeightedValue().value);
     }
   }
@@ -720,6 +720,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       Node node;
       while ((node = evictionDeque.poll()) != null) {
         data.remove(node.key, node);
+        WeightedValue<V> weightedValue = WeightedValue.createPendingRemoval(node.getWeightedValue());
+        node.getAndSet(weightedValue);
         decrementWeightFor(node);
         node.set(WeightedValue.createRemoved(node.getWeightedValue()));
       }

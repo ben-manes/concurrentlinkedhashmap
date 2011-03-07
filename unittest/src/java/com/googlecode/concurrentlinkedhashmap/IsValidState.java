@@ -56,7 +56,7 @@ public final class IsValidState extends TypeSafeDiagnosingMatcher<ConcurrentLink
       builder.expect(map.buffers[i].isEmpty(), "recencyQueue not empty");
       builder.expect(map.bufferLength.get(i) == 0, "recencyQueueLength != 0");
     }
-    builder.expect(map.listenerQueue.isEmpty(), "listenerQueue");
+    builder.expect(map.pendingNotifications.isEmpty(), "listenerQueue");
     builder.expectEqual(map.data.size(), map.size(), "Inconsistent size");
     builder.expectEqual(map.weightedSize(), map.weightedSize, "weightedSize");
     builder.expectEqual(map.capacity(), map.capacity, "capacity");
