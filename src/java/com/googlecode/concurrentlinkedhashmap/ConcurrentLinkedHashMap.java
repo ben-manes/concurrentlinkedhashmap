@@ -300,13 +300,13 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     // that if an eviction is still required then a new victim will be chosen
     // for removal.
     while (hasOverflowed()) {
-      if (evictionDeque.isEmpty()) {
+      Node node = evictionDeque.poll();
+      if (node == null) {
         // If weighted, pending operations will adjust the size to reflect
         // the correct weight.
         return;
       }
 
-      Node node = evictionDeque.poll();
       boolean evicted = data.remove(node.key, node);
       WeightedValue<V> weightedValue;
       for (;;) {

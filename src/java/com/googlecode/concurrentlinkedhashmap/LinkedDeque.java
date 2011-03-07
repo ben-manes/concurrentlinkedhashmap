@@ -44,7 +44,7 @@ import java.util.NoSuchElementException;
  * @see <tt>http://code.google.com/p/concurrentlinkedhashmap/</tt>
  */
 @NotThreadSafe
-class LinkedDeque<E extends Linked<E>> extends AbstractQueue<E> implements Deque<E> {
+final class LinkedDeque<E extends Linked<E>> extends AbstractQueue<E> implements Deque<E> {
   /**
    * Pointer to first node.
    * Invariant: (first == null && last == null) ||
@@ -62,7 +62,7 @@ class LinkedDeque<E extends Linked<E>> extends AbstractQueue<E> implements Deque
   int size;
 
   /** Links e as first element. */
-  void linkFirst(E e) {
+  void linkFirst(final E e) {
     final E f = first;
     first = e;
 
@@ -76,27 +76,83 @@ class LinkedDeque<E extends Linked<E>> extends AbstractQueue<E> implements Deque
   }
 
   /** Links e as last element. */
-  void linkLast(E e) {
-    final E l = last;
+  void linkLast(final E e) {
+    final E previousLast = last;
     last = e;
 
-    if (l == null) {
+    if (previousLast == null) {
       first = e;
     } else {
-      l.setNext(e);
-      e.setPrevious(l);
+      previousLast.setNext(e);
+      e.setPrevious(previousLast);
     }
     size++;
   }
 
+  /** Unlinks non-null first node f. */
+  E unlinkFirst() {
+    final E f = first;
+    final E next = f.getNext();
+    f.setNext(null);
+
+    first = next;
+    if (next == null) {
+      last = null;
+    } else {
+      next.setPrevious(null);
+    }
+    size--;
+    return f;
+  }
+
+  /** Unlinks non-null last node l. */
+  E unlinkLast() {
+    final E l = last;
+    final E prev = l.getPrevious();
+    l.setPrevious(null);
+    last = prev;
+    if (prev == null) {
+      first = null;
+    } else {
+      prev.setNext(null);
+    }
+    size--;
+    return l;
+  }
+
+  /** Unlinks non-null node e. */
+  void unlink(E e) {
+    final E prev = e.getPrevious();
+    final E next = e.getNext();
+
+    if (prev == null) {
+      first = next;
+    } else {
+      prev.setNext(next);
+      e.setPrevious(null);
+    }
+
+    if (next == null) {
+      last = prev;
+    } else {
+      next.setPrevious(prev);
+      e.setNext(null);
+    }
+    size--;
+  }
+
   public void moveToFront(E e) {
-    unlink(e);
-    linkFirst(e);
+    if (e != first) {
+      unlink(e);
+      linkFirst(e);
+    }
   }
 
   public void moveToBack(E e) {
-    unlink(e);
-    linkLast(e);
+    if (e != last) {
+      unlink(e);
+      linkLast(e);
+    }
   }
 
   @Override
@@ -162,52 +218,12 @@ class LinkedDeque<E extends Linked<E>> extends AbstractQueue<E> implements Deque
 
   @Override
   public E pollFirst() {
-    if (isEmpty()) {
-      return null;
-    }
-
-    E e = first;
-    unlink(e);
-    return e;
-  }
-
-  void unlinkFirst() {
-    final E f = first;
-    final E next = f.getNext();
-
-
-    first = next;
-
-  }
-
-  void unlink(E e) {
-    final E prev = e.getPrevious();
-    final E next = e.getNext();
-
-    if (prev == null) {
-      first = next;
-    } else {
-      prev.setNext(next);
-      e.setPrevious(null);
-    }
-
-    if (next == null) {
-      last = prev;
-    } else {
-      next.setPrevious(prev);
-      e.setNext(null);
-    }
-    size--;
+    return isEmpty() ? null : unlinkFirst();
   }
 
   @Override
   public E pollLast() {
-    if (isEmpty()) {
-      return null;
-    }
-    E e = last;
-    unlink(last);
-    return e;
+    return isEmpty() ? null : unlinkLast();
   }
 
   @Override
