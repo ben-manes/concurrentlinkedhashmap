@@ -663,7 +663,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     @GuardedBy("evictionLock")
     public void run() {
       WeightedValue<V> weightedValue = node.getWeightedValue();
-      weightedSize -= Math.abs(weightedValue.weight);
+      weightedSize += weightedValue.weight; // zero or negative
       evictionDeque.remove(node);
     }
   }

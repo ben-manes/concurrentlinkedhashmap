@@ -7,6 +7,8 @@
  * Any republication or derived work distributed in source code form
  * must include this copyright and license notice.
  */
+package com.googlecode.concurrentlinkedhashmap;
+
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -23,5 +25,5 @@ import java.lang.annotation.Target;
 @Documented
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.RUNTIME)
-public @interface NotThreadSafe {
+@interface NotThreadSafe {
 }
