@@ -40,8 +40,12 @@ import java.util.NoSuchElementException;
  * @author ben.manes@gmail.com (Ben Manes)
  */
 @Test(groups = "development")
-public final class LinkedDequeTest {
-  private static final int WARMED_SIZE = 100;
+public final class LinkedDequeTest extends BaseTest {
+
+  @Override
+  protected int capacity() {
+    return 100;
+  }
 
   @Test(dataProvider = "emptyDeque")
   public void clear_whenEmpty(LinkedDeque<SimpleLinkedValue> deque) {
@@ -72,8 +76,8 @@ public final class LinkedDequeTest {
 
   @Test(dataProvider = "warmedDeque")
   public void size_whenPopulated(LinkedDeque<SimpleLinkedValue> deque) {
-    assertThat(deque.size(), is(WARMED_SIZE));
-    assertThat(Iterables.size(deque), is(WARMED_SIZE));
+    assertThat(deque.size(), is(capacity()));
+    assertThat(Iterables.size(deque), is(capacity()));
   }
 
   @Test(dataProvider = "emptyDeque", expectedExceptions = NoSuchElementException.class)
@@ -96,7 +100,7 @@ public final class LinkedDequeTest {
   public void add(LinkedDeque<SimpleLinkedValue> deque) {
     List<SimpleLinkedValue> copy = Lists.newArrayList(deque);
     assertThat(deque.size(), is(copy.size()));
-    assertThat(copy.size(), is(WARMED_SIZE));
+    assertThat(copy.size(), is(capacity()));
     for (SimpleLinkedValue link : copy) {
       assertThat(deque.contains(link), is(true));
     }
@@ -112,7 +116,7 @@ public final class LinkedDequeTest {
     SimpleLinkedValue first = deque.first;
     assertThat(deque.poll(), is(first));
     assertThat(first, is(not(nullValue())));
-    assertThat(deque, hasSize(WARMED_SIZE - 1));
+    assertThat(deque, hasSize(capacity() - 1));
     assertThat(first.getPrevious(), is(nullValue()));
     assertThat(first.getNext(), is(nullValue()));
   }
@@ -125,6 +129,8 @@ public final class LinkedDequeTest {
     assertThat(deque.first, is(nullValue()));
     assertThat(deque.last, is(nullValue()));
   }
+
+  /* ---------------- Iterators -------------- */
 
   @Test(dataProvider = "emptyDeque")
   public void iterator_whenEmpty(LinkedDeque<SimpleLinkedValue> deque) {
@@ -169,8 +175,8 @@ public final class LinkedDequeTest {
     return new Object[][] {{ deque }};
   }
 
-  static void warmUp(Collection<SimpleLinkedValue> collection) {
-    for (int i = 0; i < WARMED_SIZE; i++) {
+  void warmUp(Collection<SimpleLinkedValue> collection) {
+    for (int i = 0; i < capacity(); i++) {
       collection.add(new SimpleLinkedValue(i));
     }
   }

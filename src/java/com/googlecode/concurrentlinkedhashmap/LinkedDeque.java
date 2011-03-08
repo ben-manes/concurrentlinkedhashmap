@@ -33,11 +33,10 @@ import java.util.NoSuchElementException;
  * behavior.
  * <p>
  * The iterators returned by this class are <em>not</em> <i>fail-fast</i>: If
- * the deque is modified at any time after the iterator is created, in any way
- * except through the iterator's own <tt>remove</tt> method, the iterator will
- * be in an unknown state. Thus, in the face of concurrent modification, the
- * iterator risks arbitrary, non-deterministic behavior at an undetermined time
- * in the future.
+ * the deque is modified at any time after the iterator is created, the iterator
+ * will be in an unknown state. Thus, in the face of concurrent modification,
+ * the iterator risks arbitrary, non-deterministic behavior at an undetermined
+ * time in the future.
  *
  * @author ben.manes@gmail.com (Ben Manes)
  * @param <E> the type of elements held in this collection
@@ -46,12 +45,12 @@ import java.util.NoSuchElementException;
 @NotThreadSafe
 final class LinkedDeque<E extends Linked<E>> extends AbstractQueue<E> implements Deque<E> {
 
-  // The class implements a doubly-linked list with an algorithm specifically
-  // optimized for the virtual machine. The first and last elements are
-  // manipulated instead of a slightly more convenient sentinel element to avoid
-  // the insertion of null checks (with NPE throws) in the byte code. The links
-  // to a removed element are cleared to help a generational garbage collector
-  // if the discarded elements inhabit more than one generation.
+  // The class implements a doubly-linked list that is optimized for the virtual
+  // machine. The first and last elements are manipulated instead of a slightly
+  // more convenient sentinel element to avoid the insertion of null checks with
+  // NullPointerException throws in the byte code. The links to a removed
+  // element are cleared to help a generational garbage collector if the
+  // discarded elements inhabit more than one generation.
 
   /**
    * Pointer to first node.
