@@ -34,7 +34,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
-import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Node;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.DrainStatus;
 
 import org.testng.Assert;
 import org.testng.annotations.Test;
@@ -46,8 +46,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * A unit-test for the page replacement algorithm and its public methods.
@@ -537,9 +540,8 @@ public final class EvictionTest extends BaseTest {
     });
   }
 
-  @SuppressWarnings("unchecked")
   private void updateRecency(ConcurrentLinkedHashMap<?, ?> map, Runnable operation) {
-    Node first = map.evictionDeque.peek();
+    ConcurrentLinkedHashMap<?, ?>.Node first = map.evictionDeque.peek();
 
     operation.run();
     map.drainRecencyQueues();
@@ -547,17 +549,6 @@ public final class EvictionTest extends BaseTest {
     assertThat(map.evictionDeque.peekFirst(), is(not(first)));
     assertThat(map.evictionDeque.peekLast(), is(first));
     assertThat(map, is(valid()));
-  }
-
-  @Test(dataProvider = "warmedMap")
-  public void drainRecencyQueue(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    for (int i = 0; i < BUFFER_THRESHOLD; i++) {
-      map.get(1);
-    }
-    int index = bufferIndex();
-    assertThat(map.bufferLength.get(index), is(equalTo(BUFFER_THRESHOLD)));
-    map.get(1);
-    assertThat(map.bufferLength.get(index), is(equalTo(0)));
   }
 
   @Test(dataProvider = "guardedMap")
@@ -632,5 +623,123 @@ public final class EvictionTest extends BaseTest {
     assertThat(ran[0], is(true));
     assertThat(map.buffers[index].size(), is(0));
     map.bufferLength.set(index, 0);
+  }
+
+  @Test(dataProvider = "warmedMap")
+  public void drain_recencyQueue(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    for (int i = 0; i < BUFFER_THRESHOLD; i++) {
+      map.get(1);
+    }
+    int index = bufferIndex();
+    assertThat(map.bufferLength.get(index), is(equalTo(BUFFER_THRESHOLD)));
+    map.get(1);
+    assertThat(map.bufferLength.get(index), is(equalTo(0)));
+  }
+
+  @Test(dataProvider = "guardedMap")
+  public void drain_nonblocking(final ConcurrentLinkedHashMap<Integer, Integer> map)
+      throws InterruptedException {
+    final CountDownLatch latch = new CountDownLatch(1);
+    Thread thread = new Thread() {
+      @Override public void run() {
+        map.drainStatus.set(DrainStatus.REQUIRED);
+        map.tryToDrainEvictionQueues(false);
+        latch.countDown();
+      }
+    };
+    map.evictionLock.lock();
+    try {
+      thread.start();
+    } finally {
+      map.evictionLock.unlock();
+    }
+    assertThat(latch.await(1, TimeUnit.SECONDS), is(true));
+  }
+
+  @Test(dataProvider = "guardedMap")
+  public void drain_blocksClear(final ConcurrentLinkedHashMap<Integer, Integer> map)
+      throws InterruptedException {
+    checkDrainBlocks(map, new Runnable() {
+      @Override public void run() {
+        map.clear();
+      }
+    });
+  }
+
+  @Test(dataProvider = "guardedMap")
+  public void drain_blocksAscendingKeySet(final ConcurrentLinkedHashMap<Integer, Integer> map)
+      throws InterruptedException {
+    checkDrainBlocks(map, new Runnable() {
+      @Override public void run() {
+        map.ascendingKeySet();
+      }
+    });
+  }
+
+  @Test(dataProvider = "guardedMap")
+  public void drain_blocksDescendingKeySet(final ConcurrentLinkedHashMap<Integer, Integer> map)
+      throws InterruptedException {
+    checkDrainBlocks(map, new Runnable() {
+      @Override public void run() {
+        map.descendingKeySet();
+      }
+    });
+  }
+
+  @Test(dataProvider = "guardedMap")
+  public void drain_blocksAscendingMap(final ConcurrentLinkedHashMap<Integer, Integer> map)
+      throws InterruptedException {
+    checkDrainBlocks(map, new Runnable() {
+      @Override public void run() {
+        map.ascendingMap();
+      }
+    });
+  }
+
+  @Test(dataProvider = "guardedMap")
+  public void drain_blocksDescendingMap(final ConcurrentLinkedHashMap<Integer, Integer> map)
+      throws InterruptedException {
+    checkDrainBlocks(map, new Runnable() {
+      @Override public void run() {
+        map.descendingMap();
+      }
+    });
+  }
+
+  @Test(dataProvider = "guardedMap")
+  public void drain_blocksCapacity(final ConcurrentLinkedHashMap<Integer, Integer> map)
+      throws InterruptedException {
+    checkDrainBlocks(map, new Runnable() {
+      @Override public void run() {
+        map.setCapacity(0);
+      }
+    });
+  }
+
+  void checkDrainBlocks(final ConcurrentLinkedHashMap<Integer, Integer> map, Runnable task)
+      throws InterruptedException {
+    final ReentrantLock lock = (ReentrantLock) map.evictionLock;
+    final CountDownLatch begin = new CountDownLatch(1);
+    final CountDownLatch end = new CountDownLatch(1);
+
+    Thread thread = new Thread() {
+      @Override public void run() {
+        map.drainStatus.set(DrainStatus.REQUIRED);
+        begin.countDown();
+        map.clear();
+        end.countDown();
+      }
+    };
+    lock.lock();
+    try {
+      thread.start();
+      begin.await();
+      long endTime = System.nanoTime() + TimeUnit.SECONDS.toNanos(1);
+      while (!lock.hasQueuedThread(thread) && (endTime > System.nanoTime())) { /* busy wait */ }
+      assertThat(lock.hasQueuedThread(thread), is(true));
+    } finally {
+      lock.unlock();
+    }
+    assertThat(end.await(1, TimeUnit.SECONDS), is(true));
   }
 }
