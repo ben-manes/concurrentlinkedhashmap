@@ -80,21 +80,51 @@ public final class LinkedDequeTest extends BaseTest {
     assertThat(Iterables.size(deque), is(capacity()));
   }
 
-  @Test(dataProvider = "emptyDeque", expectedExceptions = NoSuchElementException.class)
-  public void remove_whenEmpty(LinkedDeque<SimpleLinkedValue> deque) {
-    assertThat(deque.remove(), is(nullValue()));
+  /* ---------------- Moving -------------- */
+
+  @Test(dataProvider = "warmedDeque")
+  public void moveToFront_first(LinkedDeque<SimpleLinkedValue> deque) {
+    checkMoveToFront(deque, deque.getFirst());
   }
 
   @Test(dataProvider = "warmedDeque")
-  public void remove_toEmpty(LinkedDeque<SimpleLinkedValue> deque) {
-    List<SimpleLinkedValue> copy = Lists.newArrayList(deque);
-    for (SimpleLinkedValue link : copy) {
-      assertThat(deque.remove(link), is(true));
-    }
-    assertThat(deque.first, is(nullValue()));
-    assertThat(deque.last, is(nullValue()));
-    assertThat(deque.size(), is(0));
+  public void moveToFront_middle(LinkedDeque<SimpleLinkedValue> deque) {
+    checkMoveToFront(deque, Iterables.get(deque, capacity() / 2));
   }
+
+  @Test(dataProvider = "warmedDeque")
+  public void moveToFront_last(LinkedDeque<SimpleLinkedValue> deque) {
+    checkMoveToFront(deque, deque.getLast());
+  }
+
+  private void checkMoveToFront(LinkedDeque<SimpleLinkedValue> deque, SimpleLinkedValue element) {
+    deque.moveToFront(element);
+    assertThat(deque.peekFirst(), is(element));
+    assertThat(deque.size(), is(capacity()));
+  }
+
+  @Test(dataProvider = "warmedDeque")
+  public void moveToBack_first(LinkedDeque<SimpleLinkedValue> deque) {
+    checkMoveToBack(deque, deque.getFirst());
+  }
+
+  @Test(dataProvider = "warmedDeque")
+  public void moveToBack_middle(LinkedDeque<SimpleLinkedValue> deque) {
+    checkMoveToBack(deque, Iterables.get(deque, capacity() / 2));
+  }
+
+  @Test(dataProvider = "warmedDeque")
+  public void moveToBack_last(LinkedDeque<SimpleLinkedValue> deque) {
+    checkMoveToBack(deque, deque.getLast());
+  }
+
+  private void checkMoveToBack(LinkedDeque<SimpleLinkedValue> deque, SimpleLinkedValue element) {
+    deque.moveToBack(element);
+    assertThat(deque.size(), is(capacity()));
+    assertThat(deque.getLast(), is(element));
+  }
+
+  /* ----------------   -------------- */
 
   @Test(dataProvider = "warmedDeque")
   public void add(LinkedDeque<SimpleLinkedValue> deque) {
@@ -128,6 +158,22 @@ public final class LinkedDequeTest extends BaseTest {
     assertThat(deque.poll(), is(link));
     assertThat(deque.first, is(nullValue()));
     assertThat(deque.last, is(nullValue()));
+  }
+
+  @Test(dataProvider = "emptyDeque", expectedExceptions = NoSuchElementException.class)
+  public void remove_whenEmpty(LinkedDeque<SimpleLinkedValue> deque) {
+    assertThat(deque.remove(), is(nullValue()));
+  }
+
+  @Test(dataProvider = "warmedDeque")
+  public void remove_toEmpty(LinkedDeque<SimpleLinkedValue> deque) {
+    List<SimpleLinkedValue> copy = Lists.newArrayList(deque);
+    for (SimpleLinkedValue link : copy) {
+      assertThat(deque.remove(link), is(true));
+    }
+    assertThat(deque.first, is(nullValue()));
+    assertThat(deque.last, is(nullValue()));
+    assertThat(deque.size(), is(0));
   }
 
   /* ---------------- Iterators -------------- */

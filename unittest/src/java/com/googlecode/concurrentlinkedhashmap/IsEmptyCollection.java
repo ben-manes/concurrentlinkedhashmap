@@ -24,12 +24,15 @@ import org.hamcrest.Matcher;
 import org.hamcrest.TypeSafeDiagnosingMatcher;
 
 import java.util.Collection;
+import java.util.Deque;
 import java.util.List;
+import java.util.Queue;
 import java.util.Set;
 
 /**
  * A matcher that performs an exhaustive empty check throughout the
- * {@link Collection}, {@link Set}, and {@link List} contracts.
+ * {@link Collection}, {@link Set}, {@link List}, {@link Queue}, and
+ * {@link Deque} contracts.
  *
  * @author ben.manes@gmail.com (Ben Manes)
  */
@@ -42,46 +45,55 @@ public final class IsEmptyCollection extends TypeSafeDiagnosingMatcher<Collectio
 
   @Override
   protected boolean matchesSafely(Collection<?> c, Description description) {
-    boolean matches = checkCollection(c, description);
+    DescriptionBuilder builder = new DescriptionBuilder(description);
+
+    checkCollection(c, builder);
     if (c instanceof Set<?>) {
-      matches &= checkSet((Set<?>) c, description);
-    } else if (c instanceof List<?>) {
-      matches &= checkList((List<?>) c, description);
+      checkSet((Set<?>) c, builder);
     }
-    return matches;
-  }
-
-  private boolean checkCollection(Collection<?> c, Description description) {
-    boolean matches = true;
-    matches &= check(c.isEmpty(), "not empty", description);
-    matches &= check(c.size() == 0, "size = " + c.size(), description);
-    matches &= check(!c.iterator().hasNext(), "iterator has data", description);
-    matches &= check(c.toArray().length == 0, "toArray has data", description);
-    matches &= check(c.toArray(new Object[0]).length == 0, "toArray has data", description);
-    return matches;
-  }
-
-  private boolean checkSet(Set<?> set, Description description) {
-    boolean matches = true;
-    matches &= check(set.hashCode() == emptySet().hashCode(), "hashcode", description);
-    matches &= check(set.equals(emptySet()), "collection not equal to empty set", description);
-    matches &= check(emptySet().equals(set), "empty set not equal to collection", description);
-    return matches;
-  }
-
-  private boolean checkList(List<?> list, Description description) {
-    boolean matches = true;
-    matches &= check(list.hashCode() == emptyList().hashCode(), "hashcode", description);
-    matches &= check(list.equals(emptyList()), "collection not equal to empty list", description);
-    matches &= check(emptyList().equals(list), "empty list not equal to collection", description);
-    return matches;
-  }
-
-  private boolean check(boolean expression, String errorMsg, Description description) {
-    if (!expression) {
-      description.appendText(" " + errorMsg);
+    if (c instanceof List<?>) {
+      checkList((List<?>) c, builder);
     }
-    return expression;
+    if (c instanceof Queue<?>) {
+      checkQueue((Queue<?>) c, builder);
+    }
+    if (c instanceof Deque<?>) {
+      checkDeque((Deque<?>) c, builder);
+    }
+    return builder.matches();
+  }
+
+  private void checkCollection(Collection<?> c, DescriptionBuilder builder) {
+    builder.expect(c.isEmpty(), "not empty");
+    builder.expectEqual(c.size(), 0, "size = " + c.size());
+    builder.expect(!c.iterator().hasNext(), "iterator has data");
+    builder.expectEqual(c.toArray().length, 0, "toArray has data");
+    builder.expectEqual(c.toArray(new Object[0]).length, 0, "toArray has data");
+  }
+
+  private void checkSet(Set<?> set, DescriptionBuilder builder) {
+    builder.expectEqual(set.hashCode(), emptySet().hashCode(), "hashcode");
+    builder.expectEqual(set, emptySet(), "collection not equal to empty set");
+    builder.expectEqual(emptySet(), set, "empty set not equal to collection");
+  }
+
+  private void checkList(List<?> list, DescriptionBuilder builder) {
+    builder.expectEqual(list.hashCode(), emptyList().hashCode(), "hashcode");
+    builder.expectEqual(list, emptyList(), "collection not equal to empty list");
+    builder.expectEqual(emptyList(), list, "empty list not equal to collection");
+  }
+
+  private void checkQueue(Queue<?> queue, DescriptionBuilder builder) {
+    builder.expectEqual(queue.peek(), null);
+    builder.expectEqual(queue.poll(), null);
+  }
+
+  private void checkDeque(Deque<?> deque, DescriptionBuilder builder) {
+    builder.expectEqual(deque.peekFirst(), null);
+    builder.expectEqual(deque.peekLast(), null);
+    builder.expectEqual(deque.pollFirst(), null);
+    builder.expectEqual(deque.pollLast(), null);
+    builder.expect(!deque.descendingIterator().hasNext());
   }
 
   @Factory

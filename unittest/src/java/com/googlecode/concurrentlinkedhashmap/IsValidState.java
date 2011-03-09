@@ -15,7 +15,7 @@
  */
 package com.googlecode.concurrentlinkedhashmap;
 
-import static java.util.Collections.newSetFromMap;
+import com.google.common.collect.Sets;
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Node;
 
@@ -24,7 +24,6 @@ import org.hamcrest.Factory;
 import org.hamcrest.Matcher;
 import org.hamcrest.TypeSafeDiagnosingMatcher;
 
-import java.util.IdentityHashMap;
 import java.util.Set;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -47,8 +46,8 @@ public final class IsValidState extends TypeSafeDiagnosingMatcher<ConcurrentLink
     DescriptionBuilder builder = new DescriptionBuilder(description);
 
     drain(map);
-    //checkMap(map, builder);
-    //checkEvictionDeque(map, builder);
+    checkMap(map, builder);
+    checkEvictionDeque(map, builder);
     return builder.matches();
   }
 
@@ -93,35 +92,21 @@ public final class IsValidState extends TypeSafeDiagnosingMatcher<ConcurrentLink
     builder.expectEqual(deque.size(), map.size());
   }
 
-  /** Validates the links. */
   private void checkLinks(ConcurrentLinkedHashMap<?, ?> map, DescriptionBuilder builder) {
-    checkSentinel(map, builder);
-
     int weightedSize = 0;
-    Set<Node> seen = newSetFromMap(new IdentityHashMap<Node, Boolean>());
+    Set<Node> seen = Sets.newIdentityHashSet();
     for (Node node : map.evictionDeque) {
       builder.expect(seen.add(node), "Loop detected: %s, saw %s in %s", node, seen, map);
-      checkNode(map, node, builder);
       weightedSize += node.getWeightedValue().weight;
+      checkNode(map, node, builder);
     }
+
     builder.expectEqual(map.size(), seen.size(), "Size != list length");
     builder.expectEqual(map.weightedSize(), weightedSize, "WeightedSize != link weights"
         + " [" + map.weightedSize() + " vs. " + weightedSize + "]"
         + " {size: " + map.size() + " vs. " + seen.size() + "}");
   }
 
-  /** Validates the sentinel node. */
-  private void checkSentinel(ConcurrentLinkedHashMap<?, ?> map, DescriptionBuilder builder) {
-//    Link sentinel = map.evictionDeque.sentinel;
-//
-//    builder.expectNotEqual(sentinel.getPrevious(), null, "link corruption");
-//    builder.expectNotEqual(sentinel.getNext(), null, "link corruption");
-//    builder.expectEqual(sentinel.getPrevious().getNext(), sentinel, "circular");
-//    builder.expectEqual(sentinel.getNext().getPrevious(), sentinel, "circular");
-//    builder.expectNot(map.data.containsValue(sentinel), "in map");
-  }
-
-  /** Validates the data node. */
   private void checkNode(ConcurrentLinkedHashMap<?, ?> map, Node node,
       DescriptionBuilder builder) {
     builder.expectNotEqual(node.key, null, "null key");
@@ -134,12 +119,19 @@ public final class IsValidState extends TypeSafeDiagnosingMatcher<ConcurrentLink
     builder.expect(map.containsValue(node.getWeightedValue().value),
         "Could not find value: %s", node.getWeightedValue().value);
     builder.expectEqual(map.data.get(node.key), node, "found wrong node");
-    builder.expectNotEqual(node.prev, null, "null prev");
-    builder.expectNotEqual(node.next, null, "null next");
-    builder.expectNotEqual(node, node.prev, "circular node");
-    builder.expectNotEqual(node, node.next, "circular node");
-    builder.expectEqual(node, node.getPrevious().getNext(), "link corruption");
-    builder.expectEqual(node, node.getNext().getPrevious(), "link corruption");
+
+    Node first = map.evictionDeque.peekFirst();
+    Node last = map.evictionDeque.peekLast();
+    if (node == first) {
+      builder.expectEqual(node.prev, null, "not null prev");
+    }
+    if (node == last) {
+      builder.expectEqual(node.next, null, "not null next");
+    }
+    if ((node != first) && (node != last)) {
+      builder.expectNotEqual(node.prev, null, "null prev");
+      builder.expectNotEqual(node.next, null, "null next");
+    }
   }
 
   @Factory

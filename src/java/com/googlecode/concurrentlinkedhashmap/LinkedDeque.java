@@ -84,7 +84,6 @@ final class LinkedDeque<E extends Linked<E>> extends AbstractQueue<E> implements
       f.setPrevious(e);
       e.setNext(f);
     }
-    size++;
   }
 
   /**
@@ -103,7 +102,6 @@ final class LinkedDeque<E extends Linked<E>> extends AbstractQueue<E> implements
       previousLast.setNext(e);
       e.setPrevious(previousLast);
     }
-    size++;
   }
 
   /** Unlinks the non-null first element. */
@@ -118,7 +116,6 @@ final class LinkedDeque<E extends Linked<E>> extends AbstractQueue<E> implements
     } else {
       next.setPrevious(null);
     }
-    size--;
     return f;
   }
 
@@ -133,7 +130,6 @@ final class LinkedDeque<E extends Linked<E>> extends AbstractQueue<E> implements
     } else {
       prev.setNext(null);
     }
-    size--;
     return l;
   }
 
@@ -155,7 +151,6 @@ final class LinkedDeque<E extends Linked<E>> extends AbstractQueue<E> implements
       next.setPrevious(prev);
       e.setNext(null);
     }
-    size--;
   }
 
   /**
@@ -227,12 +222,14 @@ final class LinkedDeque<E extends Linked<E>> extends AbstractQueue<E> implements
 
   @Override
   public boolean offerFirst(E e) {
+    size++;
     linkFirst(e);
     return true;
   }
 
   @Override
   public boolean offerLast(E e) {
+    size++;
     linkLast(e);
     return true;
   }
@@ -259,18 +256,27 @@ final class LinkedDeque<E extends Linked<E>> extends AbstractQueue<E> implements
 
   @Override
   public E pollFirst() {
-    return isEmpty() ? null : unlinkFirst();
+    if (isEmpty()) {
+      return null;
+    }
+    size--;
+    return unlinkFirst();
   }
 
   @Override
   public E pollLast() {
-    return isEmpty() ? null : unlinkLast();
+    if (isEmpty()) {
+      return null;
+    }
+    size--;
+    return unlinkLast();
   }
 
   @Override
   @SuppressWarnings("unchecked")
   public boolean remove(Object o) {
     if (contains(o)) {
+      size--;
       unlink((E) o);
       return true;
     }
