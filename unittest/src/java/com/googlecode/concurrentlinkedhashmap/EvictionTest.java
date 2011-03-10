@@ -571,7 +571,7 @@ public final class EvictionTest extends BaseTest {
         for (int i = 0; i < BUFFER_THRESHOLD; i++) {
           try {
             ping.take();
-            map.addToRecencyQueue(new Task(), false);
+            map.addToBuffer(new Task(), false);
             pong.put(new Object());
           } catch (InterruptedException e) {
             Assert.fail();
@@ -584,7 +584,7 @@ public final class EvictionTest extends BaseTest {
     for (int i = 0; i < BUFFER_THRESHOLD; i++) {
       ping.put(new Object());
       pong.take();
-      map.addToRecencyQueue(new Task(), false);
+      map.addToBuffer(new Task(), false);
     }
 
     // force a drain
@@ -599,7 +599,7 @@ public final class EvictionTest extends BaseTest {
     map.bufferLength.set(index, MAXIMUM_BUFFER_SIZE);
 
     final boolean[] ran = { false };
-    map.addToRecencyQueue(new Runnable() {
+    map.addToBuffer(new Runnable() {
       @Override public void run() {
         ran[0] = true;
       }
@@ -615,7 +615,7 @@ public final class EvictionTest extends BaseTest {
     map.bufferLength.set(index, MAXIMUM_BUFFER_SIZE);
 
     final boolean[] ran = { false };
-    map.addToRecencyQueue(new Runnable() {
+    map.addToBuffer(new Runnable() {
       @Override public void run() {
         ran[0] = true;
       }

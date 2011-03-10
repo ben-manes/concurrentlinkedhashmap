@@ -16,6 +16,7 @@
 package com.googlecode.concurrentlinkedhashmap;
 
 import static com.google.common.collect.Maps.immutableEntry;
+import static com.googlecode.concurrentlinkedhashmap.IsValidDeque.validDeque;
 import static com.googlecode.concurrentlinkedhashmap.IsValidState.valid;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
@@ -31,6 +32,7 @@ import org.testng.annotations.DataProvider;
 
 import java.io.Serializable;
 import java.util.Collection;
+import java.util.Deque;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -99,9 +101,13 @@ public abstract class BaseTest {
   }
 
   /** Validates the state of the injected parameter. */
+  @SuppressWarnings("unchecked")
   private static void validate(Object param) {
     if (param instanceof ConcurrentLinkedHashMap<?, ?>) {
       assertThat((ConcurrentLinkedHashMap<?, ?>) param, is(valid()));
+    }
+    if (param instanceof Deque<?>) {
+      assertThat((Deque<? extends Linked<?>>) param, is(validDeque()));
     }
   }
 

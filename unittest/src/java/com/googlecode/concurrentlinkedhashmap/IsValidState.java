@@ -21,7 +21,6 @@ import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Node;
 
 import org.hamcrest.Description;
 import org.hamcrest.Factory;
-import org.hamcrest.Matcher;
 import org.hamcrest.TypeSafeDiagnosingMatcher;
 
 import java.util.Set;
@@ -77,7 +76,7 @@ public final class IsValidState extends TypeSafeDiagnosingMatcher<ConcurrentLink
     builder.expect(map.capacity >= map.weightedSize(), "overflow");
     builder.expectNot(((ReentrantLock) map.evictionLock).isLocked());
 
-    boolean empty = new IsEmptyMap().matchesSafely(map, builder.getDescription());
+    boolean empty = IsEmptyMap.emptyMap().matchesSafely(map, builder.getDescription());
     if (map.isEmpty()) {
       builder.expect(empty);
     } else {
@@ -90,6 +89,7 @@ public final class IsValidState extends TypeSafeDiagnosingMatcher<ConcurrentLink
 
     checkLinks(map, builder);
     builder.expectEqual(deque.size(), map.size());
+    IsValidDeque.validDeque().matchesSafely(map.evictionDeque, builder.getDescription());
   }
 
   private void checkLinks(ConcurrentLinkedHashMap<?, ?> map, DescriptionBuilder builder) {
@@ -119,23 +119,10 @@ public final class IsValidState extends TypeSafeDiagnosingMatcher<ConcurrentLink
     builder.expect(map.containsValue(node.getWeightedValue().value),
         "Could not find value: %s", node.getWeightedValue().value);
     builder.expectEqual(map.data.get(node.key), node, "found wrong node");
-
-    Node first = map.evictionDeque.peekFirst();
-    Node last = map.evictionDeque.peekLast();
-    if (node == first) {
-      builder.expectEqual(node.prev, null, "not null prev");
-    }
-    if (node == last) {
-      builder.expectEqual(node.next, null, "not null next");
-    }
-    if ((node != first) && (node != last)) {
-      builder.expectNotEqual(node.prev, null, "null prev");
-      builder.expectNotEqual(node.next, null, "null next");
-    }
   }
 
   @Factory
-  public static Matcher<ConcurrentLinkedHashMap<?, ?>> valid() {
+  public static IsValidState valid() {
     return new IsValidState();
   }
 }

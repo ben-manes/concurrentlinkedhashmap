@@ -106,7 +106,7 @@ public final class ConcurrentMapTest extends BaseTest {
   @Test(dataProvider = "guardedMap")
   public void equals_whenEmpty(Map<Object, Object> map) {
     Map<Object, Object> empty = ImmutableMap.of();
-    assertThat(map, is(empty));
+    assertThat(map, is(equalTo(empty)));
     assertThat(empty, is(equalTo(map)));
   }
 

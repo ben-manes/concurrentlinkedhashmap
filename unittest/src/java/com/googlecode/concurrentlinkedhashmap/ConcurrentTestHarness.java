@@ -88,7 +88,6 @@ public final class ConcurrentTestHarness {
    * @return the result of each task and the full execution time, in
    *     nanoseconds
    */
-  @SuppressWarnings("deprecation")
   public static <T> TestResult<T> timeTasks(int nThreads, final Callable<T> task,
       final String baseThreadName)
       throws InterruptedException {
@@ -120,13 +119,7 @@ public final class ConcurrentTestHarness {
 
     long start = System.nanoTime();
     startGate.countDown();
-    try {
-      endGate.await();
-    } finally {
-      for (Thread thread : threads) {
-        thread.stop();
-      }
-    }
+    endGate.await();
     long end = System.nanoTime();
     return new TestResult<T>(end - start, toList(results));
   }

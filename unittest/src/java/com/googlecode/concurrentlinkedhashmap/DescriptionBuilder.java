@@ -15,7 +15,7 @@
  */
 package com.googlecode.concurrentlinkedhashmap;
 
-import com.google.caliper.internal.guava.base.Objects;
+import com.google.common.base.Objects;
 
 import org.hamcrest.Description;
 

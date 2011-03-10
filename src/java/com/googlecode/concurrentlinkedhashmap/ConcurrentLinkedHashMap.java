@@ -357,7 +357,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    *
    * @param task the pending operation to apply
    */
-  void addToRecencyQueue(Runnable task, boolean isWrite) {
+  void addToBuffer(Runnable task, boolean isWrite) {
     // The recency's global order is acquired in a racy fashion as the increment
     // is not atomic with the insertion. This means that concurrent reads can
     // have the same ordering and the queues are in a weakly sorted order.
@@ -777,7 +777,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     if (node == null) {
       return null;
     }
-    addToRecencyQueue(new RecencyReference(node), false);
+    addToBuffer(new RecencyReference(node), false);
     return node.getWeightedValue().value;
   }
 
@@ -812,10 +812,10 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     for (;;) {
       Node prior = data.putIfAbsent(node.key, node);
       if (prior == null) {
-        addToRecencyQueue(new AddTask(node, weight), true);
+        addToBuffer(new AddTask(node, weight), true);
         return null;
       } else if (onlyIfAbsent) {
-        addToRecencyQueue(new RecencyReference(prior), false);
+        addToBuffer(new RecencyReference(prior), false);
         return prior.getWeightedValue().value;
       }
       for (;;) {
@@ -828,9 +828,9 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
           int weightedDifference = weight - oldWeightedValue.weight;
           V oldValue = oldWeightedValue.value;
           if (weightedDifference == 0) {
-            addToRecencyQueue(new RecencyReference(prior), false);
+            addToBuffer(new RecencyReference(prior), false);
           } else {
-            addToRecencyQueue(new UpdateTask(prior, weightedDifference), true);
+            addToBuffer(new UpdateTask(prior, weightedDifference), true);
           }
           return oldValue;
         }
@@ -850,7 +850,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       WeightedValue<V> weightedValue = node.getWeightedValue();
       WeightedValue<V> tombstone = WeightedValue.createPendingRemoval(weightedValue);
       if (node.casWeightedValue(weightedValue, tombstone)) {
-        addToRecencyQueue(new RemovalTask(node), true);
+        addToBuffer(new RemovalTask(node), true);
         return weightedValue.value;
       }
     }
@@ -870,7 +870,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       WeightedValue<V> tombstone = WeightedValue.createPendingRemoval(weightedValue);
       if (node.casWeightedValue(weightedValue, tombstone)) {
         data.remove(key, node);
-        addToRecencyQueue(new RemovalTask(node), true);
+        addToBuffer(new RemovalTask(node), true);
         return true;
       }
     }
@@ -897,9 +897,9 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       if (node.casWeightedValue(oldWeightedValue, weightedValue)) {
         int weightedDifference = weight - oldWeightedValue.weight;
         if (weightedDifference == 0) {
-          addToRecencyQueue(new RecencyReference(node), false);
+          addToBuffer(new RecencyReference(node), false);
         } else {
-          addToRecencyQueue(new UpdateTask(node, weightedDifference), true);
+          addToBuffer(new UpdateTask(node, weightedDifference), true);
         }
         return oldWeightedValue.value;
       }
@@ -926,7 +926,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       }
       if (node.casWeightedValue(weightedValue, newWeightedValue)) {
         int weightedDifference = weight - weightedValue.weight;
-        addToRecencyQueue(new UpdateTask(node, weightedDifference), true);
+        addToBuffer(new UpdateTask(node, weightedDifference), true);
         return true;
       }
     }
@@ -1508,7 +1508,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * <pre>
    * ConcurrentMap<Vertices, Set<Edge>> graph = new Builder<Vertice, Set<Edge>>()
    *     .weigher(Weighers.<Group>set())
-   *     .maximumCapacity(5000)
+   *     .maximumWeightedCapacity(5000)
    *     .build();
    * </pre>
    */

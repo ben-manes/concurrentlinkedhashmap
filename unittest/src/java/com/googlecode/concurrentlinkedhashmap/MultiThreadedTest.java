@@ -18,13 +18,14 @@ package com.googlecode.concurrentlinkedhashmap;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.collect.Lists.newArrayList;
-import static com.google.common.collect.Sets.newSetFromMap;
 import static com.googlecode.concurrentlinkedhashmap.Benchmarks.shuffle;
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentTestHarness.timeTasks;
 import static com.googlecode.concurrentlinkedhashmap.IsValidState.valid;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.testng.Assert.fail;
+
+import com.google.common.collect.Sets;
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Node;
@@ -34,7 +35,6 @@ import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
 import java.util.Arrays;
-import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map.Entry;
@@ -353,8 +353,8 @@ public final class MultiThreadedTest extends BaseTest {
 
     // Print the state of the cache
     debug("Cached Elements: %s", cache.toString());
-    debug("List Forward:\n%s", listForwardToString(cache));
-    debug("List Backward:\n%s", listBackwardsToString(cache));
+    debug("Deque Forward:\n%s", ascendingToString(cache));
+    debug("Deque Backward:\n%s", descendingToString(cache));
 
     // Print the recorded failures
     for (String failure : failures) {
@@ -363,21 +363,21 @@ public final class MultiThreadedTest extends BaseTest {
     fail("Spun forever", e);
   }
 
-  static String listForwardToString(ConcurrentLinkedHashMap<?, ?> map) {
-    return listToString(map, true);
+  static String ascendingToString(ConcurrentLinkedHashMap<?, ?> map) {
+    return dequeToString(map, true);
   }
 
-  static String listBackwardsToString(ConcurrentLinkedHashMap<?, ?> map) {
-    return listToString(map, false);
+  static String descendingToString(ConcurrentLinkedHashMap<?, ?> map) {
+    return dequeToString(map, false);
   }
 
   @SuppressWarnings("unchecked")
-  private static String listToString(ConcurrentLinkedHashMap<?, ?> map, boolean forward) {
+  private static String dequeToString(ConcurrentLinkedHashMap<?, ?> map, boolean ascending) {
     map.evictionLock.lock();
     try {
       StringBuilder buffer = new StringBuilder("\n");
-      Set<Object> seen = newSetFromMap(new IdentityHashMap<Object, Boolean>());
-      Iterator<? extends Node> iterator = forward
+      Set<Object> seen = Sets.newIdentityHashSet();
+      Iterator<? extends Node> iterator = ascending
           ? map.evictionDeque.iterator()
           : map.evictionDeque.descendingIterator();
       while (iterator.hasNext()) {
@@ -397,15 +397,11 @@ public final class MultiThreadedTest extends BaseTest {
 
   @SuppressWarnings("unchecked")
   static String nodeToString(Node node) {
-    if (node == null) {
-      return "null";
-    } else if (node.getWeightedValue() == null) {
-      return "setinel";
-    }
     return node.key + "=" + node.getWeightedValue().value;
   }
 
   /** Finds the node in the map by walking the list. Returns null if not found. */
+  @SuppressWarnings("unchecked")
   static ConcurrentLinkedHashMap<?, ?>.Node findNode(
       Object key, ConcurrentLinkedHashMap<?, ?> map) {
     map.evictionLock.lock();

@@ -20,7 +20,6 @@ import static java.util.Collections.emptySet;
 
 import org.hamcrest.Description;
 import org.hamcrest.Factory;
-import org.hamcrest.Matcher;
 import org.hamcrest.TypeSafeDiagnosingMatcher;
 
 import java.util.Collection;
@@ -60,6 +59,9 @@ public final class IsEmptyCollection extends TypeSafeDiagnosingMatcher<Collectio
     if (c instanceof Deque<?>) {
       checkDeque((Deque<?>) c, builder);
     }
+    if (c instanceof LinkedDeque<?>) {
+      checkLinkedDeque((LinkedDeque<?>) c, builder);
+    }
     return builder.matches();
   }
 
@@ -85,19 +87,22 @@ public final class IsEmptyCollection extends TypeSafeDiagnosingMatcher<Collectio
 
   private void checkQueue(Queue<?> queue, DescriptionBuilder builder) {
     builder.expectEqual(queue.peek(), null);
-    builder.expectEqual(queue.poll(), null);
   }
 
   private void checkDeque(Deque<?> deque, DescriptionBuilder builder) {
     builder.expectEqual(deque.peekFirst(), null);
     builder.expectEqual(deque.peekLast(), null);
-    builder.expectEqual(deque.pollFirst(), null);
-    builder.expectEqual(deque.pollLast(), null);
     builder.expect(!deque.descendingIterator().hasNext());
   }
 
+  private void checkLinkedDeque(LinkedDeque<?> deque, DescriptionBuilder builder) {
+    builder.expectEqual(deque.first, null);
+    builder.expectEqual(deque.last, null);
+    builder.expectEqual(deque.size, 0);
+  }
+
   @Factory
-  public static <E> Matcher<Collection<?>> emptyCollection() {
+  public static IsEmptyCollection emptyCollection() {
     return new IsEmptyCollection();
   }
 }

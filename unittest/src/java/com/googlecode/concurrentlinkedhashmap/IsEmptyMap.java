@@ -19,7 +19,6 @@ import com.google.common.collect.ImmutableMap;
 
 import org.hamcrest.Description;
 import org.hamcrest.Factory;
-import org.hamcrest.Matcher;
 import org.hamcrest.TypeSafeDiagnosingMatcher;
 
 import java.util.Map;
@@ -62,15 +61,12 @@ public final class IsEmptyMap extends TypeSafeDiagnosingMatcher<Map<?, ?>> {
     builder.expectEqual(map.data.size(), 0, "Internal size != 0");
     builder.expectEqual(map.weightedSize(), 0, "Weighted size != 0");
     builder.expectEqual(map.weightedSize, 0, "Internal weighted size != 0");
-    builder.expectEqual(map, ImmutableMap.of(), "Not equal to empty map");
-    builder.expectEqual(map.hashCode(), ImmutableMap.of().hashCode(), "hashcode");
-    builder.expectEqual(map.toString(), ImmutableMap.of().toString(), "toString");
     builder.expectEqual(map.evictionDeque.peekFirst(), null, "first not null: " + map.evictionDeque);
     builder.expectEqual(map.evictionDeque.peekLast(), null, "last not null");
   }
 
   @Factory
-  public static Matcher<Map<?, ?>> emptyMap() {
+  public static IsEmptyMap emptyMap() {
     return new IsEmptyMap();
   }
 }

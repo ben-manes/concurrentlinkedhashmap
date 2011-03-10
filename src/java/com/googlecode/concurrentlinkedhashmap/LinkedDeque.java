@@ -15,7 +15,8 @@
  */
 package com.googlecode.concurrentlinkedhashmap;
 
-import java.util.AbstractQueue;
+import java.util.AbstractCollection;
+import java.util.Collection;
 import java.util.Deque;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
@@ -43,9 +44,9 @@ import java.util.NoSuchElementException;
  * @see <tt>http://code.google.com/p/concurrentlinkedhashmap/</tt>
  */
 @NotThreadSafe
-final class LinkedDeque<E extends Linked<E>> extends AbstractQueue<E> implements Deque<E> {
+final class LinkedDeque<E extends Linked<E>> extends AbstractCollection<E> implements Deque<E> {
 
-  // The class implements a doubly-linked list that is optimized for the virtual
+  // This class provides a doubly-linked list that is optimized for the virtual
   // machine. The first and last elements are manipulated instead of a slightly
   // more convenient sentinel element to avoid the insertion of null checks with
   // NullPointerException throws in the byte code. The links to a removed
@@ -153,32 +154,6 @@ final class LinkedDeque<E extends Linked<E>> extends AbstractQueue<E> implements
     }
   }
 
-  /**
-   * Moves the element to the front of the deque so that it becomes the first
-   * element.
-   *
-   * @param e the linked element
-   */
-  public void moveToFront(E e) {
-    if (e != first) {
-      unlink(e);
-      linkFirst(e);
-    }
-  }
-
-  /**
-   * Moves the element to the back of the deque so that it becomes the last
-   * element.
-   *
-   * @param e the linked element
-   */
-  public void moveToBack(E e) {
-    if (e != last) {
-      unlink(e);
-      linkLast(e);
-    }
-  }
-
   @Override
   public boolean isEmpty() {
     return (first == null);
@@ -207,6 +182,12 @@ final class LinkedDeque<E extends Linked<E>> extends AbstractQueue<E> implements
     size = 0;
   }
 
+  /**
+   * {@inheritDoc}
+   * <p>
+   * This implementation that the object implements the {@link Linked} interface
+   * and that its links are associated with this deque instance.
+   */
   @Override
   public boolean contains(Object o) {
     Linked<?> e = (Linked<?>) o;
@@ -215,23 +196,30 @@ final class LinkedDeque<E extends Linked<E>> extends AbstractQueue<E> implements
         || (e == first);
   }
 
-  @Override
-  public boolean offer(E e) {
-    return offerLast(e);
+  /**
+   * Moves the element to the front of the deque so that it becomes the first
+   * element.
+   *
+   * @param e the linked element
+   */
+  public void moveToFront(E e) {
+    if (e != first) {
+      unlink(e);
+      linkFirst(e);
+    }
   }
 
-  @Override
-  public boolean offerFirst(E e) {
-    size++;
-    linkFirst(e);
-    return true;
-  }
-
-  @Override
-  public boolean offerLast(E e) {
-    size++;
-    linkLast(e);
-    return true;
+  /**
+   * Moves the element to the back of the deque so that it becomes the last
+   * element.
+   *
+   * @param e the linked element
+   */
+  public void moveToBack(E e) {
+    if (e != last) {
+      unlink(e);
+      linkLast(e);
+    }
   }
 
   @Override
@@ -247,6 +235,68 @@ final class LinkedDeque<E extends Linked<E>> extends AbstractQueue<E> implements
   @Override
   public E peekLast() {
     return last;
+  }
+
+  @Override
+  public E getFirst() {
+    checkNotEmpty();
+    return peekFirst();
+  }
+
+  @Override
+  public E getLast() {
+    checkNotEmpty();
+    return peekLast();
+  }
+
+  @Override
+  public E element() {
+    return getFirst();
+  }
+
+  @Override
+  public boolean offer(E e) {
+    return offerLast(e);
+  }
+
+  @Override
+  public boolean offerFirst(E e) {
+    if (contains(e)) {
+      return false;
+    }
+    size++;
+    linkFirst(e);
+    return true;
+  }
+
+  @Override
+  public boolean offerLast(E e) {
+    if (contains(e)) {
+      return false;
+    }
+    size++;
+    linkLast(e);
+    return true;
+  }
+
+  @Override
+  public boolean add(E e) {
+    return offerLast(e);
+  }
+
+
+  @Override
+  public void addFirst(E e) {
+    if (!offerFirst(e)) {
+      throw new IllegalArgumentException();
+    }
+  }
+
+  @Override
+  public void addLast(E e) {
+    if (!offerLast(e)) {
+      throw new IllegalArgumentException();
+    }
   }
 
   @Override
@@ -270,6 +320,11 @@ final class LinkedDeque<E extends Linked<E>> extends AbstractQueue<E> implements
     }
     size--;
     return unlinkLast();
+  }
+
+  @Override
+  public E remove() {
+    return removeFirst();
   }
 
   @Override
@@ -306,39 +361,22 @@ final class LinkedDeque<E extends Linked<E>> extends AbstractQueue<E> implements
   }
 
   @Override
-  public void addFirst(E e) {
-    if (!offerFirst(e)) {
-      throw new IllegalStateException();
+  public boolean removeAll(Collection<?> c) {
+    boolean modified = false;
+    for (Object o : c) {
+      modified |= remove(o);
     }
-  }
-
-  @Override
-  public void addLast(E e) {
-    if (!offerLast(e)) {
-      throw new IllegalStateException();
-    }
-  }
-
-  @Override
-  public E getFirst() {
-    checkNotEmpty();
-    return peekFirst();
-  }
-
-  @Override
-  public E getLast() {
-    checkNotEmpty();
-    return peekLast();
-  }
-
-  @Override
-  public E pop() {
-    return removeFirst();
+    return modified;
   }
 
   @Override
   public void push(E e) {
     addFirst(e);
+  }
+
+  @Override
+  public E pop() {
+    return removeFirst();
   }
 
   @Override
@@ -362,6 +400,11 @@ final class LinkedDeque<E extends Linked<E>> extends AbstractQueue<E> implements
   abstract class AbstractLinkedIterator implements Iterator<E> {
     E cursor;
 
+    /**
+     * Creates an iterator that can can traverse the deque.
+     *
+     * @param start the initial element to begin traversal from
+     */
     AbstractLinkedIterator(E start) {
       cursor = start;
     }
@@ -386,14 +429,34 @@ final class LinkedDeque<E extends Linked<E>> extends AbstractQueue<E> implements
       throw new UnsupportedOperationException();
     }
 
+    /**
+     * Retrieves the next element to traverse to or <tt>null</tt> if there are
+     * no more elements.
+     */
     abstract E computeNext();
   }
 }
 
+/**
+ * An element that is linked on the {@link Deque}.
+ */
 interface Linked<T extends Linked<T>> {
-  T getNext();
-  void setNext(T next);
 
+  /**
+   * Retrieves the previous element or <tt>null</tt> if either the element is
+   * unlinked or the first element on the deque.
+   */
   T getPrevious();
+
+  /** Sets the previous element or <tt>null</tt> if there is no link. */
   void setPrevious(T prev);
+
+  /**
+   * Retrieves the next element or <tt>null</tt> if either the element is
+   * unlinked or the first element on the deque.
+   */
+  T getNext();
+
+  /** Sets the next element or <tt>null</tt> if there is no link. */
+  void setNext(T next);
 }
