@@ -53,7 +53,7 @@ public final class IsValidState extends TypeSafeDiagnosingMatcher<ConcurrentLink
 
   private void drain(ConcurrentLinkedHashMap<?, ?> map) {
     for (;;) {
-      map.tryToDrainBuffers(false);
+      map.tryToDrainBuffers();
 
       int pending = 0;
       for (int i = 0; i < map.bufferLengths.length(); i++) {

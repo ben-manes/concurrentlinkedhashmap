@@ -21,6 +21,7 @@ import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Bui
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.BoundedWeigher;
@@ -28,6 +29,9 @@ import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.DiscardingListener;
 
 import org.testng.annotations.Test;
+
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 
 /**
  * A unit-test for the builder methods.
@@ -135,5 +139,16 @@ public final class BuilderTest extends BaseTest {
     builder.weigher(Weighers.byteArray());
     Weigher<?> weigher = ((BoundedWeigher<?>) builder.build().weigher).delegate;
     assertThat(weigher, is(sameInstance((Object) Weighers.byteArray())));
+  }
+
+  @Test(dataProvider = "builder")
+  public void catchup_withDefault(Builder<Integer, byte[]> builder) {
+    assertThat(builder.build().executor, is(nullValue()));
+  }
+
+  @Test(dataProvider = "builder")
+  public void catchup_withCustom(Builder<Integer, byte[]> builder) {
+    Executor executor = Executors.newCachedThreadPool();
+    assertThat(builder.catchup(executor).build().executor, is(executor));
   }
 }

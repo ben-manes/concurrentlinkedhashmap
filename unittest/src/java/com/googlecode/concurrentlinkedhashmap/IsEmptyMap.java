@@ -54,7 +54,7 @@ public final class IsEmptyMap extends TypeSafeDiagnosingMatcher<Map<?, ?>> {
   }
 
   private void checkIsEmpty(ConcurrentLinkedHashMap<?, ?> map, DescriptionBuilder builder) {
-    map.tryToDrainBuffers(false);
+    map.tryToDrainBuffers();
 
     builder.expectEqual(map.size(), 0, "Size != 0");
     builder.expect(map.data.isEmpty(), "Internal not empty");

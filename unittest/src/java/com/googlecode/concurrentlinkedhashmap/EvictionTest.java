@@ -480,7 +480,7 @@ public final class EvictionTest extends BaseTest {
 
   private void checkContainsInOrder(ConcurrentLinkedHashMap<Integer, Integer> map,
       Integer... expect) {
-    map.tryToDrainBuffers(false);
+    map.tryToDrainBuffers();
     List<Integer> evictionList = Lists.newArrayList();
     for (ConcurrentLinkedHashMap<Integer, Integer>.Node node : map.evictionDeque) {
       evictionList.add(node.key);
@@ -598,7 +598,7 @@ public final class EvictionTest extends BaseTest {
     }
 
     // force a drain
-    map.tryToDrainBuffers(false);
+    map.tryToDrainBuffers();
     assertThat(executed.get(), is(equalTo(tasks.get())));
     assertThat(executed.get(), is(2 * BUFFER_THRESHOLD));
   }
@@ -659,7 +659,7 @@ public final class EvictionTest extends BaseTest {
     Thread thread = new Thread() {
       @Override public void run() {
         map.drainStatus.set(DrainStatus.REQUIRED);
-        map.tryToDrainBuffers(false);
+        map.tryToDrainBuffers();
         latch.countDown();
       }
     };

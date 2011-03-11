@@ -16,6 +16,7 @@
 package com.googlecode.concurrentlinkedhashmap;
 
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.DrainStatus.IDLE;
+import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.DrainStatus.PENDING;
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.DrainStatus.PROCESSING;
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.DrainStatus.REQUIRED;
 import static java.util.Collections.emptyList;
@@ -43,6 +44,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicIntegerArray;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Lock;
@@ -173,9 +175,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     BUFFER_MASK = buffers - 1;
   }
 
-  /** An executor that runs the task on the caller's thread. */
-  static final Executor sameThreadExecutor = new SameThreadExecutor();
-
   /** A queue that discards all entries. */
   static final Queue<?> discardingQueue = new DiscardingQueue();
 
@@ -187,6 +186,9 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
     /** A drain is required due to a pending write modification. */
     REQUIRED,
+
+    /** A drain is required and the execution is pending on the thread pool. */
+    PENDING,
 
     /** A drain is in progress. */
     PROCESSING
@@ -209,6 +211,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   @GuardedBy("evictionLock")
   int drainedOrder;
 
+  final Drainer drainer;
   final Lock evictionLock;
   final Executor executor;
   final Queue<Task>[] buffers;
@@ -235,6 +238,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     data = new ConcurrentHashMap<K, Node>(builder.initialCapacity, 0.75f, concurrencyLevel);
 
     // The eviction support
+    drainer = new Drainer();
     executor = builder.executor;
     globalOrder = Integer.MIN_VALUE;
     drainedOrder = Integer.MIN_VALUE;
@@ -384,13 +388,52 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * @param delayable if a drain should be delayed until required
    */
   void tryToDrainBuffers(boolean delayable) {
-    if (!delayable || (drainStatus.get() == REQUIRED)) {
+    DrainStatus status = drainStatus.get();
+    if ((status != REQUIRED) && (delayable || (status != IDLE))) {
+      return;
+    }
+    if (drainStatus.compareAndSet(status, PENDING)) {
+      tryToDrainBuffers();
+    }
+  }
+
+  /**
+   * Attempts to acquire the eviction lock and apply the pending operations to
+   * the page replacement policy.
+   */
+  void tryToDrainBuffers() {
+    if (executor == null) {
+      drainer.runConditionally();
+      return;
+    }
+    try {
+      executor.execute(drainer);
+    } catch (RejectedExecutionException e) {
+      drainer.runConditionally();
+    }
+  }
+
+  /** A command that drains the buffers. */
+  final class Drainer implements Runnable {
+
+    @Override public void run() {
+      evictionLock.lock();
+      drainAndUnlock();
+    }
+
+    void runConditionally() {
       if (evictionLock.tryLock()) {
-        try {
-          drainBuffers();
-        } finally {
-          evictionLock.unlock();
-        }
+        drainAndUnlock();
+      }
+    }
+
+    void drainAndUnlock() {
+      try {
+        drainStatus.set(PROCESSING);
+        drainBuffers();
+      } finally {
+        drainStatus.compareAndSet(PROCESSING, IDLE);
+        evictionLock.unlock();
       }
     }
   }
@@ -398,8 +441,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   /** Drains the buffers and applies the pending operations. */
   @GuardedBy("evictionLock")
   void drainBuffers() {
-    drainStatus.set(PROCESSING);
-
     // A strict ordering is achieved by observing that each buffer contains
     // tasks in a weakly sorted order starting from the last drain. The buffers
     // can be merged into a sorted list in O(n) time by using counting sort and
@@ -414,8 +455,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     int maxTaskIndex = moveTasksFromBuffers(tasks);
     runTasks(tasks, maxTaskIndex);
     updateDrainedOrder(tasks, maxTaskIndex);
-
-    drainStatus.compareAndSet(PROCESSING, IDLE);
   }
 
   /**
@@ -874,7 +913,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   @Override
   public Set<K> keySet() {
     Set<K> ks = keySet;
-    return (ks != null) ? ks : (keySet = new KeySet());
+    return (ks == null) ? (keySet = new KeySet()) : ks;
   }
 
   /**
@@ -974,13 +1013,13 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   @Override
   public Collection<V> values() {
     Collection<V> vs = values;
-    return (vs != null) ? vs : (values = new Values());
+    return (vs == null) ? (values = new Values()) : vs;
   }
 
   @Override
   public Set<Entry<K, V>> entrySet() {
     Set<Entry<K, V>> es = entrySet;
-    return (es != null) ? es : (entrySet = new EntrySet());
+    return (es == null) ? (entrySet = new EntrySet()) : es;
   }
 
   /**
@@ -1421,13 +1460,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     }
   }
 
-  /** An executor that runs the task on the caller's thread. */
-  static final class SameThreadExecutor implements Executor {
-    @Override public void execute(Runnable command) {
-      command.run();
-    }
-  }
-
   /** A queue that discards all additions and is always empty. */
   static final class DiscardingQueue extends AbstractQueue<Object> {
     static final Iterator<Object> iter = emptyList().iterator();
@@ -1565,7 +1597,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     @SuppressWarnings("unchecked")
     public Builder() {
       capacity = -1;
-      executor = sameThreadExecutor;
       weigher = Weighers.singleton();
       initialCapacity = DEFAULT_INITIAL_CAPACITY;
       concurrencyLevel = DEFAULT_CONCURRENCY_LEVEL;
@@ -1652,7 +1683,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
     /**
      * Specifies an executor for use in catching up the page replacement policy.
-     * If unspecified, the catching up will be performed on user threads during
+     * If unspecified, the catching up will be amortized on user threads during
      * write operations (or during read operations, in the absence of writes).
      *
      * @throws NullPointerException if the executor is null
