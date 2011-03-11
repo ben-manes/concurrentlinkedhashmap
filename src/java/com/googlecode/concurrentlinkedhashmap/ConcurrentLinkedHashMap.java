@@ -170,7 +170,18 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   /** A queue that discards all entries. */
   static final Queue<?> discardingQueue = new DiscardingQueue();
 
-  enum DrainStatus { IDLE, REQUIRED, PROCESSING }
+  /** The draining status of the buffers. */
+  enum DrainStatus {
+
+    /** A drain is not taking place. */
+    IDLE,
+
+    /** A drain is required due to a pending write modification. */
+    REQUIRED,
+
+    /** A drain is in progress. */
+    PROCESSING
+  }
 
   final AtomicReference<DrainStatus> drainStatus;
 
@@ -194,7 +205,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   final Lock evictionLock;
   final Executor executor;
   final Weigher<? super V> weigher;
-  final AtomicIntegerArray bufferLength;
+  final AtomicIntegerArray bufferLengths;
   final Queue<OrderedTask>[] buffers;
 
   // These fields provide support for notifying a listener.
@@ -225,7 +236,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     drainStatus = new AtomicReference<DrainStatus>(IDLE);
 
     buffers = (Queue<OrderedTask>[]) new Queue[NUMBER_OF_BUFFERS];
-    bufferLength = new AtomicIntegerArray(NUMBER_OF_BUFFERS);
+    bufferLengths = new AtomicIntegerArray(NUMBER_OF_BUFFERS);
     for (int i = 0; i < NUMBER_OF_BUFFERS; i++) {
       buffers[i] = new ConcurrentLinkedQueue<OrderedTask>();
     }
@@ -280,9 +291,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     notifyListener();
   }
 
-  /**
-   * Determines whether the map has exceeded its capacity.
-   */
+  /** Determines whether the map has exceeded its capacity. */
   boolean hasOverflowed() {
     return weightedSize > capacity;
   }
@@ -301,50 +310,20 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     // for removal.
     while (hasOverflowed()) {
       Node node = evictionDeque.poll();
+
+      // If weighted values are used, then the pending operations will adjust
+      // the size to reflect the correct weight
       if (node == null) {
-        // If weighted, pending operations will adjust the size to reflect
-        // the correct weight.
+        assert (weigher != Weighers.singleton());
         return;
       }
 
-      boolean evicted = data.remove(node.key, node);
-      WeightedValue<V> weightedValue;
-      for (;;) {
-        weightedValue = node.getWeightedValue();
-        if (weightedValue.isTombstone()) {
-          break;
-        } else {
-          WeightedValue<V> tombstone = WeightedValue.createPendingRemoval(weightedValue);
-          if (node.casWeightedValue(weightedValue, tombstone)) {
-            break;
-          }
-        }
-      }
-
-      decrementWeightFor(node);
-      if (evicted) {
-        // Notify the listener if the entry was evicted
+      // Notify the listener only if the entry was evicted
+      if (data.remove(node.key, node)) {
         pendingNotifications.add(node);
-      } else {
-        // Allow the pending removal task to no-op
-        node.set(WeightedValue.createRemoved(weightedValue));
       }
-    }
-  }
 
-  /**
-   * Decrements the weighted size by the node's weight. This method should be
-   * called after the node's state has been marked as removed to ensure that
-   * concurrent operations due not change the weight.
-   *
-   * @param node the entry that was removed
-   */
-  @GuardedBy("evictionLock")
-  void decrementWeightFor(Node node) {
-    if (weigher == Weighers.singleton()) {
-      weightedSize--;
-    } else {
-      weightedSize -= Math.abs(node.getWeightedValue().weight);
+      node.makeDead();
     }
   }
 
@@ -364,13 +343,13 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     int recencyOrder = globalRecencyOrder++;
 
     int index = bufferIndex();
-    int buffered = bufferLength.incrementAndGet(index);
+    int buffered = bufferLengths.incrementAndGet(index);
 
     // A buffer may discard a read task if its length exceeds a tolerance level
     if ((buffered <= MAXIMUM_BUFFER_SIZE) || isWrite) {
       buffers[index].add(new OrderedTask(recencyOrder, task, isWrite));
     } else {
-      bufferLength.decrementAndGet(index);
+      bufferLengths.decrementAndGet(index);
     }
 
     boolean delayReorder;
@@ -491,7 +470,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
         addRecencyToChain(recencies, recency, index);
       }
     }
-    bufferLength.addAndGet(queueIndex, -removedFromQueue);
+    bufferLengths.addAndGet(queueIndex, -removedFromQueue);
     return maxIndex;
   }
 
@@ -643,7 +622,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     @GuardedBy("evictionLock")
     public void run() {
       weightedSize += weight;
-      if (node.getWeightedValue().isTombstone()) {
+      if (node.getWeightedValue().isRetired()) {
         return; // ignore out-of-order write operations
       }
       evictionDeque.add(node);
@@ -664,9 +643,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     @Override
     @GuardedBy("evictionLock")
     public void run() {
-      WeightedValue<V> weightedValue = node.getWeightedValue();
-      weightedSize += weightedValue.weight; // zero or negative
       evictionDeque.remove(node);
+      node.makeDead();
     }
   }
 
@@ -722,10 +700,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       Node node;
       while ((node = evictionDeque.poll()) != null) {
         data.remove(node.key, node);
-        WeightedValue<V> weightedValue = WeightedValue.createPendingRemoval(node.getWeightedValue());
-        node.getAndSet(weightedValue);
-        decrementWeightFor(node);
-        node.set(WeightedValue.createRemoved(node.getWeightedValue()));
+        node.makeDead();
       }
 
       // Drain the queues to apply the writes and discard the reorderings
@@ -739,7 +714,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
             task.run();
           }
         }
-        bufferLength.addAndGet(i, -removed);
+        bufferLengths.addAndGet(i, -removed);
       }
     } finally {
       evictionLock.unlock();
@@ -820,7 +795,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       }
       for (;;) {
         WeightedValue<V> oldWeightedValue = prior.getWeightedValue();
-        if (oldWeightedValue.isTombstone()) {
+        if (oldWeightedValue.isRetired()) {
           break;
         }
 
@@ -842,18 +817,14 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   public V remove(Object key) {
     checkNotNull(key, "null key");
 
-    Node node = data.remove(key);
+    final Node node = data.remove(key);
     if (node == null) {
       return null;
     }
-    for (;;) {
-      WeightedValue<V> weightedValue = node.getWeightedValue();
-      WeightedValue<V> tombstone = WeightedValue.createPendingRemoval(weightedValue);
-      if (node.casWeightedValue(weightedValue, tombstone)) {
-        addToBuffer(new RemovalTask(node), true);
-        return weightedValue.value;
-      }
-    }
+
+    node.makeRetired();
+    addToBuffer(new RemovalTask(node), true);
+    return node.getWeightedValue().value;
   }
 
   @Override
@@ -865,14 +836,12 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     if (node == null) {
       return false;
     }
-    WeightedValue<V> weightedValue = node.getWeightedValue();
-    if (node.getWeightedValue().value.equals(value)) {
-      WeightedValue<V> tombstone = WeightedValue.createPendingRemoval(weightedValue);
-      if (node.casWeightedValue(weightedValue, tombstone)) {
-        data.remove(key, node);
-        addToBuffer(new RemovalTask(node), true);
-        return true;
-      }
+
+    final WeightedValue<V> weightedValue = node.getWeightedValue();
+    if (node.getWeightedValue().value.equals(value) && node.tryToRetire(weightedValue)) {
+      data.remove(key, node);
+      addToBuffer(new RemovalTask(node), true);
+      return true;
     }
     return false;
   }
@@ -891,7 +860,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
         return null;
       }
       WeightedValue<V> oldWeightedValue = node.getWeightedValue();
-      if (oldWeightedValue.isTombstone()) {
+      if (oldWeightedValue.isRetired()) {
         return null;
       }
       if (node.casWeightedValue(oldWeightedValue, weightedValue)) {
@@ -921,7 +890,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     }
     for (;;) {
       WeightedValue<V> weightedValue = node.getWeightedValue();
-      if (weightedValue.isTombstone() || !oldValue.equals(weightedValue.value)) {
+      if (weightedValue.isRetired() || !oldValue.equals(weightedValue.value)) {
         return false;
       }
       if (node.casWeightedValue(weightedValue, newWeightedValue)) {
@@ -1169,7 +1138,19 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       return new WeightedValue<V>(weightedValue.value, 0);
     }
 
-    boolean isTombstone() {
+    boolean isAlive() {
+      return weight > 0;
+    }
+
+    boolean isPendingDeath() {
+      return weight < 0;
+    }
+
+    boolean isDead() {
+      return weight == 0;
+    }
+
+    boolean isRetired() {
       return weight <= 0;
     }
   }
@@ -1224,6 +1205,42 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
     boolean casWeightedValue(WeightedValue<V> expect, WeightedValue<V> update) {
       return compareAndSet(expect, update);
+    }
+
+    /** Atomically sets the node to the <tt>retired</tt> state. */
+    void makeRetired() {
+      for (;;) {
+        WeightedValue<V> current = get();
+        if (tryToRetire(current)) {
+          return;
+        }
+      }
+    }
+
+    /**
+     * Attempts to set the node to the <tt>retired</tt> state.
+     *
+     * @param expect the expected weighted value
+     * @return if successful
+     */
+    boolean tryToRetire(WeightedValue<V> expect) {
+      WeightedValue<V> retired = new WeightedValue<V>(expect.value, -expect.weight);
+      return compareAndSet(expect, retired);
+    }
+
+    /**
+     * Atomically sets the node to the <tt>dead</tt> state and decrements the
+     * <tt>weightedSize</tt>.
+     */
+    void makeDead() {
+      for (;;) {
+        WeightedValue<V> current = get();
+        WeightedValue<V> dead = new WeightedValue<V>(current.value, 0);
+        if (compareAndSet(current, dead)) {
+          weightedSize -= Math.abs(current.weight);
+          return;
+        }
+      }
     }
   }
 

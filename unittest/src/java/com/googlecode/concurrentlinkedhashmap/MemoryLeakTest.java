@@ -91,7 +91,7 @@ public final class MemoryLeakTest {
       @Override public void run() {
         long pending = 0;
         for (int i = 0; i < map.buffers.length; i++) {
-          pending += map.bufferLength.get(i);
+          pending += map.bufferLengths.get(i);
         }
         runningTime += STATUS_INTERVAL;
         String elapsedTime = DurationFormatUtils.formatDuration(runningTime, "H:mm:ss");

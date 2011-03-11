@@ -596,7 +596,7 @@ public final class EvictionTest extends BaseTest {
   @Test(dataProvider = "guardedMap")
   public void exceedsMaximumBufferSize_onRead(ConcurrentLinkedHashMap<Integer, Integer> map) {
     int index = bufferIndex();
-    map.bufferLength.set(index, MAXIMUM_BUFFER_SIZE);
+    map.bufferLengths.set(index, MAXIMUM_BUFFER_SIZE);
 
     final boolean[] ran = { false };
     map.addToBuffer(new Runnable() {
@@ -606,13 +606,13 @@ public final class EvictionTest extends BaseTest {
     }, false);
     assertThat(ran[0], is(false));
     assertThat(map.buffers[index].size(), is(0));
-    map.bufferLength.set(index, 0);
+    map.bufferLengths.set(index, 0);
   }
 
   @Test(dataProvider = "guardedMap")
   public void exceedsMaximumBufferSize_onWrite(ConcurrentLinkedHashMap<Integer, Integer> map) {
     int index = bufferIndex();
-    map.bufferLength.set(index, MAXIMUM_BUFFER_SIZE);
+    map.bufferLengths.set(index, MAXIMUM_BUFFER_SIZE);
 
     final boolean[] ran = { false };
     map.addToBuffer(new Runnable() {
@@ -622,7 +622,7 @@ public final class EvictionTest extends BaseTest {
     }, true);
     assertThat(ran[0], is(true));
     assertThat(map.buffers[index].size(), is(0));
-    map.bufferLength.set(index, 0);
+    map.bufferLengths.set(index, 0);
   }
 
   @Test(dataProvider = "warmedMap")
@@ -631,9 +631,9 @@ public final class EvictionTest extends BaseTest {
       map.get(1);
     }
     int index = bufferIndex();
-    assertThat(map.bufferLength.get(index), is(equalTo(BUFFER_THRESHOLD)));
+    assertThat(map.bufferLengths.get(index), is(equalTo(BUFFER_THRESHOLD)));
     map.get(1);
-    assertThat(map.bufferLength.get(index), is(equalTo(0)));
+    assertThat(map.bufferLengths.get(index), is(equalTo(0)));
   }
 
   @Test(dataProvider = "guardedMap")

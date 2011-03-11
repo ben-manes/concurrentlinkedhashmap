@@ -55,8 +55,8 @@ public final class IsValidState extends TypeSafeDiagnosingMatcher<ConcurrentLink
       map.tryToDrainEvictionQueues(false);
 
       int pending = 0;
-      for (int i = 0; i < map.bufferLength.length(); i++) {
-        pending += map.bufferLength.get(i);
+      for (int i = 0; i < map.bufferLengths.length(); i++) {
+        pending += map.bufferLengths.get(i);
       }
       if (pending == 0) {
         break;
@@ -67,7 +67,7 @@ public final class IsValidState extends TypeSafeDiagnosingMatcher<ConcurrentLink
   private void checkMap(ConcurrentLinkedHashMap<?, ?> map, DescriptionBuilder builder) {
     for (int i = 0; i < map.buffers.length; i++) {
       builder.expect(map.buffers[i].isEmpty(), "recencyQueue not empty");
-      builder.expect(map.bufferLength.get(i) == 0, "recencyQueueLength != 0");
+      builder.expect(map.bufferLengths.get(i) == 0, "recencyQueueLength != 0");
     }
     builder.expect(map.pendingNotifications.isEmpty(), "listenerQueue");
     builder.expectEqual(map.data.size(), map.size(), "Inconsistent size");
