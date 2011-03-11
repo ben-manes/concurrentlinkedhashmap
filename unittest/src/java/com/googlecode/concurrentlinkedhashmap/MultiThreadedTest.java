@@ -397,7 +397,7 @@ public final class MultiThreadedTest extends BaseTest {
 
   @SuppressWarnings("unchecked")
   static String nodeToString(Node node) {
-    return node.key + "=" + node.getWeightedValue().value;
+    return node.key + "=" + node.getValue();
   }
 
   /** Finds the node in the map by walking the list. Returns null if not found. */

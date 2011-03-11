@@ -35,6 +35,7 @@ import com.google.common.collect.Lists;
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.DrainStatus;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Task;
 
 import org.testng.Assert;
 import org.testng.annotations.Test;
@@ -479,7 +480,7 @@ public final class EvictionTest extends BaseTest {
 
   private void checkContainsInOrder(ConcurrentLinkedHashMap<Integer, Integer> map,
       Integer... expect) {
-    map.tryToDrainEvictionQueues(false);
+    map.tryToDrainBuffers(false);
     List<Integer> evictionList = Lists.newArrayList();
     for (ConcurrentLinkedHashMap<Integer, Integer>.Node node : map.evictionDeque) {
       evictionList.add(node.key);
@@ -544,7 +545,7 @@ public final class EvictionTest extends BaseTest {
     ConcurrentLinkedHashMap<?, ?>.Node first = map.evictionDeque.peek();
 
     operation.run();
-    map.drainRecencyQueues();
+    map.drainBuffers();
 
     assertThat(map.evictionDeque.peekFirst(), is(not(first)));
     assertThat(map.evictionDeque.peekLast(), is(first));
@@ -556,10 +557,18 @@ public final class EvictionTest extends BaseTest {
       throws InterruptedException {
     final AtomicInteger tasks = new AtomicInteger();
     final AtomicInteger executed = new AtomicInteger();
-    final class Task implements Runnable {
+    final class FakeTask extends DummyTask {
       final int id = tasks.getAndIncrement();
+
+      FakeTask() {
+        super(map.nextOrdering());
+      }
       @Override public void run() {
         assertThat(id, is(executed.getAndIncrement()));
+      }
+      @Override
+      public boolean isWrite() {
+        return false;
       }
     }
     final BlockingQueue<Object> ping = new SynchronousQueue<Object>();
@@ -571,7 +580,7 @@ public final class EvictionTest extends BaseTest {
         for (int i = 0; i < BUFFER_THRESHOLD; i++) {
           try {
             ping.take();
-            map.addToBuffer(new Task(), false);
+            map.afterCompletion(new FakeTask());
             pong.put(new Object());
           } catch (InterruptedException e) {
             Assert.fail();
@@ -584,11 +593,12 @@ public final class EvictionTest extends BaseTest {
     for (int i = 0; i < BUFFER_THRESHOLD; i++) {
       ping.put(new Object());
       pong.take();
-      map.addToBuffer(new Task(), false);
+
+      map.afterCompletion(new FakeTask());
     }
 
     // force a drain
-    map.tryToDrainEvictionQueues(false);
+    map.tryToDrainBuffers(false);
     assertThat(executed.get(), is(equalTo(tasks.get())));
     assertThat(executed.get(), is(2 * BUFFER_THRESHOLD));
   }
@@ -599,11 +609,14 @@ public final class EvictionTest extends BaseTest {
     map.bufferLengths.set(index, MAXIMUM_BUFFER_SIZE);
 
     final boolean[] ran = { false };
-    map.addToBuffer(new Runnable() {
+    map.afterCompletion(new DummyTask(map.nextOrdering()) {
       @Override public void run() {
         ran[0] = true;
       }
-    }, false);
+      @Override public boolean isWrite() {
+        return false;
+      }
+    });
     assertThat(ran[0], is(false));
     assertThat(map.buffers[index].size(), is(0));
     map.bufferLengths.set(index, 0);
@@ -615,11 +628,14 @@ public final class EvictionTest extends BaseTest {
     map.bufferLengths.set(index, MAXIMUM_BUFFER_SIZE);
 
     final boolean[] ran = { false };
-    map.addToBuffer(new Runnable() {
+    map.afterCompletion(new DummyTask(map.nextOrdering()) {
       @Override public void run() {
         ran[0] = true;
       }
-    }, true);
+      @Override public boolean isWrite() {
+        return true;
+      }
+    });
     assertThat(ran[0], is(true));
     assertThat(map.buffers[index].size(), is(0));
     map.bufferLengths.set(index, 0);
@@ -643,7 +659,7 @@ public final class EvictionTest extends BaseTest {
     Thread thread = new Thread() {
       @Override public void run() {
         map.drainStatus.set(DrainStatus.REQUIRED);
-        map.tryToDrainEvictionQueues(false);
+        map.tryToDrainBuffers(false);
         latch.countDown();
       }
     };
@@ -741,5 +757,23 @@ public final class EvictionTest extends BaseTest {
       lock.unlock();
     }
     assertThat(end.await(1, TimeUnit.SECONDS), is(true));
+  }
+
+  static abstract class DummyTask implements Task {
+    final int order;
+    Task task;
+
+    DummyTask(int order) {
+      this.order = order;
+    }
+    @Override public int getOrder() {
+      return order;
+    }
+    @Override public Task getNext() {
+      return null;
+    }
+    @Override public void setNext(Task task) {
+      this.task = task;
+    }
   }
 }

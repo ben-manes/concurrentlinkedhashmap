@@ -18,6 +18,7 @@ package com.googlecode.concurrentlinkedhashmap;
 import com.google.common.collect.Sets;
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Node;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.WeightedValue;
 
 import org.hamcrest.Description;
 import org.hamcrest.Factory;
@@ -52,7 +53,7 @@ public final class IsValidState extends TypeSafeDiagnosingMatcher<ConcurrentLink
 
   private void drain(ConcurrentLinkedHashMap<?, ?> map) {
     for (;;) {
-      map.tryToDrainEvictionQueues(false);
+      map.tryToDrainBuffers(false);
 
       int pending = 0;
       for (int i = 0; i < map.bufferLengths.length(); i++) {
@@ -97,7 +98,7 @@ public final class IsValidState extends TypeSafeDiagnosingMatcher<ConcurrentLink
     Set<Node> seen = Sets.newIdentityHashSet();
     for (Node node : map.evictionDeque) {
       builder.expect(seen.add(node), "Loop detected: %s, saw %s in %s", node, seen, map);
-      weightedSize += node.getWeightedValue().weight;
+      weightedSize += ((WeightedValue) node.get()).weight;
       checkNode(map, node, builder);
     }
 
@@ -110,14 +111,14 @@ public final class IsValidState extends TypeSafeDiagnosingMatcher<ConcurrentLink
   private void checkNode(ConcurrentLinkedHashMap<?, ?> map, Node node,
       DescriptionBuilder builder) {
     builder.expectNotEqual(node.key, null, "null key");
-    builder.expectNotEqual(node.getWeightedValue(), null, "null weighted value");
-    builder.expectNotEqual(node.getWeightedValue().value, null, "null value");
-    builder.expectEqual(node.getWeightedValue().weight,
-      ((Weigher) map.weigher).weightOf(node.getWeightedValue().value), "weight");
+    builder.expectNotEqual(node.get(), null, "null weighted value");
+    builder.expectNotEqual(node.getValue(), null, "null value");
+    builder.expectEqual(((WeightedValue) node.get()).weight,
+      ((Weigher) map.weigher).weightOf(node.getValue()), "weight");
 
     builder.expect(map.containsKey(node.key), "inconsistent");
-    builder.expect(map.containsValue(node.getWeightedValue().value),
-        "Could not find value: %s", node.getWeightedValue().value);
+    builder.expect(map.containsValue(node.getValue()),
+        "Could not find value: %s", node.getValue());
     builder.expectEqual(map.data.get(node.key), node, "found wrong node");
   }
 
