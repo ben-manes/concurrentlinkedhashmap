@@ -27,7 +27,6 @@ import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 import java.io.InvalidObjectException;
 import java.io.ObjectInputStream;
 import java.io.Serializable;
-import java.lang.ref.WeakReference;
 import java.util.AbstractCollection;
 import java.util.AbstractMap;
 import java.util.AbstractQueue;
@@ -103,28 +102,43 @@ import java.util.concurrent.locks.ReentrantLock;
 public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     implements ConcurrentMap<K, V>, Serializable {
 
-  // This class performs a best-effort bounding of a ConcurrentHashMap using a
-  // page-replacement algorithm to determine which entries to evict when the
-  // capacity is exceeded.
-  //
-  // The page replacement algorithm's data structures are kept eventually
-  // consistent with the map. An update to the map and recording of reads may
-  // not be immediately reflected on the algorithm's data structures. These
-  // structures are guarded by a lock and operations are applied in batches to
-  // avoid lock contention. The penalty of applying the batches is spread across
-  // threads so that the amortized cost is slightly higher than performing just
-  // the ConcurrentHashMap operation.
-  //
-  // A memento of the reads and writes that were performed on the map are
-  // recorded in a buffer. These buffers are drained at the first opportunity
-  // after a write or when a buffer exceeds a threshold size. A strict ordering
-  // is achieved by observing that each buffer is in a weakly sorted order
-  // relative to the last drain. This allows the buffers to be merged in O(n)
-  // time so that the operations are run in the expected order.
-  //
-  // The Least Recently Used page replacement algorithm was chosen due to its
-  // simplicity, high hit rate, and ability to be implemented with O(1) time
-  // complexity.
+  /*
+   * This class performs a best-effort bounding of a ConcurrentHashMap using a
+   * page-replacement algorithm to determine which entries to evict when the
+   * capacity is exceeded.
+   *
+   * The page replacement algorithm's data structures are kept eventually
+   * consistent with the map. An update to the map and recording of reads may
+   * not be immediately reflected on the algorithm's data structures. These
+   * structures are guarded by a lock and operations are applied in batches to
+   * avoid lock contention. The penalty of applying the batches is spread across
+   * threads so that the amortized cost is slightly higher than performing just
+   * the ConcurrentHashMap operation.
+   *
+   * A memento of the reads and writes that were performed on the map are
+   * recorded in a buffer. These buffers are drained at the first opportunity
+   * after a write or when a buffer exceeds a threshold size. A mostly strict
+   * ordering is achieved by observing that each buffer is in a weakly sorted
+   * order relative to the last drain. This allows the buffers to be merged in
+   * O(n) time so that the operations are run in the expected order.
+   *
+   * Due to a lack of a strict ordering guarantee, a task can be executed
+   * out-of-order, such as a removal followed by its addition. The state of the
+   * entry is encoded within the value's weight.
+   *
+   * Alive: The entry is in both the hash-table and the page replacement policy.
+   * This is represented by a positive weight.
+   *
+   * Retired: The entry is not in the hash-table and is pending removal from the
+   * page replacement policy. This is represented by a negative weight.
+   *
+   * Dead: The entry is not in the hash-table and is not in the page replacement
+   * policy. This is represented by a weight of zero.
+   *
+   * The Least Recently Used page replacement algorithm was chosen due to its
+   * simplicity, high hit rate, and ability to be implemented with O(1) time
+   * complexity.
+   */
 
   /** The maximum weighted capacity of the map. */
   static final int MAXIMUM_CAPACITY = 1 << 30;
@@ -197,8 +211,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
   final Lock evictionLock;
   final Executor executor;
-  final Weigher<? super V> weigher;
   final Queue<Task>[] buffers;
+  final BoundedWeigher<V> weigher;
   final AtomicIntegerArray bufferLengths;
   final AtomicReference<DrainStatus> drainStatus;
 
@@ -221,12 +235,12 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     data = new ConcurrentHashMap<K, Node>(builder.initialCapacity, 0.75f, concurrencyLevel);
 
     // The eviction support
-    weigher = builder.weigher;
     executor = builder.executor;
-    evictionLock = new ReentrantLock();
     globalOrder = Integer.MIN_VALUE;
     drainedOrder = Integer.MIN_VALUE;
+    evictionLock = new ReentrantLock();
     evictionDeque = new LinkedDeque<Node>();
+    weigher = new BoundedWeigher<V>(builder.weigher);
     drainStatus = new AtomicReference<DrainStatus>(IDLE);
 
     buffers = (Queue<Task>[]) new Queue[NUMBER_OF_BUFFERS];
@@ -308,7 +322,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       // If weighted values are used, then the pending operations will adjust
       // the size to reflect the correct weight
       if (node == null) {
-        assert (weigher != Weighers.singleton());
         return;
       }
 
@@ -322,7 +335,9 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   }
 
   /**
-   * @param task the pending operation to apply
+   * Performs the post-processing work required after the map operation.
+   *
+   * @param task the pending operation to be applied
    */
   void afterCompletion(Task task) {
     boolean delayable = schedule(task);
@@ -346,7 +361,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     } else {
       bufferLengths.decrementAndGet(index);
     }
-
 
     if (task.isWrite()) {
       drainStatus.set(REQUIRED);
@@ -533,51 +547,12 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     }
   }
 
-  interface Task extends Runnable {
-    int getOrder();
-    boolean isWrite();
-
-    Task getNext();
-    void setNext(Task task);
-  }
-
-  abstract class AbstractTask implements Task {
-    final int order;
-    Task task;
-
-    AbstractTask() {
-      this.order = nextOrdering();
-    }
-
-    @Override
-    public boolean isWrite() {
-      return false;
-    }
-
-    @Override
-    public int getOrder() {
-      return order;
-    }
-
-    @Override
-    public Task getNext() {
-      return task;
-    }
-
-    @Override
-    public void setNext(Task task) {
-      this.task = task;
-    }
-  }
-
   /** Updates the node's location in the page replacement policy. */
-  class ReadTask extends WeakReference<Node> implements Task {
-    final int order;
-    Task task;
+  class ReadTask extends AbstractTask {
+    final Node node;
 
     ReadTask(Node node) {
-      super(node);
-      this.order = nextOrdering();
+      this.node = node;
     }
 
     @Override
@@ -585,10 +560,9 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     public void run() {
       // An entry may scheduled for reordering despite having been previously
       // removed. This can occur when the entry was concurrently read while a
-      // writer was removing it. If the entry was garbage collected or no longer
-      // linked then it does not need to be processed.
-      Node node = get();
-      if ((node != null) && evictionDeque.contains(node)) {
+      // writer was removing it. If the entry is no longer linked then it does
+      // not need to be processed.
+      if (evictionDeque.contains(node)) {
         evictionDeque.moveToBack(node);
       }
     }
@@ -596,21 +570,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     @Override
     public boolean isWrite() {
       return false;
-    }
-
-    @Override
-    public int getOrder() {
-      return order;
-    }
-
-    @Override
-    public Task getNext() {
-      return task;
-    }
-
-    @Override
-    public void setNext(Task task) {
-      this.task = task;
     }
   }
 
@@ -792,7 +751,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     checkNotNull(value, "null value");
 
     final int weight = weigher.weightOf(value);
-    final WeightedValue<V> weightedValue = WeightedValue.create(value, weight);
+    final WeightedValue<V> weightedValue = new WeightedValue<V>(value, weight);
     final Node node = new Node(key, weightedValue);
 
     for (;;) {
@@ -861,13 +820,13 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     checkNotNull(value, "null value");
 
     final int weight = weigher.weightOf(value);
-    final WeightedValue<V> weightedValue = WeightedValue.create(value, weight);
+    final WeightedValue<V> weightedValue = new WeightedValue<V>(value, weight);
 
+    final Node node = data.get(key);
+    if (node == null) {
+      return null;
+    }
     for (;;) {
-      final Node node = data.get(key);
-      if (node == null) {
-        return null;
-      }
       WeightedValue<V> oldWeightedValue = node.get();
       if (!oldWeightedValue.isAlive()) {
         return null;
@@ -890,7 +849,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     checkNotNull(newValue, "null newValue");
 
     final int weight = weigher.weightOf(newValue);
-    final WeightedValue<V> newWeightedValue = WeightedValue.create(newValue, weight);
+    final WeightedValue<V> newWeightedValue = new WeightedValue<V>(newValue, weight);
 
     final Node node = data.get(key);
     if (node == null) {
@@ -1123,7 +1082,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     }
   }
 
-  /** A value, its weight, and its status within the page replacement policy. */
+  /** A value, its weight, and the entry's status. */
   @Immutable
   static final class WeightedValue<V> {
     final int weight;
@@ -1134,26 +1093,29 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       this.value = value;
     }
 
-    static <V> WeightedValue<V> create(V value, int weight) {
-      if ((weight < 1) || (weight > MAXIMUM_WEIGHT)) {
-        throw new IllegalArgumentException("invalid weight");
-      }
-      return new WeightedValue<V>(value, weight);
-    }
-
     boolean hasValue(Object o) {
-      return value.equals(o);
+      return (o == value) || value.equals(o);
     }
 
-    /** */
+    /**
+     * If the entry is available in the hash-table and page replacement policy.
+     */
     boolean isAlive() {
       return weight > 0;
     }
 
+    /**
+     * If the entry was removed from the hash-table and is awaiting removal from
+     * the page replacement policy.
+     */
     boolean isRetired() {
       return weight < 0;
     }
 
+    /**
+     * If the entry was removed from the hash-table and the page replacement
+     * policy.
+     */
     boolean isDead() {
       return weight == 0;
     }
@@ -1441,6 +1403,24 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     }
   }
 
+  /** A weigher that enforces that the weight falls within a valid range. */
+  static final class BoundedWeigher<V> implements Weigher<V> {
+    final Weigher<? super V> delegate;
+
+    BoundedWeigher(Weigher<? super V> weigher) {
+      this.delegate = weigher;
+    }
+
+    @Override
+    public int weightOf(V value) {
+      int weight = delegate.weightOf(value);
+      if ((weight < 1) || (weight > MAXIMUM_WEIGHT)) {
+        throw new IllegalArgumentException("invalid weight");
+      }
+      return weight;
+    }
+  }
+
   /** An executor that runs the task on the caller's thread. */
   static final class SameThreadExecutor implements Executor {
     @Override public void execute(Runnable command) {
@@ -1465,6 +1445,47 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     INSTANCE;
 
     @Override public void onEviction(Object key, Object value) {}
+  }
+
+  /** An operation that can be lazily applied to the page replacement policy. */
+  interface Task extends Runnable {
+
+    /** The priority order. */
+    int getOrder();
+
+    /** If the task represents a add, modify, or remove operation. */
+    boolean isWrite();
+
+    /** Returns the next task on the link chain. */
+    Task getNext();
+
+    /** Sets the next task on the link chain. */
+    void setNext(Task task);
+  }
+
+  /** A skeletal implementation of the <tt>Task</tt> interface. */
+  abstract class AbstractTask implements Task {
+    final int order;
+    Task task;
+
+    AbstractTask() {
+      this.order = nextOrdering();
+    }
+
+    @Override
+    public int getOrder() {
+      return order;
+    }
+
+    @Override
+    public Task getNext() {
+      return task;
+    }
+
+    @Override
+    public void setNext(Task task) {
+      this.task = task;
+    }
   }
 
   /* ---------------- Serialization Support -------------- */
@@ -1495,10 +1516,10 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
     SerializationProxy(ConcurrentLinkedHashMap<K, V> map) {
       concurrencyLevel = map.concurrencyLevel;
-      capacity = map.capacity;
+      weigher = map.weigher.delegate;
       data = new HashMap<K, V>(map);
+      capacity = map.capacity;
       listener = map.listener;
-      weigher = map.weigher;
     }
 
     Object readResolve() {

@@ -68,11 +68,11 @@ public final class IsReserializable<T> extends TypeSafeMatcher<T> {
         .append(valid().matches(copy), true)
         .append(data.isEmpty(), emptyMap().matches(original))
         .append(data.isEmpty(), emptyMap().matches(copy))
-        .append(original.capacity, copy.capacity)
+        .append(original.weigher.delegate.getClass(), copy.weigher.delegate.getClass())
         .append(original.listener.getClass(), copy.listener.getClass())
-        .append(original.weigher.getClass(), copy.weigher.getClass())
         .append(original.concurrencyLevel, copy.concurrencyLevel)
         .append(original.hashCode(), copy.hashCode())
+        .append(original.capacity, copy.capacity)
         .append(original, data)
         .isEquals();
   }

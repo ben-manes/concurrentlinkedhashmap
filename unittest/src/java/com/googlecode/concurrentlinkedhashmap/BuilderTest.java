@@ -23,6 +23,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.BoundedWeigher;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.DiscardingListener;
 
@@ -125,12 +126,14 @@ public final class BuilderTest extends BaseTest {
 
   @Test(dataProvider = "builder")
   public void weigher_withDefault(Builder<Integer, Integer> builder) {
-    assertThat((Object) builder.build().weigher, sameInstance((Object) Weighers.singleton()));
+    Weigher<?> weigher = ((BoundedWeigher<?>) builder.build().weigher).delegate;
+    assertThat(weigher, sameInstance((Object) Weighers.singleton()));
   }
 
   @Test(dataProvider = "builder")
   public void weigher_withCustom(Builder<Integer, byte[]> builder) {
     builder.weigher(Weighers.byteArray());
-    assertThat((Object) builder.build().weigher, is(sameInstance((Object) Weighers.byteArray())));
+    Weigher<?> weigher = ((BoundedWeigher<?>) builder.build().weigher).delegate;
+    assertThat(weigher, is(sameInstance((Object) Weighers.byteArray())));
   }
 }
