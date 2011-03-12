@@ -34,7 +34,7 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * A unit-test to assert that the cache does not have a memory leak by not being
- * able to drain the recency queues fast enough.
+ * able to drain the buffers fast enough.
  *
  * @author ben.manes@gmail.com (Ben Manes)
  */
@@ -49,25 +49,25 @@ public final class MemoryLeakTest {
   private static final int THREADS = 250;
 
   private ConcurrentLinkedHashMap<Long, Long> map;
-  private ScheduledExecutorService es;
+  private ScheduledExecutorService statusExecutor;
 
   @BeforeMethod
   public void beforeMemoryLeakTest() {
-    map = new Builder<Long, Long>()
-        .maximumWeightedCapacity(THREADS)
-        .build();
     ThreadFactory threadFactory = new ThreadFactoryBuilder()
         .setPriority(Thread.MAX_PRIORITY)
         .setDaemon(true)
         .build();
-    es = Executors.newSingleThreadScheduledExecutor(threadFactory);
-    es.scheduleAtFixedRate(newStatusTask(),
+    statusExecutor = Executors.newSingleThreadScheduledExecutor(threadFactory);
+    statusExecutor.scheduleAtFixedRate(newStatusTask(),
         STATUS_INTERVAL, STATUS_INTERVAL, TimeUnit.MILLISECONDS);
+    map = new Builder<Long, Long>()
+        .maximumWeightedCapacity(THREADS)
+        .build();
   }
 
   @AfterMethod
   public void afterMemoryLeakTest() {
-    es.shutdownNow();
+    statusExecutor.shutdownNow();
   }
 
   @Test(timeOut = TIME_OUT)
@@ -97,7 +97,8 @@ public final class MemoryLeakTest {
         String elapsedTime = DurationFormatUtils.formatDuration(runningTime, "H:mm:ss");
         String pendingReads = NumberFormat.getInstance().format(pending);
         System.out.printf("---------- %s ----------\n", elapsedTime);
-        System.out.printf("Pending recencies = %s\n", pendingReads);
+        System.out.printf("Pending tasks = %s\n", pendingReads);
+        System.out.printf("Drain status = %s\n", map.drainStatus);
       }
     };
   }

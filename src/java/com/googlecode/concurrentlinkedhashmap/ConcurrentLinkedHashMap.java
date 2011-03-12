@@ -353,7 +353,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * Schedules the task to be applied to the page replacement policy.
    *
    * @param task the pending operation
-   * @return if the buffers should be drained
+   * @return if the draining of the buffers can be delayed
    */
   private boolean schedule(Task task) {
     int index = bufferIndex();
@@ -363,6 +363,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     if ((buffered <= MAXIMUM_BUFFER_SIZE) || task.isWrite()) {
       buffers[index].add(task);
     } else {
+      // not optimized for fail-safe scenario
       bufferLengths.decrementAndGet(index);
     }
 
@@ -392,9 +393,15 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     if ((status != REQUIRED) && (delayable || (status != IDLE))) {
       return;
     }
-    if (drainStatus.compareAndSet(status, PENDING)) {
-      tryToDrainBuffers();
+    if ((status == PENDING) || (status == PROCESSING)) {
+      return;
     }
+
+    // TODO(bmanes): Evaluate why delegation to executor drains so slowly
+    // if (drainStatus.compareAndSet(status, PENDING)) {
+    //  tryToDrainBuffers();
+    // }
+    tryToDrainBuffers();
   }
 
   /**
@@ -418,22 +425,28 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
     @Override public void run() {
       evictionLock.lock();
-      drainAndUnlock();
+      try {
+        drainStatus.set(PROCESSING);
+        int delta;
+        do {
+          drainBuffers();
+          delta = Math.abs(globalOrder - drainedOrder);
+        } while (delta > MAXIMUM_OPERATIONS_TO_DRAIN);
+      } finally {
+        evictionLock.unlock();
+        drainStatus.compareAndSet(PROCESSING, IDLE);
+      }
     }
 
     void runConditionally() {
       if (evictionLock.tryLock()) {
-        drainAndUnlock();
-      }
-    }
-
-    void drainAndUnlock() {
-      try {
-        drainStatus.set(PROCESSING);
-        drainBuffers();
-      } finally {
-        drainStatus.compareAndSet(PROCESSING, IDLE);
-        evictionLock.unlock();
+        try {
+          drainStatus.set(PROCESSING);
+          drainBuffers();
+        } finally {
+          evictionLock.unlock();
+          drainStatus.compareAndSet(PROCESSING, IDLE);
+        }
       }
     }
   }
@@ -1685,6 +1698,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
      * Specifies an executor for use in catching up the page replacement policy.
      * If unspecified, the catching up will be amortized on user threads during
      * write operations (or during read operations, in the absence of writes).
+     * If the executor rejects the task then the penalty for catching up will
+     * fall back to the user thread.
      *
      * @throws NullPointerException if the executor is null
      */

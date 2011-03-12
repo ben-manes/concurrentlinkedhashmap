@@ -56,14 +56,14 @@ final class LinkedDeque<E extends Linked<E>> extends AbstractCollection<E> imple
   /**
    * Pointer to first node.
    * Invariant: (first == null && last == null) ||
-   *            (first.prev == null && first.item != null)
+   *            (first.prev == null)
    */
   E first;
 
   /**
    * Pointer to last node.
    * Invariant: (first == null && last == null) ||
-   *            (last.next == null && last.item != null)
+   *            (last.next == null)
    */
   E last;
 

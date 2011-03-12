@@ -77,11 +77,8 @@ public final class IsValidState extends TypeSafeDiagnosingMatcher<ConcurrentLink
     builder.expect(map.capacity >= map.weightedSize(), "overflow");
     builder.expectNot(((ReentrantLock) map.evictionLock).isLocked());
 
-    boolean empty = IsEmptyMap.emptyMap().matchesSafely(map, builder.getDescription());
     if (map.isEmpty()) {
-      builder.expect(empty);
-    } else {
-      builder.expectNot(empty);
+      builder.expect(IsEmptyMap.emptyMap().matchesSafely(map, builder.getDescription()));
     }
   }
 
