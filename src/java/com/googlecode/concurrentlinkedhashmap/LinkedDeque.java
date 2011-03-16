@@ -29,9 +29,8 @@ import java.util.NoSuchElementException;
  * concurrent access by multiple threads. Null elements are prohibited.
  * <p>
  * Most <tt>LinkedDeque</tt> operations run in constant time by assuming that
- * the {@link Linked} parameters are associated with that the deque instance.
- * Any usage that violates this assumption will result in non-deterministic
- * behavior.
+ * the {@link Linked} parameter is associated with the deque instance. Any usage
+ * that violates this assumption will result in non-deterministic behavior.
  * <p>
  * The iterators returned by this class are <em>not</em> <i>fail-fast</i>: If
  * the deque is modified at any time after the iterator is created, the iterator
@@ -182,14 +181,11 @@ final class LinkedDeque<E extends Linked<E>> extends AbstractCollection<E> imple
     size = 0;
   }
 
-  /**
-   * {@inheritDoc}
-   * <p>
-   * This implementation that the object implements the {@link Linked} interface
-   * and that its links are associated with this deque instance.
-   */
   @Override
   public boolean contains(Object o) {
+    if (!(o instanceof Linked<?>)) {
+      return false;
+    }
     Linked<?> e = (Linked<?>) o;
     return (e.getPrevious() != null)
         || (e.getNext() != null)
@@ -453,7 +449,7 @@ interface Linked<T extends Linked<T>> {
 
   /**
    * Retrieves the next element or <tt>null</tt> if either the element is
-   * unlinked or the first element on the deque.
+   * unlinked or the last element on the deque.
    */
   T getNext();
 

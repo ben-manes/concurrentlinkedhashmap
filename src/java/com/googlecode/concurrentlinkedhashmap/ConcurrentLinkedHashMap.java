@@ -1589,7 +1589,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * a named parameter syntax. It can be used in the following manner:
    * <p>
    * <pre>
-   * ConcurrentMap<Vertices, Set<Edge>> graph = new Builder<Vertice, Set<Edge>>()
+   * ConcurrentMap<Vertices, Set<Edge>> graph = new Builder<Vertices, Set<Edge>>()
    *     .weigher(Weighers.<Group>set())
    *     .maximumWeightedCapacity(5000)
    *     .build();
