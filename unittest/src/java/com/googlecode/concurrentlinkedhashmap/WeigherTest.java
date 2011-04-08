@@ -24,7 +24,6 @@ import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.testng.Assert.fail;
 
 import com.google.common.collect.ImmutableMap;
@@ -121,7 +120,7 @@ public final class WeigherTest extends BaseTest {
   }
 
   @Test(dataProvider = "builder", expectedExceptions = IllegalArgumentException.class)
-  public void weightedValue_withNegative(Builder<Integer, Integer> builder) {
+  public void put_withNegativeWeight(Builder<Integer, Integer> builder) {
     Weigher<Integer> weigher = new Weigher<Integer>() {
       @Override public int weightOf(Integer value) {
         return -1;
@@ -134,7 +133,7 @@ public final class WeigherTest extends BaseTest {
   }
 
   @Test(dataProvider = "builder", expectedExceptions = IllegalArgumentException.class)
-  public void weightedValue_withZero(Builder<Integer, Integer> builder) {
+  public void put_withZeroWeight(Builder<Integer, Integer> builder) {
     Weigher<Integer> weigher = new Weigher<Integer>() {
       @Override public int weightOf(Integer value) {
         return 0;
@@ -147,7 +146,7 @@ public final class WeigherTest extends BaseTest {
   }
 
   @Test(dataProvider = "builder", expectedExceptions = IllegalArgumentException.class)
-  public void weightedValue_withAboveMaximum(Builder<Integer, Integer> builder) {
+  public void put_withAboveMaximumWeight(Builder<Integer, Integer> builder) {
     Weigher<Integer> weigher = new Weigher<Integer>() {
       @Override public int weightOf(Integer value) {
         return MAXIMUM_WEIGHT + 1;
@@ -159,94 +158,17 @@ public final class WeigherTest extends BaseTest {
     map.put(1, 2);
   }
 
-  @Test(dataProvider = "collectionWeigher")
-  public void weightedValue_withCollections(Weigher<Collection<Integer>> weigher) {
-    ConcurrentLinkedHashMap<Integer, Collection<Integer>> map =
-      new Builder<Integer, Collection<Integer>>()
-        .maximumWeightedCapacity(capacity())
-        .weigher(weigher)
-        .build();
-
-    // add first
-    map.put(1, asList(1, 2, 3));
-    assertThat(map.size(), is(1));
-    assertThat(map.weightedSize(), is(3));
-
-    // add second
-    map.put(2, asList(1));
-    assertThat(map.size(), is(2));
-    assertThat(map.weightedSize(), is(4));
-
-    // put as update
-    map.put(1, asList(-4, -5, -6, -7));
-    assertThat(map.size(), is(2));
-    assertThat(map.weightedSize(), is(5));
-
-    // put as update with same weight
-    map.put(1, asList(4, 5, 6, 7));
-    assertThat(map.size(), is(2));
-    assertThat(map.weightedSize(), is(5));
-
-    // replace
-    map.replace(2, asList(-8, -9, -10));
-    assertThat(map.size(), is(2));
-    assertThat(map.weightedSize(), is(7));
-
-    // replace with same weight
-    map.replace(2, asList(8, 9, 10));
-    assertThat(map.size(), is(2));
-    assertThat(map.weightedSize(), is(7));
-
-    // fail to replace conditionally
-    assertThat(map.replace(2, asList(-1), asList(11, 12)), is(false));
-    assertThat(map.size(), is(2));
-    assertThat(map.weightedSize(), is(7));
-
-    // replace conditionally
-    assertThat(map.replace(2, asList(8, 9, 10), asList(11, 12)), is(true));
-    assertThat(map.size(), is(2));
-    assertThat(map.weightedSize(), is(6));
-
-    // replace conditionally with same weight
-    assertThat(map.replace(2, asList(11, 12), asList(13, 14)), is(true));
-    assertThat(map.size(), is(2));
-    assertThat(map.weightedSize(), is(6));
-
-    // remove
-    assertThat(map.remove(2), is(notNullValue()));
-    assertThat(map.size(), is(1));
-    assertThat(map.weightedSize(), is(4));
-
-    // fail to remove conditionally
-    assertThat(map.remove(1, asList(-1)), is(false));
-    assertThat(map.size(), is(1));
-    assertThat(map.weightedSize(), is(4));
-
-    // remove conditionally
-    assertThat(map.remove(1, asList(4, 5, 6, 7)), is(true));
-    assertThat(map.size(), is(0));
-    assertThat(map.weightedSize(), is(0));
-
-    // clear
-    map.put(3, asList(1, 2, 3));
-    map.put(4, asList(4, 5, 6));
-    map.clear();
-    assertThat(map.size(), is(0));
-    assertThat(map.weightedSize(), is(0));
-  }
-
   @Test(dataProvider = "builder")
-  public void integerOverflow(Builder<Integer, Integer> builder) {
-    final boolean[] useMax = {true};
-    builder.maximumWeightedCapacity(capacity());
-    builder.weigher(new Weigher<Integer>() {
-      @Override public int weightOf(Integer value) {
-        return useMax[0] ? MAXIMUM_WEIGHT : 1;
-      }
-    });
+  public void put_withIntegerOverflow(Builder<Integer, Integer> builder) {
+    final boolean[] useMax = { true };
     ConcurrentLinkedHashMap<Integer, Integer> map = builder
         .maximumWeightedCapacity(MAXIMUM_CAPACITY)
-        .build();
+        .weigher(new Weigher<Integer>() {
+          @Override
+          public int weightOf(Integer value) {
+            return useMax[0] ? MAXIMUM_WEIGHT : 1;
+          }
+        }).build();
     map.putAll(ImmutableMap.of(1, 1, 2, 2));
     assertThat(map.size(), is(2));
     assertThat(map.weightedSize(), is(MAXIMUM_CAPACITY));
@@ -254,6 +176,112 @@ public final class WeigherTest extends BaseTest {
     map.put(3, 3);
     assertThat(map.size(), is(2));
     assertThat(map.weightedSize(), is(MAXIMUM_WEIGHT + 1));
+  }
+
+  @Test(dataProvider = "guardedWeightedMap")
+  public void put(ConcurrentLinkedHashMap<String, List<Integer>> map) {
+    map.put("a", asList(1, 2, 3));
+    assertThat(map.size(), is(1));
+    assertThat(map.weightedSize(), is(3));
+  }
+
+  @Test(dataProvider = "guardedWeightedMap")
+  public void put_sameWeight(ConcurrentLinkedHashMap<String, List<Integer>> map) {
+    map.putAll(ImmutableMap.of("a", asList(1, 2, 3), "b", asList(1)));
+
+    map.put("a", asList(-1, -2, -3));
+    assertThat(map.size(), is(2));
+    assertThat(map.weightedSize(), is(4));
+  }
+
+  @Test(dataProvider = "guardedWeightedMap")
+  public void put_changeWeight(ConcurrentLinkedHashMap<String, List<Integer>> map) {
+    map.putAll(ImmutableMap.of("a", asList(1, 2, 3), "b", asList(1)));
+
+    map.put("a", asList(-1, -2, -3, -4));
+    assertThat(map.size(), is(2));
+    assertThat(map.weightedSize(), is(5));
+  }
+
+  @Test(dataProvider = "guardedWeightedMap")
+  public void replace_sameWeight(ConcurrentLinkedHashMap<String, List<Integer>> map) {
+    map.putAll(ImmutableMap.of("a", asList(1, 2, 3), "b", asList(1)));
+
+    map.replace("a", asList(-1, -2, -3));
+    assertThat(map.size(), is(2));
+    assertThat(map.weightedSize(), is(4));
+  }
+
+  @Test(dataProvider = "guardedWeightedMap")
+  public void replace_changeWeight(ConcurrentLinkedHashMap<String, List<Integer>> map) {
+    map.putAll(ImmutableMap.of("a", asList(1, 2, 3), "b", asList(1)));
+
+    map.replace("a", asList(-1, -2, -3, -4));
+    assertThat(map.size(), is(2));
+    assertThat(map.weightedSize(), is(5));
+  }
+
+  @Test(dataProvider = "guardedWeightedMap")
+  public void replaceConditionally_sameWeight(ConcurrentLinkedHashMap<String, List<Integer>> map) {
+    map.putAll(ImmutableMap.of("a", asList(1, 2, 3), "b", asList(1)));
+
+    assertThat(map.replace("a", asList(1, 2, 3), asList(4, 5, 6)), is(true));
+    assertThat(map.size(), is(2));
+    assertThat(map.weightedSize(), is(4));
+  }
+
+  @Test(dataProvider = "guardedWeightedMap")
+  public void replaceConditionally_changeWeight(ConcurrentLinkedHashMap<String, List<Integer>> map) {
+    map.putAll(ImmutableMap.of("a", asList(1, 2, 3), "b", asList(1)));
+
+    map.replace("a", asList(1, 2, 3), asList(-1, -2, -3, -4));
+    assertThat(map.size(), is(2));
+    assertThat(map.weightedSize(), is(5));
+  }
+
+  @Test(dataProvider = "guardedWeightedMap")
+  public void replaceConditionally_fails(ConcurrentLinkedHashMap<String, List<Integer>> map) {
+    map.putAll(ImmutableMap.of("a", asList(1, 2, 3), "b", asList(1)));
+
+    assertThat(map.replace("a", asList(1), asList(4, 5)), is(false));
+    assertThat(map.size(), is(2));
+    assertThat(map.weightedSize(), is(4));
+  }
+
+  @Test(dataProvider = "guardedWeightedMap")
+  public void remove(ConcurrentLinkedHashMap<String, List<Integer>> map) {
+    map.putAll(ImmutableMap.of("a", asList(1, 2, 3), "b", asList(1)));
+
+    assertThat(map.remove("a"), is(asList(1, 2, 3)));
+    assertThat(map.size(), is(1));
+    assertThat(map.weightedSize(), is(1));
+  }
+
+  @Test(dataProvider = "guardedWeightedMap")
+  public void removeConditionally(ConcurrentLinkedHashMap<String, List<Integer>> map) {
+    map.putAll(ImmutableMap.of("a", asList(1, 2, 3), "b", asList(1)));
+
+    assertThat(map.remove("a", asList(1, 2, 3)), is(true));
+    assertThat(map.size(), is(1));
+    assertThat(map.weightedSize(), is(1));
+  }
+
+  @Test(dataProvider = "guardedWeightedMap")
+  public void removeConditionally_fails(ConcurrentLinkedHashMap<String, List<Integer>> map) {
+    map.putAll(ImmutableMap.of("a", asList(1, 2, 3), "b", asList(1)));
+
+    assertThat(map.remove("a", asList(-1, -2, -3)), is(false));
+    assertThat(map.size(), is(2));
+    assertThat(map.weightedSize(), is(4));
+  }
+
+  @Test(dataProvider = "guardedWeightedMap")
+  public void clear(ConcurrentLinkedHashMap<String, List<Integer>> map) {
+    map.putAll(ImmutableMap.of("a", asList(1, 2, 3), "b", asList(1)));
+
+    map.clear();
+    assertThat(map.size(), is(0));
+    assertThat(map.weightedSize(), is(0));
   }
 
   private <E> Iterable<E> asIterable(final Collection<E> c) {

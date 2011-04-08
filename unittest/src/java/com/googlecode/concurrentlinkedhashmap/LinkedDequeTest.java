@@ -82,9 +82,9 @@ public final class LinkedDequeTest extends BaseTest {
     assertThat(Iterables.size(deque), is(capacity()));
   }
 
-  @Test(dataProvider = "emptyDeque", expectedExceptions = NullPointerException.class)
+  @Test(dataProvider = "emptyDeque")
   public void contains_withNull(Deque<?> deque) {
-    deque.contains(null);
+    assertThat(deque.contains(null), is(false));
   }
 
   @Test(dataProvider = "warmedDeque")

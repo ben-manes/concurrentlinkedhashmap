@@ -1590,7 +1590,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * <p>
    * <pre>
    * ConcurrentMap<Vertices, Set<Edge>> graph = new Builder<Vertices, Set<Edge>>()
-   *     .weigher(Weighers.<Group>set())
+   *     .weigher(Weighers.<Edge>set())
    *     .maximumWeightedCapacity(5000)
    *     .build();
    * </pre>

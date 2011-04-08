@@ -161,6 +161,18 @@ public abstract class BaseTest {
     return map;
   }
 
+  @DataProvider(name = "guardedWeightedMap")
+  public Object[][] providesGuardedWeightedMap() {
+    return new Object[][] {{ newWeightedMap() }};
+  }
+
+  protected <K, V> ConcurrentLinkedHashMap<K, Iterable<V>> newWeightedMap() {
+    return new Builder<K, Iterable<V>>()
+        .weigher(Weighers.<V>iterable())
+        .maximumWeightedCapacity(capacity())
+        .build();
+  }
+
   /* ---------------- Weigher providers -------------- */
 
   @DataProvider(name = "singletonWeigher")
