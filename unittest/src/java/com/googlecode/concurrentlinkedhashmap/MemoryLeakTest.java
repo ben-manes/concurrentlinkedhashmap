@@ -65,7 +65,6 @@ public final class MemoryLeakTest {
         STATUS_INTERVAL, STATUS_INTERVAL, TimeUnit.MILLISECONDS);
     map = new Builder<Long, Long>()
         .maximumWeightedCapacity(THREADS)
-        //.catchup(catchupExecutor)
         .build();
   }
 

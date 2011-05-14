@@ -164,8 +164,7 @@ public final class WeigherTest extends BaseTest {
     ConcurrentLinkedHashMap<Integer, Integer> map = builder
         .maximumWeightedCapacity(MAXIMUM_CAPACITY)
         .weigher(new Weigher<Integer>() {
-          @Override
-          public int weightOf(Integer value) {
+          @Override public int weightOf(Integer value) {
             return useMax[0] ? MAXIMUM_WEIGHT : 1;
           }
         }).build();

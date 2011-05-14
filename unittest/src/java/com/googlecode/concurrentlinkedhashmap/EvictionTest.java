@@ -18,9 +18,8 @@ package com.googlecode.concurrentlinkedhashmap;
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.BUFFER_THRESHOLD;
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.MAXIMUM_BUFFER_SIZE;
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.MAXIMUM_CAPACITY;
+import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.MAXIMUM_OPERATIONS_TO_DRAIN;
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.bufferIndex;
-import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.DrainStatus.IDLE;
-import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.DrainStatus.PENDING;
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.DrainStatus.REQUIRED;
 import static com.googlecode.concurrentlinkedhashmap.IsEmptyCollection.emptyCollection;
 import static com.googlecode.concurrentlinkedhashmap.IsEmptyMap.emptyMap;
@@ -35,6 +34,7 @@ import static org.hamcrest.Matchers.not;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.DrainStatus;
@@ -48,11 +48,13 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Executor;
-import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -485,7 +487,7 @@ public final class EvictionTest extends BaseTest {
 
   private void checkContainsInOrder(ConcurrentLinkedHashMap<Integer, Integer> map,
       Integer... expect) {
-    map.tryToDrainBuffers();
+    map.tryToDrainBuffers(MAXIMUM_OPERATIONS_TO_DRAIN);
     List<Integer> evictionList = Lists.newArrayList();
     for (ConcurrentLinkedHashMap<Integer, Integer>.Node node : map.evictionDeque) {
       evictionList.add(node.key);
@@ -550,7 +552,7 @@ public final class EvictionTest extends BaseTest {
     ConcurrentLinkedHashMap<?, ?>.Node first = map.evictionDeque.peek();
 
     operation.run();
-    map.drainBuffers();
+    map.drainBuffers(MAXIMUM_OPERATIONS_TO_DRAIN);
 
     assertThat(map.evictionDeque.peekFirst(), is(not(first)));
     assertThat(map.evictionDeque.peekLast(), is(first));
@@ -603,7 +605,7 @@ public final class EvictionTest extends BaseTest {
     }
 
     // force a drain
-    map.tryToDrainBuffers();
+    map.tryToDrainBuffers(MAXIMUM_OPERATIONS_TO_DRAIN);
     assertThat(executed.get(), is(equalTo(tasks.get())));
     assertThat(executed.get(), is(2 * BUFFER_THRESHOLD));
   }
@@ -664,7 +666,7 @@ public final class EvictionTest extends BaseTest {
     Thread thread = new Thread() {
       @Override public void run() {
         map.drainStatus.set(REQUIRED);
-        map.tryToDrainBuffers();
+        map.tryToDrainBuffers(MAXIMUM_OPERATIONS_TO_DRAIN);
         latch.countDown();
       }
     };
@@ -764,69 +766,17 @@ public final class EvictionTest extends BaseTest {
     assertThat(end.await(1, TimeUnit.SECONDS), is(true));
   }
 
-  // TODO(bmanes): Enable after fixing why delegation to executor drains so slowly
-  @Test(enabled = false, dataProvider = "builder")
-  void drain_withSameThreadExecutor(Builder<Integer, Integer> builder) {
-    final Runnable[] before = new Runnable[1];
-    Executor sameThreadExecutor = new Executor() {
-      @Override public void execute(Runnable command) {
-        before[0].run();
-        command.run();
-      }
-    };
-    final ConcurrentLinkedHashMap<Integer, Integer> map = builder
-        .maximumWeightedCapacity(capacity())
-        .catchup(sameThreadExecutor)
-        .build();
-    before[0] = new Runnable() {
-      int runs;
-
-      @Override public void run() {
-        int expectedSize;
-        DrainStatus status;
-        if (runs == 0) { // initial write
-          expectedSize = 1;
-          status = PENDING;
-        } else if (runs == 1) { // reads
-          expectedSize = BUFFER_THRESHOLD + 1;
-          status = PENDING;
-        } else { // validations
-          expectedSize = 0;
-          status = IDLE;
-        }
-        runs++;
-        assertThat(map.drainStatus.get(), is(status));
-        assertThat(map.buffers[bufferIndex()], hasSize(expectedSize));
-        assertThat(((ReentrantLock) map.evictionLock).isLocked(), is(false));
-      }
-    };
-    map.put(1, 1);
-    for (int i = 0; i <= BUFFER_THRESHOLD; i++) {
-      assertThat(map.buffers[bufferIndex()], hasSize(i));
-      map.get(1);
-    }
-    assertThat(((ReentrantLock) map.evictionLock).isLocked(), is(false));
-    assertThat(map.drainStatus.get(), is(DrainStatus.IDLE));
-    assertThat(map.buffers[bufferIndex()], hasSize(0));
-    assertThat(map, is(valid()));
-  }
-
   @Test(dataProvider = "builder")
-  void drain_withRejectingExecutor(Builder<Integer, Integer> builder) {
-    Executor rejectingExecutor = new Executor() {
-      @Override public void execute(Runnable command) {
-        throw new RejectedExecutionException("Fallback to caller drains");
-      }
-    };
+  void drain_withShutdownExecutor(Builder<Integer, Integer> builder) {
+    ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor(
+        new ThreadFactoryBuilder().setDaemon(true).build());
     final ConcurrentLinkedHashMap<Integer, Integer> map = builder
+        .catchup(executor, 1, TimeUnit.MINUTES)
         .maximumWeightedCapacity(capacity())
-        .catchup(rejectingExecutor)
         .build();
+    executor.shutdownNow();
     map.put(1, 1);
-    for (int i = 0; i <= BUFFER_THRESHOLD; i++) {
-      assertThat(map.buffers[bufferIndex()], hasSize(i));
-      map.get(1);
-    }
+
     assertThat(((ReentrantLock) map.evictionLock).isLocked(), is(false));
     assertThat(map.drainStatus.get(), is(DrainStatus.IDLE));
     assertThat(map.buffers[bufferIndex()], hasSize(0));
@@ -835,41 +785,27 @@ public final class EvictionTest extends BaseTest {
 
   @Test(dataProvider = "builder")
   void drain_withThreadedExecutor(Builder<Integer, Integer> builder) throws InterruptedException {
-    final CountDownLatch onWrite = new CountDownLatch(1);
-    final CountDownLatch onRead = new CountDownLatch(1);
-    final AtomicInteger runs = new AtomicInteger();
-
-    Executor threadedExecutor = new Executor() {
-      @Override public void execute(final Runnable command) {
-        Thread thread = new Thread(new Runnable() {
-          @Override public void run() {
-            command.run();
-            if (runs.get() == 0) {
-              onWrite.countDown();
-            } else if (runs.get() == 1) {
-              onRead.countDown();
-            }
-            runs.incrementAndGet();
-          }
-        });
-        thread.setDaemon(true);
-        thread.start();
+    final CountDownLatch onDrain = new CountDownLatch(1);
+    ScheduledExecutorService executor = new ScheduledThreadPoolExecutor(1,
+        new ThreadFactoryBuilder().setDaemon(true).build()) {
+      @Override protected void afterExecute(Runnable r, Throwable t) {
+        onDrain.countDown();
       }
     };
+
     final ConcurrentLinkedHashMap<Integer, Integer> map = builder
+        .catchup(executor, 10, TimeUnit.MICROSECONDS)
         .maximumWeightedCapacity(capacity())
-        .catchup(threadedExecutor)
         .build();
     map.put(1, 1);
-    onWrite.await();
-    for (int i = 0; i <= BUFFER_THRESHOLD; i++) {
-      assertThat(map.buffers[bufferIndex()], hasSize(i));
-      map.get(1);
+    assertThat(onDrain.await(1, TimeUnit.SECONDS), is(true));
+    executor.shutdownNow();
+
+    for (Queue<?> buffer : map.buffers) {
+      assertThat(buffer.isEmpty(), is(true));
     }
-    onRead.await();
     assertThat(((ReentrantLock) map.evictionLock).isLocked(), is(false));
     assertThat(map.drainStatus.get(), is(DrainStatus.IDLE));
-    assertThat(map.buffers[bufferIndex()], hasSize(0));
     assertThat(map, is(valid()));
   }
 

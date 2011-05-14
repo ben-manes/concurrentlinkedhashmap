@@ -18,11 +18,14 @@ package com.googlecode.concurrentlinkedhashmap;
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.MAXIMUM_CAPACITY;
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder.DEFAULT_CONCURRENCY_LEVEL;
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder.DEFAULT_INITIAL_CAPACITY;
+import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder.DEFAULT_EXEUCTOR;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
+
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.BoundedWeigher;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
@@ -30,8 +33,11 @@ import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Discarding
 
 import org.testng.annotations.Test;
 
-import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 /**
  * A unit-test for the builder methods.
@@ -142,13 +148,26 @@ public final class BuilderTest extends BaseTest {
   }
 
   @Test(dataProvider = "builder")
-  public void catchup_withDefault(Builder<Integer, byte[]> builder) {
-    assertThat(builder.build().executor, is(nullValue()));
+  public void catchup_withDefault(Builder<?, ?> builder) {
+    assertThat(builder.build().executor, is(DEFAULT_EXEUCTOR));
   }
 
   @Test(dataProvider = "builder")
-  public void catchup_withCustom(Builder<Integer, byte[]> builder) {
-    Executor executor = Executors.newCachedThreadPool();
-    assertThat(builder.catchup(executor).build().executor, is(executor));
+  public void catchup_withCustom(Builder<?, ?> builder) {
+    ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor(
+        new ThreadFactoryBuilder().setDaemon(true).build());
+    builder.catchup(executor, 1, TimeUnit.MINUTES).build();
+
+    assertThat(builder.executor, is((ExecutorService) executor));
+    assertThat(executor.shutdownNow(), hasSize(1));
+  }
+
+  @Test(dataProvider = "builder", expectedExceptions = RejectedExecutionException.class)
+  public void catchup_withRejected(Builder<?, ?> builder) {
+    ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor(
+        new ThreadFactoryBuilder().setDaemon(true).build());
+    builder.catchup(executor, 1, TimeUnit.MINUTES);
+    executor.shutdownNow();
+    builder.build();
   }
 }
