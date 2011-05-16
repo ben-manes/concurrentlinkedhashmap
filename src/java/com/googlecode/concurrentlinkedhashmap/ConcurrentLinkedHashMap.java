@@ -1270,7 +1270,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
   /** An adapter to safely externalize the key iterator. */
   final class KeyIterator implements Iterator<K> {
-    final EntryIterator iterator = new EntryIterator(data.values().iterator());
+    final Iterator<K> iterator = data.keySet().iterator();
+    K current;
 
     @Override
     public boolean hasNext() {
@@ -1279,12 +1280,17 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
     @Override
     public K next() {
-      return iterator.next().getKey();
+      current = iterator.next();
+      return current;
     }
 
     @Override
     public void remove() {
-      iterator.remove();
+      if (current == null) {
+        throw new IllegalStateException();
+      }
+      ConcurrentLinkedHashMap.this.remove(current);
+      current = null;
     }
   }
 
@@ -1314,7 +1320,9 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
   /** An adapter to safely externalize the value iterator. */
   final class ValueIterator implements Iterator<V> {
-    final EntryIterator iterator = new EntryIterator(data.values().iterator());
+    final Iterator<Node> iterator = data.values().iterator();
+    Node current;
+    V value;
 
     @Override
     public boolean hasNext() {
@@ -1323,12 +1331,17 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
     @Override
     public V next() {
-      return iterator.next().getValue();
+      current = iterator.next();
+      return current.getValue();
     }
 
     @Override
     public void remove() {
-      iterator.remove();
+      if (current == null) {
+        throw new IllegalStateException();
+      }
+      ConcurrentLinkedHashMap.this.remove(current.key);
+      current = null;
     }
   }
 
@@ -1401,7 +1414,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       if (current == null) {
         throw new IllegalStateException();
       }
-      ConcurrentLinkedHashMap.this.remove(current.key, current.getValue());
+      ConcurrentLinkedHashMap.this.remove(current.key);
       current = null;
     }
   }
@@ -1600,7 +1613,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * </pre>
    */
   public static final class Builder<K, V> {
-    static final ExecutorService DEFAULT_EXEUCTOR = new DisabledExecutorService();
+    static final ExecutorService DEFAULT_EXECUTOR = new DisabledExecutorService();
     static final int DEFAULT_CONCURRENCY_LEVEL = 16;
     static final int DEFAULT_INITIAL_CAPACITY = 16;
 
@@ -1618,7 +1631,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     @SuppressWarnings("unchecked")
     public Builder() {
       capacity = -1;
-      executor = DEFAULT_EXEUCTOR;
+      executor = DEFAULT_EXECUTOR;
       weigher = Weighers.singleton();
       initialCapacity = DEFAULT_INITIAL_CAPACITY;
       concurrencyLevel = DEFAULT_CONCURRENCY_LEVEL;
@@ -1744,7 +1757,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
         throw new IllegalStateException();
       }
       ConcurrentLinkedHashMap<K, V> map = new ConcurrentLinkedHashMap<K, V>(this);
-      if (executor != DEFAULT_EXEUCTOR) {
+      if (executor != DEFAULT_EXECUTOR) {
         ScheduledExecutorService es = (ScheduledExecutorService) executor;
         es.scheduleWithFixedDelay(new CatchUpTask(map), delay, delay, unit);
       }

@@ -18,7 +18,7 @@ package com.googlecode.concurrentlinkedhashmap;
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.MAXIMUM_CAPACITY;
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder.DEFAULT_CONCURRENCY_LEVEL;
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder.DEFAULT_INITIAL_CAPACITY;
-import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder.DEFAULT_EXEUCTOR;
+import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder.DEFAULT_EXECUTOR;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -149,7 +149,7 @@ public final class BuilderTest extends BaseTest {
 
   @Test(dataProvider = "builder")
   public void catchup_withDefault(Builder<?, ?> builder) {
-    assertThat(builder.build().executor, is(DEFAULT_EXEUCTOR));
+    assertThat(builder.build().executor, is(DEFAULT_EXECUTOR));
   }
 
   @Test(dataProvider = "builder")
