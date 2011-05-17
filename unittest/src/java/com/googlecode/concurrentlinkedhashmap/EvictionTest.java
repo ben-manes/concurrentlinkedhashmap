@@ -568,13 +568,9 @@ public final class EvictionTest extends BaseTest {
     for (int i = 0; i < 2 * BUFFER_THRESHOLD; i++) {
       final int id = map.nextOrdering();
       Task task = mock(Task.class);
-      when(task.getOrder()).thenAnswer(new Answer<Integer>() {
-        @Override public Integer answer(InvocationOnMock invocation) {
-          return id;
-        }
-      });
-      doAnswer(new Answer<Object>() {
-        @Override public Object answer(InvocationOnMock invocation) {
+      when(task.getOrder()).thenReturn(id);
+      doAnswer(new Answer<Void>() {
+        @Override public Void answer(InvocationOnMock invocation) {
           assertThat(id, is(expected.getAndIncrement()));
           return null;
         }
@@ -640,10 +636,10 @@ public final class EvictionTest extends BaseTest {
     map.evictionLock.lock();
     try {
       thread.start();
+      assertThat(latch.await(1, TimeUnit.SECONDS), is(true));
     } finally {
       map.evictionLock.unlock();
     }
-    assertThat(latch.await(1, TimeUnit.SECONDS), is(true));
   }
 
   @Test(dataProvider = "guardedMap")
@@ -735,7 +731,6 @@ public final class EvictionTest extends BaseTest {
 
   @Test(dataProvider = "builder")
   void drain_withShutdownExecutor(Builder<Integer, Integer> builder) {
-
     when(executor.isShutdown()).thenReturn(true);
 
     final ConcurrentLinkedHashMap<Integer, Integer> map = builder

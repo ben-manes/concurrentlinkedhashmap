@@ -207,7 +207,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
   @GuardedBy("evictionLock") // must write under lock
   volatile int weightedSize;
-  @GuardedBy("evictionLock") // must write under lock
+  @GuardedBy("evictionLock")
   volatile int capacity;
 
   volatile int globalOrder;
@@ -513,7 +513,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   }
 
   /**
-   * Runs the pending tasks to the page replacement policy.
+   * Runs the pending page replacement policy operations.
    *
    * @param tasks the ordered array of the pending operations
    * @param maxTaskIndex the maximum index of the array
@@ -829,7 +829,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     }
 
     final WeightedValue<V> weightedValue = node.get();
-    if (weightedValue.hasValue(value) && node.tryToRetire(weightedValue)) {
+    if (weightedValue.isAlive() && weightedValue.hasValue(value)
+        && node.tryToRetire(weightedValue)) {
       data.remove(key, node);
       afterCompletion(new RemovalTask(node));
       return true;
@@ -918,7 +919,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   }
 
   /**
-   * Returns a unmodifiable snapshot {@link Set} view of the keys contained in
+   * Returns an unmodifiable snapshot {@link Set} view of the keys contained in
    * this map. The set's iterator returns the keys whose order of iteration is
    * the ascending order in which its entries are considered eligible for
    * retention, from the least-likely to be retained to the most-likely.
@@ -929,7 +930,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * of the keys.
    *
    * @param limit the maximum size of the returned set
-   * @return an ascending snapshot view of the keys in this map
+   * @return a ascending snapshot view of the keys in this map
    * @throws IllegalArgumentException if the limit is negative
    */
   public Set<K> ascendingKeySetWithLimit(int limit) {
@@ -937,7 +938,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   }
 
   /**
-   * Returns a unmodifiable snapshot {@link Set} view of the keys contained in
+   * Returns an unmodifiable snapshot {@link Set} view of the keys contained in
    * this map. The set's iterator returns the keys whose order of iteration is
    * the descending order in which its entries are considered eligible for
    * retention, from the most-likely to be retained to the least-likely.
@@ -947,14 +948,14 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * replacement policy, determining the retention ordering requires a traversal
    * of the keys.
    *
-   * @return an descending snapshot view of the keys in this map
+   * @return a descending snapshot view of the keys in this map
    */
   public Set<K> descendingKeySet() {
     return orderedKeySet(false, Integer.MAX_VALUE);
   }
 
   /**
-   * Returns a unmodifiable snapshot {@link Set} view of the keys contained in
+   * Returns an unmodifiable snapshot {@link Set} view of the keys contained in
    * this map. The set's iterator returns the keys whose order of iteration is
    * the descending order in which its entries are considered eligible for
    * retention, from the most-likely to be retained to the least-likely.
@@ -965,7 +966,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * of the keys.
    *
    * @param limit the maximum size of the returned set
-   * @return an descending snapshot view of the keys in this map
+   * @return a descending snapshot view of the keys in this map
    * @throws IllegalArgumentException if the limit is negative
    */
   public Set<K> descendingKeySetWithLimit(int limit) {
@@ -985,7 +986,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       Iterator<Node> iterator = ascending
           ? evictionDeque.iterator()
           : evictionDeque.descendingIterator();
-      while (iterator.hasNext() && (limit > keys.size())) {
+      while (iterator.hasNext() && (size > keys.size())) {
         keys.add(iterator.next().key);
       }
       return unmodifiableSet(keys);
@@ -1007,7 +1008,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   }
 
   /**
-   * Returns a unmodifiable snapshot {@link Map} view of the mappings contained
+   * Returns an unmodifiable snapshot {@link Map} view of the mappings contained
    * in this map. The map's collections return the mappings whose order of
    * iteration is the ascending order in which its entries are considered
    * eligible for retention, from the least-likely to be retained to the
@@ -1018,14 +1019,14 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * policy, determining the retention ordering requires a traversal of the
    * entries.
    *
-   * @return an ascending snapshot view of this map
+   * @return a ascending snapshot view of this map
    */
   public Map<K, V> ascendingMap() {
     return orderedMap(true, Integer.MAX_VALUE);
   }
 
   /**
-   * Returns a unmodifiable snapshot {@link Map} view of the mappings contained
+   * Returns an unmodifiable snapshot {@link Map} view of the mappings contained
    * in this map. The map's collections return the mappings whose order of
    * iteration is the ascending order in which its entries are considered
    * eligible for retention, from the least-likely to be retained to the
@@ -1037,7 +1038,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * entries.
    *
    * @param limit the maximum size of the returned map
-   * @return an ascending snapshot view of this map
+   * @return a ascending snapshot view of this map
    * @throws IllegalArgumentException if the limit is negative
    */
   public Map<K, V> ascendingMapWithLimit(int limit) {
@@ -1045,7 +1046,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   }
 
   /**
-   * Returns a unmodifiable snapshot {@link Map} view of the mappings contained
+   * Returns an unmodifiable snapshot {@link Map} view of the mappings contained
    * in this map. The map's collections return the mappings whose order of
    * iteration is the descending order in which its entries are considered
    * eligible for retention, from the most-likely to be retained to the
@@ -1056,14 +1057,14 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * policy, determining the retention ordering requires a traversal of the
    * entries.
    *
-   * @return an descending snapshot view of this map
+   * @return a descending snapshot view of this map
    */
   public Map<K, V> descendingMap() {
     return orderedMap(false, Integer.MAX_VALUE);
   }
 
   /**
-   * Returns a unmodifiable snapshot {@link Map} view of the mappings contained
+   * Returns an unmodifiable snapshot {@link Map} view of the mappings contained
    * in this map. The map's collections return the mappings whose order of
    * iteration is the descending order in which its entries are considered
    * eligible for retention, from the most-likely to be retained to the
@@ -1075,7 +1076,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * entries.
    *
    * @param limit the maximum size of the returned map
-   * @return an descending snapshot view of this map
+   * @return a descending snapshot view of this map
    * @throws IllegalArgumentException if the limit is negative
    */
   public Map<K, V> descendingMapWithLimit(int limit) {
@@ -1095,7 +1096,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       Iterator<Node> iterator = ascending
           ? evictionDeque.iterator()
           : evictionDeque.descendingIterator();
-      while (iterator.hasNext() && (limit > map.size())) {
+      while (iterator.hasNext() && (size > map.size())) {
         Node node = iterator.next();
         map.put(node.key, node.getValue());
       }
@@ -1514,7 +1515,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     /** The priority order. */
     int getOrder();
 
-    /** If the task represents a add, modify, or remove operation. */
+    /** If the task represents an add, modify, or remove operation. */
     boolean isWrite();
 
     /** Returns the next task on the link chain. */
@@ -1655,7 +1656,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     }
 
     /**
-     * Specifies the maximum weighted capacity to coerces the map to and may
+     * Specifies the maximum weighted capacity to coerce the map to and may
      * exceed it temporarily.
      *
      * @param capacity the weighted threshold to bound the map by
