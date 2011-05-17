@@ -362,19 +362,20 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     int index = bufferIndex();
     int buffered = bufferLengths.incrementAndGet(index);
 
-    // A buffer may discard a read task if its length exceeds a tolerance level
-    if ((buffered <= MAXIMUM_BUFFER_SIZE) || task.isWrite()) {
-      buffers[index].add(task);
-    } else {
-      // not optimized for fail-safe scenario
-      bufferLengths.decrementAndGet(index);
-    }
-
     if (task.isWrite()) {
+      buffers[index].add(task);
       drainStatus.set(REQUIRED);
       return false;
     }
-    return (buffered <= BUFFER_THRESHOLD);
+
+    // A buffer may discard a read task if its length exceeds a tolerance level
+    if (buffered <= MAXIMUM_BUFFER_SIZE) {
+      buffers[index].add(task);
+      return (buffered <= BUFFER_THRESHOLD);
+    } else { // not optimized for fail-safe scenario
+      bufferLengths.decrementAndGet(index);
+      return false;
+    }
   }
 
   /** Returns the index to the buffer that the task should be scheduled on. */
@@ -1482,24 +1483,22 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
   /** An executor that is always terminated. */
   static final class DisabledExecutorService extends AbstractExecutorService {
-    @Override public boolean awaitTermination(long timeout, TimeUnit unit) { return true; }
     @Override public boolean isShutdown() { return true; }
     @Override public boolean isTerminated() { return true; }
     @Override public void shutdown() {}
     @Override public List<Runnable> shutdownNow() { return Collections.emptyList(); }
+    @Override public boolean awaitTermination(long timeout, TimeUnit unit) { return true; }
     @Override public void execute(Runnable command) { throw new RejectedExecutionException(); }
   }
 
   /** A queue that discards all additions and is always empty. */
   static final class DiscardingQueue extends AbstractQueue<Object> {
-    static final Iterator<Object> iter = emptyList().iterator();
-
     @Override public boolean add(Object e) { return true; }
     @Override public boolean offer(Object e) { return true; }
     @Override public Object poll() { return null; }
     @Override public Object peek() { return null; }
     @Override public int size() { return 0; }
-    @Override public Iterator<Object> iterator() { return iter; }
+    @Override public Iterator<Object> iterator() { return emptyList().iterator(); }
   }
 
   /** A listener that ignores all notifications. */

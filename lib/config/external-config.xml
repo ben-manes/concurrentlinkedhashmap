@@ -195,6 +195,16 @@
     </fileset>
   </path>
 
+  <!-- Mockito -->
+  <path id="mockito.compile.path">
+    <fileset dir="${external.dir}/mockito/1.8.5">
+      <include name="mockito-all-1.8.5.jar"/>
+    </fileset>
+  </path>
+  <path id="mockito.deploy.path">
+    <path refid="mockito.compile.path"/>
+  </path>
+
   <!-- PMD -->
   <path id="pmd.compile.path">
     <fileset dir="${external.dir}/pmd/4.2.5">

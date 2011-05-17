@@ -25,37 +25,43 @@ import static com.googlecode.concurrentlinkedhashmap.IsEmptyCollection.emptyColl
 import static com.googlecode.concurrentlinkedhashmap.IsEmptyMap.emptyMap;
 import static com.googlecode.concurrentlinkedhashmap.IsValidState.valid;
 import static java.util.Arrays.asList;
+import static java.util.concurrent.TimeUnit.MINUTES;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.mockito.Matchers.anyInt;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.DrainStatus;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Task;
 
-import org.testng.Assert;
+import org.mockito.invocation.InvocationOnMock;
+import org.mockito.stubbing.Answer;
 import org.testng.annotations.Test;
 
+import java.lang.ref.WeakReference;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Queue;
 import java.util.Set;
-import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantLock;
@@ -354,7 +360,6 @@ public final class EvictionTest extends BaseTest {
   }
 
   private void checkDecreasedCapacity(int newMaxCapacity) {
-    CollectingListener<Integer, Integer> listener = new CollectingListener<Integer, Integer>();
     ConcurrentLinkedHashMap<Integer, Integer> map = new Builder<Integer, Integer>()
         .maximumWeightedCapacity(capacity())
         .listener(listener)
@@ -365,7 +370,7 @@ public final class EvictionTest extends BaseTest {
     assertThat(map, is(valid()));
     assertThat(map.size(), is(equalTo(newMaxCapacity)));
     assertThat(map.capacity(), is(equalTo(newMaxCapacity)));
-    assertThat(listener.evicted, hasSize(capacity() - newMaxCapacity));
+    verify(listener, times(capacity() - newMaxCapacity)).onEviction(anyInt(), anyInt());
   }
 
   @Test(dataProvider = "warmedMap", expectedExceptions = IllegalArgumentException.class)
@@ -381,13 +386,10 @@ public final class EvictionTest extends BaseTest {
 
   @Test(dataProvider = "builder", expectedExceptions = IllegalStateException.class)
   public void evictionListener_fails(Builder<Integer, Integer> builder) {
+    doThrow(new IllegalStateException()).when(listener).onEviction(anyInt(), anyInt());
     ConcurrentLinkedHashMap<Integer, Integer> map = builder
-        .listener(new EvictionListener<Integer, Integer>() {
-          @Override public void onEviction(Integer key, Integer value) {
-            throw new IllegalStateException();
-          }
-        })
         .maximumWeightedCapacity(0)
+        .listener(listener)
         .build();
     try {
       warmUp(map, 0, capacity());
@@ -396,8 +398,8 @@ public final class EvictionTest extends BaseTest {
     }
   }
 
-  @Test(dataProvider = "collectingListener")
-  public void evict_alwaysDiscard(CollectingListener<Integer, Integer> listener) {
+  @Test
+  public void evict_alwaysDiscard() {
     ConcurrentLinkedHashMap<Integer, Integer> map = new Builder<Integer, Integer>()
         .maximumWeightedCapacity(0)
         .listener(listener)
@@ -405,11 +407,11 @@ public final class EvictionTest extends BaseTest {
     warmUp(map, 0, 100);
 
     assertThat(map, is(valid()));
-    assertThat(listener.evicted, hasSize(100));
+    verify(listener, times(100)).onEviction(anyInt(), anyInt());
   }
 
-  @Test(dataProvider = "collectingListener")
-  public void evict(CollectingListener<Integer, Integer> listener) {
+  @Test
+  public void evict() {
     ConcurrentLinkedHashMap<Integer, Integer> map = new Builder<Integer, Integer>()
         .maximumWeightedCapacity(10)
         .listener(listener)
@@ -419,7 +421,7 @@ public final class EvictionTest extends BaseTest {
     assertThat(map, is(valid()));
     assertThat(map.size(), is(10));
     assertThat(map.weightedSize(), is(10));
-    assertThat(listener.evicted, hasSize(10));
+    verify(listener, times(10)).onEviction(anyInt(), anyInt());
   }
 
   @Test(dataProvider = "builder")
@@ -560,92 +562,57 @@ public final class EvictionTest extends BaseTest {
   }
 
   @Test(dataProvider = "guardedMap")
-  public void applyInRecencyOrder(final ConcurrentLinkedHashMap<Integer, Integer> map)
-      throws InterruptedException {
-    final AtomicInteger tasks = new AtomicInteger();
-    final AtomicInteger executed = new AtomicInteger();
-    final class FakeTask extends DummyTask {
-      final int id = tasks.getAndIncrement();
+  public void applyInRecencyOrder(final ConcurrentLinkedHashMap<Integer, Integer> map) {
+    final AtomicInteger expected = new AtomicInteger(map.globalOrder);
 
-      FakeTask() {
-        super(map.nextOrdering());
-      }
-      @Override public void run() {
-        assertThat(id, is(executed.getAndIncrement()));
-      }
-      @Override
-      public boolean isWrite() {
-        return false;
-      }
-    }
-    final BlockingQueue<Object> ping = new SynchronousQueue<Object>();
-    final BlockingQueue<Object> pong = new SynchronousQueue<Object>();
-
-    // even tasks
-    new Thread() {
-      @Override public void run() {
-        for (int i = 0; i < BUFFER_THRESHOLD; i++) {
-          try {
-            ping.take();
-            map.afterCompletion(new FakeTask());
-            pong.put(new Object());
-          } catch (InterruptedException e) {
-            Assert.fail();
-          }
+    for (int i = 0; i < 2 * BUFFER_THRESHOLD; i++) {
+      final int id = map.nextOrdering();
+      Task task = mock(Task.class);
+      when(task.getOrder()).thenAnswer(new Answer<Integer>() {
+        @Override public Integer answer(InvocationOnMock invocation) {
+          return id;
         }
-      }
-    }.start();
+      });
+      doAnswer(new Answer<Object>() {
+        @Override public Object answer(InvocationOnMock invocation) {
+          assertThat(id, is(expected.getAndIncrement()));
+          return null;
+        }
+      }).when(task).run();
 
-    // odd tasks
-    for (int i = 0; i < BUFFER_THRESHOLD; i++) {
-      ping.put(new Object());
-      pong.take();
-
-      map.afterCompletion(new FakeTask());
+      int index = i % Runtime.getRuntime().availableProcessors();
+      map.buffers[index].add(task);
+      map.bufferLengths.getAndIncrement(index);
     }
 
-    // force a drain
-    map.tryToDrainBuffers(MAXIMUM_OPERATIONS_TO_DRAIN);
-    assertThat(executed.get(), is(equalTo(tasks.get())));
-    assertThat(executed.get(), is(2 * BUFFER_THRESHOLD));
+    map.drainBuffers(MAXIMUM_OPERATIONS_TO_DRAIN);
+    assertThat(map.buffers[bufferIndex()].size(), is(0));
+    map.bufferLengths.set(bufferIndex(), 0);
   }
 
   @Test(dataProvider = "guardedMap")
   public void exceedsMaximumBufferSize_onRead(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    int index = bufferIndex();
-    map.bufferLengths.set(index, MAXIMUM_BUFFER_SIZE);
+    map.bufferLengths.set(bufferIndex(), MAXIMUM_BUFFER_SIZE);
 
-    final boolean[] ran = { false };
-    map.afterCompletion(new DummyTask(map.nextOrdering()) {
-      @Override public void run() {
-        ran[0] = true;
-      }
-      @Override public boolean isWrite() {
-        return false;
-      }
-    });
-    assertThat(ran[0], is(false));
-    assertThat(map.buffers[index].size(), is(0));
-    map.bufferLengths.set(index, 0);
+    Task task = mock(Task.class);
+    map.afterCompletion(task);
+    verify(task, never()).run();
+
+    assertThat(map.buffers[bufferIndex()].size(), is(0));
+    map.bufferLengths.set(bufferIndex(), 0);
   }
 
   @Test(dataProvider = "guardedMap")
   public void exceedsMaximumBufferSize_onWrite(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    int index = bufferIndex();
-    map.bufferLengths.set(index, MAXIMUM_BUFFER_SIZE);
+    map.bufferLengths.set(bufferIndex(), MAXIMUM_BUFFER_SIZE);
 
-    final boolean[] ran = { false };
-    map.afterCompletion(new DummyTask(map.nextOrdering()) {
-      @Override public void run() {
-        ran[0] = true;
-      }
-      @Override public boolean isWrite() {
-        return true;
-      }
-    });
-    assertThat(ran[0], is(true));
-    assertThat(map.buffers[index].size(), is(0));
-    map.bufferLengths.set(index, 0);
+    Task task = mock(Task.class);
+    when(task.isWrite()).thenReturn(true);
+    map.afterCompletion(task);
+    verify(task, times(1)).run();
+
+    assertThat(map.buffers[bufferIndex()].size(), is(0));
+    map.bufferLengths.set(bufferIndex(), 0);
   }
 
   @Test(dataProvider = "warmedMap")
@@ -768,13 +735,13 @@ public final class EvictionTest extends BaseTest {
 
   @Test(dataProvider = "builder")
   void drain_withShutdownExecutor(Builder<Integer, Integer> builder) {
-    ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor(
-        new ThreadFactoryBuilder().setDaemon(true).build());
+
+    when(executor.isShutdown()).thenReturn(true);
+
     final ConcurrentLinkedHashMap<Integer, Integer> map = builder
-        .catchup(executor, 1, TimeUnit.MINUTES)
         .maximumWeightedCapacity(capacity())
+        .catchup(executor, 1, MINUTES)
         .build();
-    executor.shutdownNow();
     map.put(1, 1);
 
     assertThat(((ReentrantLock) map.evictionLock).isLocked(), is(false));
@@ -784,46 +751,37 @@ public final class EvictionTest extends BaseTest {
   }
 
   @Test(dataProvider = "builder")
-  void drain_withThreadedExecutor(Builder<Integer, Integer> builder) throws InterruptedException {
-    final CountDownLatch onDrain = new CountDownLatch(1);
-    ScheduledExecutorService executor = new ScheduledThreadPoolExecutor(1,
-        new ThreadFactoryBuilder().setDaemon(true).build()) {
-      @Override protected void afterExecute(Runnable r, Throwable t) {
-        onDrain.countDown();
-      }
-    };
-
-    final ConcurrentLinkedHashMap<Integer, Integer> map = builder
-        .catchup(executor, 10, TimeUnit.MICROSECONDS)
+  void drain_withExecutor(Builder<Integer, Integer> builder) {
+    ConcurrentLinkedHashMap<Integer, Integer> map = builder
         .maximumWeightedCapacity(capacity())
+        .catchup(executor, 1L, MINUTES)
         .build();
-    map.put(1, 1);
-    assertThat(onDrain.await(1, TimeUnit.SECONDS), is(true));
-    executor.shutdownNow();
+    verify(executor).scheduleWithFixedDelay(catchUpTask.capture(), eq(1L), eq(1L), eq(MINUTES));
 
-    for (Queue<?> buffer : map.buffers) {
-      assertThat(buffer.isEmpty(), is(true));
-    }
+    warmUp(map, 0, 2 * MAXIMUM_OPERATIONS_TO_DRAIN);
+    assertThat(map.buffers[bufferIndex()], hasSize(2 * MAXIMUM_OPERATIONS_TO_DRAIN));
+
+    catchUpTask.getValue().run();
+
     assertThat(((ReentrantLock) map.evictionLock).isLocked(), is(false));
     assertThat(map.drainStatus.get(), is(DrainStatus.IDLE));
+    assertThat(map.buffers[bufferIndex()], hasSize(0));
     assertThat(map, is(valid()));
   }
 
-  static abstract class DummyTask implements Task {
-    final int order;
-    Task task;
+  @Test(dataProvider = "builder", expectedExceptions = CancellationException.class)
+  void drain_garbageCollected(Builder<Integer, Integer> builder) {
+    ConcurrentLinkedHashMap<Integer, Integer> map = builder
+        .maximumWeightedCapacity(capacity())
+        .catchup(executor, 1L, MINUTES)
+        .build();
+    WeakReference<?> ref = new WeakReference<Object>(map);
+    map = null;
+    do {
+      System.gc();
+    } while (ref.get() != null);
 
-    DummyTask(int order) {
-      this.order = order;
-    }
-    @Override public int getOrder() {
-      return order;
-    }
-    @Override public Task getNext() {
-      return null;
-    }
-    @Override public void setNext(Task task) {
-      this.task = task;
-    }
+    verify(executor).scheduleWithFixedDelay(catchUpTask.capture(), eq(1L), eq(1L), eq(MINUTES));
+    catchUpTask.getValue().run();
   }
 }

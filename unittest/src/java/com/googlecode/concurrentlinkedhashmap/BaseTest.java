@@ -15,7 +15,6 @@
  */
 package com.googlecode.concurrentlinkedhashmap;
 
-import static com.google.common.collect.Maps.immutableEntry;
 import static com.googlecode.concurrentlinkedhashmap.IsValidDeque.validDeque;
 import static com.googlecode.concurrentlinkedhashmap.IsValidState.valid;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -25,17 +24,20 @@ import static org.testng.Assert.fail;
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 
+import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
 import org.testng.ITestResult;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeClass;
+import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.DataProvider;
 
 import java.io.Serializable;
-import java.util.Collection;
 import java.util.Deque;
 import java.util.Map;
-import java.util.Map.Entry;
-import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * Base utilities for testing purposes.
@@ -44,6 +46,11 @@ import java.util.concurrent.ConcurrentLinkedQueue;
  */
 public abstract class BaseTest {
   private boolean debug;
+
+  @Mock protected EvictionListener<Integer, Integer> listener;
+  @Captor protected ArgumentCaptor<Runnable> catchUpTask;
+  @Mock protected ScheduledExecutorService executor;
+  @Mock protected Weigher<Integer> weigher;
 
   /** Retrieves the maximum weighted capacity to build maps with. */
   protected abstract int capacity();
@@ -77,13 +84,18 @@ public abstract class BaseTest {
   /* ---------------- Testing aspects -------------- */
 
   @BeforeClass(alwaysRun = true)
-  public void before() {
+  public void printClassName() {
     debug = booleanProperty("test.debugMode");
     info("\nRunning %s...\n", getClass().getSimpleName());
   }
 
+  @BeforeMethod(alwaysRun = true)
+  public void initMocks() {
+    MockitoAnnotations.initMocks(this);
+  }
+
   @AfterMethod(alwaysRun = true)
-  public void after(ITestResult result) {
+  public void validateIfSuccessful(ITestResult result) {
     try {
       if (result.isSuccess()) {
         for (Object provided : result.getParameters()) {
@@ -218,34 +230,12 @@ public abstract class BaseTest {
     return new Object[][] {{ new GuardingListener<Object, Object>() }};
   }
 
-  /** Provides a listener that collects evicted entries. */
-  @DataProvider(name = "collectingListener")
-  public Object[][] providesMonitorableListener() {
-    return new Object[][] {{ new CollectingListener<Object, Object>() }};
-  }
-
   /** A listener that fails if invoked. */
   private static final class GuardingListener<K, V>
     implements EvictionListener<K, V>, Serializable {
 
     @Override public void onEviction(Object key, Object value) {
       fail(String.format("Evicted %s=%s", key, value));
-    }
-
-    private static final long serialVersionUID = 1L;
-  }
-
-  /** A listener that collects the evicted entries. */
-  protected static final class CollectingListener<K, V>
-      implements EvictionListener<K, V>, Serializable {
-    final Collection<Entry<K, V>> evicted;
-
-    public CollectingListener() {
-      this.evicted = new ConcurrentLinkedQueue<Entry<K, V>>();
-    }
-
-    @Override public void onEviction(K key, V value) {
-      evicted.add(immutableEntry(key, value));
     }
 
     private static final long serialVersionUID = 1L;

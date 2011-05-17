@@ -24,19 +24,23 @@ import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.Matchers.anyInt;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.when;
 import static org.testng.Assert.fail;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 
+import org.mockito.Mock;
 import org.testng.annotations.Test;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.util.Collection;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -49,6 +53,7 @@ import java.util.Set;
  */
 @Test(groups = "development")
 public final class WeigherTest extends BaseTest {
+  @Mock Iterable<Integer> iterable;
 
   @Override
   protected int capacity() {
@@ -77,18 +82,21 @@ public final class WeigherTest extends BaseTest {
 
   @Test(dataProvider = "byteArrayWeigher")
   public void byteArray(Weigher<byte[]> weigher) {
-    assertThat(weigher.weightOf(new byte[]{}), is(0));
+    assertThat(weigher.weightOf(new byte[] {}), is(0));
     assertThat(weigher.weightOf(new byte[] {1}), is(1));
     assertThat(weigher.weightOf(new byte[] {1, 2, 3}), is(3));
   }
 
   @Test(dataProvider = "iterableWeigher")
   public void iterable(Weigher<Iterable<?>> weigher) {
+    when(iterable.iterator())
+        .thenReturn(ImmutableList.<Integer>of().iterator())
+        .thenReturn(ImmutableList.<Integer>of(1, 2, 3).iterator());
     assertThat(weigher.weightOf(emptyList()), is(0));
-    assertThat(weigher.weightOf(asIterable(emptyList())), is(0));
+    assertThat(weigher.weightOf(iterable), is(0));
     assertThat(weigher.weightOf(asList(1)), is(1));
     assertThat(weigher.weightOf(asList(1, 2, 3)), is(3));
-    assertThat(weigher.weightOf(asIterable(asList(1, 2, 3))), is(3));
+    assertThat(weigher.weightOf(iterable), is(3));
   }
 
   @Test(dataProvider = "collectionWeigher")
@@ -121,57 +129,45 @@ public final class WeigherTest extends BaseTest {
 
   @Test(dataProvider = "builder", expectedExceptions = IllegalArgumentException.class)
   public void put_withNegativeWeight(Builder<Integer, Integer> builder) {
-    Weigher<Integer> weigher = new Weigher<Integer>() {
-      @Override public int weightOf(Integer value) {
-        return -1;
-      }
-    };
     ConcurrentLinkedHashMap<Integer, Integer> map = builder
         .maximumWeightedCapacity(capacity())
         .weigher(weigher).build();
+    when(weigher.weightOf(anyInt())).thenReturn(-1);
     map.put(1, 2);
   }
 
   @Test(dataProvider = "builder", expectedExceptions = IllegalArgumentException.class)
   public void put_withZeroWeight(Builder<Integer, Integer> builder) {
-    Weigher<Integer> weigher = new Weigher<Integer>() {
-      @Override public int weightOf(Integer value) {
-        return 0;
-      }
-    };
     ConcurrentLinkedHashMap<Integer, Integer> map = builder
         .maximumWeightedCapacity(capacity())
         .weigher(weigher).build();
+    doReturn(0).when(weigher).weightOf(anyInt());
     map.put(1, 2);
   }
 
   @Test(dataProvider = "builder", expectedExceptions = IllegalArgumentException.class)
   public void put_withAboveMaximumWeight(Builder<Integer, Integer> builder) {
-    Weigher<Integer> weigher = new Weigher<Integer>() {
-      @Override public int weightOf(Integer value) {
-        return MAXIMUM_WEIGHT + 1;
-      }
-    };
     ConcurrentLinkedHashMap<Integer, Integer> map = builder
         .maximumWeightedCapacity(capacity())
         .weigher(weigher).build();
+    doReturn(MAXIMUM_WEIGHT + 1).when(weigher).weightOf(anyInt());
     map.put(1, 2);
   }
 
   @Test(dataProvider = "builder")
   public void put_withIntegerOverflow(Builder<Integer, Integer> builder) {
-    final boolean[] useMax = { true };
     ConcurrentLinkedHashMap<Integer, Integer> map = builder
         .maximumWeightedCapacity(MAXIMUM_CAPACITY)
-        .weigher(new Weigher<Integer>() {
-          @Override public int weightOf(Integer value) {
-            return useMax[0] ? MAXIMUM_WEIGHT : 1;
-          }
-        }).build();
+        .weigher(weigher)
+        .build();
+
+    doReturn(MAXIMUM_WEIGHT).when(weigher).weightOf(1);
+    doReturn(MAXIMUM_WEIGHT).when(weigher).weightOf(2);
+    doReturn(1).when(weigher).weightOf(3);
+
     map.putAll(ImmutableMap.of(1, 1, 2, 2));
     assertThat(map.size(), is(2));
     assertThat(map.weightedSize(), is(MAXIMUM_CAPACITY));
-    useMax[0] = false;
     map.put(3, 3);
     assertThat(map.size(), is(2));
     assertThat(map.weightedSize(), is(MAXIMUM_WEIGHT + 1));
@@ -281,13 +277,5 @@ public final class WeigherTest extends BaseTest {
     map.clear();
     assertThat(map.size(), is(0));
     assertThat(map.weightedSize(), is(0));
-  }
-
-  private <E> Iterable<E> asIterable(final Collection<E> c) {
-    return new Iterable<E>() {
-      @Override public Iterator<E> iterator() {
-        return c.iterator();
-      }
-    };
   }
 }

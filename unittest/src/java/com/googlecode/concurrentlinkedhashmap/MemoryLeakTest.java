@@ -27,7 +27,6 @@ import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import java.text.NumberFormat;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
@@ -51,7 +50,6 @@ public final class MemoryLeakTest {
 
   private ConcurrentLinkedHashMap<Long, Long> map;
   private ScheduledExecutorService statusExecutor;
-  private ExecutorService catchupExecutor;
 
   @BeforeMethod
   public void beforeMemoryLeakTest() {
@@ -59,7 +57,6 @@ public final class MemoryLeakTest {
         .setPriority(Thread.MAX_PRIORITY)
         .setDaemon(true)
         .build();
-    catchupExecutor = Executors.newSingleThreadExecutor(threadFactory);
     statusExecutor = Executors.newSingleThreadScheduledExecutor(threadFactory);
     statusExecutor.scheduleAtFixedRate(newStatusTask(),
         STATUS_INTERVAL, STATUS_INTERVAL, TimeUnit.MILLISECONDS);
@@ -70,7 +67,6 @@ public final class MemoryLeakTest {
 
   @AfterMethod
   public void afterMemoryLeakTest() {
-    catchupExecutor.shutdownNow();
     statusExecutor.shutdownNow();
   }
 
