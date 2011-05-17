@@ -64,7 +64,7 @@ public final class BuilderTest extends BaseTest {
 
   @Test(dataProvider = "builder")
   public void initialCapacity_withDefault(Builder<?, ?> builder) {
-    assertThat(builder.initialCapacity, is(equalTo(DEFAULT_INITIAL_CAPACITY)));
+    assertThat(builder.initialCapacity, is(DEFAULT_INITIAL_CAPACITY));
     builder.build(); // can't check, so just assert that it builds
   }
 
@@ -87,7 +87,7 @@ public final class BuilderTest extends BaseTest {
   @Test(dataProvider = "builder")
   public void maximumWeightedCapacity_aboveMaximum(Builder<?, ?> builder) {
     builder.maximumWeightedCapacity(MAXIMUM_CAPACITY + 1);
-    assertThat(builder.build().capacity(), is(equalTo(MAXIMUM_CAPACITY)));
+    assertThat(builder.build().capacity(), is(MAXIMUM_CAPACITY));
   }
 
   @Test(dataProvider = "builder", expectedExceptions = IllegalArgumentException.class)
@@ -102,7 +102,7 @@ public final class BuilderTest extends BaseTest {
 
   @Test(dataProvider = "builder")
   public void concurrencyLevel_withDefault(Builder<?, ?> builder) {
-    assertThat(builder.build().concurrencyLevel, is(equalTo(DEFAULT_CONCURRENCY_LEVEL)));
+    assertThat(builder.build().concurrencyLevel, is(DEFAULT_CONCURRENCY_LEVEL));
   }
 
   @Test(dataProvider = "builder")

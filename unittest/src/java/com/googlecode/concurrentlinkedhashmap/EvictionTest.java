@@ -15,10 +15,12 @@
  */
 package com.googlecode.concurrentlinkedhashmap;
 
+import static com.google.common.collect.Maps.newLinkedHashMap;
+import static com.google.common.collect.Sets.newLinkedHashSet;
+import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.AMORTIZED_DRAIN_THRESHOLD;
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.BUFFER_THRESHOLD;
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.MAXIMUM_BUFFER_SIZE;
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.MAXIMUM_CAPACITY;
-import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.AMORTIZED_DRAIN_THRESHOLD;
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.bufferIndex;
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.DrainStatus.REQUIRED;
 import static com.googlecode.concurrentlinkedhashmap.IsEmptyCollection.emptyCollection;
@@ -55,8 +57,6 @@ import org.testng.annotations.Test;
 
 import java.lang.ref.WeakReference;
 import java.util.Collection;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -83,7 +83,7 @@ public final class EvictionTest extends BaseTest {
 
   @Test(dataProvider = "warmedMap")
   public void ascendingKeySet(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    Map<Integer, Integer> expected = new LinkedHashMap<Integer, Integer>();
+    Map<Integer, Integer> expected = newLinkedHashMap();
     warmUp(expected, 0, capacity());
 
     assertThat(map.ascendingKeySet(), is(equalTo(expected.keySet())));
@@ -91,7 +91,7 @@ public final class EvictionTest extends BaseTest {
 
   @Test(dataProvider = "warmedMap")
   public void ascendingKeySet_snapshot(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    Map<Integer, Integer> expected = new LinkedHashMap<Integer, Integer>();
+    Map<Integer, Integer> expected = newLinkedHashMap();
     warmUp(expected, 0, capacity());
 
     Set<Integer> original = map.ascendingKeySet();
@@ -102,7 +102,7 @@ public final class EvictionTest extends BaseTest {
 
   @Test(dataProvider = "warmedMap")
   public void ascendingKeySetWithLimit_greaterThan(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    Map<Integer, Integer> expected = new LinkedHashMap<Integer, Integer>();
+    Map<Integer, Integer> expected = newLinkedHashMap();
     warmUp(expected, 0, capacity() / 2);
 
     assertThat(map.ascendingKeySetWithLimit(capacity() / 2), is(equalTo(expected.keySet())));
@@ -110,7 +110,7 @@ public final class EvictionTest extends BaseTest {
 
   @Test(dataProvider = "warmedMap")
   public void ascendingKeySetWithLimit_lessThan(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    Map<Integer, Integer> expected = new LinkedHashMap<Integer, Integer>();
+    Map<Integer, Integer> expected = newLinkedHashMap();
     warmUp(expected, 0, capacity());
 
     assertThat(map.ascendingKeySetWithLimit(capacity() * 2), is(equalTo(expected.keySet())));
@@ -118,7 +118,7 @@ public final class EvictionTest extends BaseTest {
 
   @Test(dataProvider = "warmedMap")
   public void ascendingKeySetWithLimit_snapshot(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    Map<Integer, Integer> expected = new LinkedHashMap<Integer, Integer>();
+    Map<Integer, Integer> expected = newLinkedHashMap();
     warmUp(expected, 0, capacity() / 2);
 
     Set<Integer> original = map.ascendingKeySetWithLimit(capacity() / 2);
@@ -141,7 +141,7 @@ public final class EvictionTest extends BaseTest {
 
   @Test(dataProvider = "warmedMap")
   public void descendingKeySet(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    Set<Integer> expected = new LinkedHashSet<Integer>();
+    Set<Integer> expected = newLinkedHashSet();
     for (int i = capacity() - 1; i >= 0; i--) {
       expected.add(i);
     }
@@ -150,7 +150,7 @@ public final class EvictionTest extends BaseTest {
 
   @Test(dataProvider = "warmedMap")
   public void descendingKeySet_snapshot(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    Set<Integer> expected = new LinkedHashSet<Integer>();
+    Set<Integer> expected = newLinkedHashSet();
     for (int i = capacity() - 1; i >= 0; i--) {
       expected.add(i);
     }
@@ -163,7 +163,7 @@ public final class EvictionTest extends BaseTest {
 
   @Test(dataProvider = "warmedMap")
   public void descendingKeySetWithLimit_greaterThan(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    Set<Integer> expected = new LinkedHashSet<Integer>();
+    Set<Integer> expected = newLinkedHashSet();
     for (int i = capacity() - 1; i >= capacity() / 2; i--) {
       expected.add(i);
     }
@@ -172,7 +172,7 @@ public final class EvictionTest extends BaseTest {
 
   @Test(dataProvider = "warmedMap")
   public void descendingKeySetWithLimit_lessThan(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    Set<Integer> expected = new LinkedHashSet<Integer>();
+    Set<Integer> expected = newLinkedHashSet();
     for (int i = capacity() - 1; i >= 0; i--) {
       expected.add(i);
     }
@@ -181,7 +181,7 @@ public final class EvictionTest extends BaseTest {
 
   @Test(dataProvider = "warmedMap")
   public void descendingKeySetWithLimit_snapshot(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    Set<Integer> expected = new LinkedHashSet<Integer>();
+    Set<Integer> expected = newLinkedHashSet();
     for (int i = capacity() - 1; i >= capacity() / 2; i--) {
       expected.add(i);
     }
@@ -206,7 +206,7 @@ public final class EvictionTest extends BaseTest {
 
   @Test(dataProvider = "warmedMap")
   public void ascendingMap(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    Map<Integer, Integer> expected = new LinkedHashMap<Integer, Integer>();
+    Map<Integer, Integer> expected = newLinkedHashMap();
     warmUp(expected, 0, capacity());
 
     assertThat(map.ascendingMap(), is(equalTo(expected)));
@@ -214,7 +214,7 @@ public final class EvictionTest extends BaseTest {
 
   @Test(dataProvider = "warmedMap")
   public void ascendingMap_snapshot(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    Map<Integer, Integer> expected = new LinkedHashMap<Integer, Integer>();
+    Map<Integer, Integer> expected = newLinkedHashMap();
     warmUp(expected, 0, capacity());
 
     Map<Integer, Integer> original = map.ascendingMap();
@@ -225,7 +225,7 @@ public final class EvictionTest extends BaseTest {
 
   @Test(dataProvider = "warmedMap")
   public void ascendingMapWithLimit_greaterThan(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    Map<Integer, Integer> expected = new LinkedHashMap<Integer, Integer>();
+    Map<Integer, Integer> expected = newLinkedHashMap();
     warmUp(expected, 0, capacity() / 2);
 
     assertThat(map.ascendingMapWithLimit(capacity() / 2), is(equalTo(expected)));
@@ -233,7 +233,7 @@ public final class EvictionTest extends BaseTest {
 
   @Test(dataProvider = "warmedMap")
   public void ascendingMapWithLimit_lessThan(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    Map<Integer, Integer> expected = new LinkedHashMap<Integer, Integer>();
+    Map<Integer, Integer> expected = newLinkedHashMap();
     warmUp(expected, 0, capacity());
 
     assertThat(map.ascendingMapWithLimit(capacity() * 2), is(equalTo(expected)));
@@ -241,7 +241,7 @@ public final class EvictionTest extends BaseTest {
 
   @Test(dataProvider = "warmedMap")
   public void ascendingMapWithLimit_snapshot(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    Map<Integer, Integer> expected = new LinkedHashMap<Integer, Integer>();
+    Map<Integer, Integer> expected = newLinkedHashMap();
     warmUp(expected, 0, capacity() / 2);
 
     Map<Integer, Integer> original = map.ascendingMapWithLimit(capacity() / 2);
@@ -264,7 +264,7 @@ public final class EvictionTest extends BaseTest {
 
   @Test(dataProvider = "warmedMap")
   public void descendingMap(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    Map<Integer, Integer> expected = new LinkedHashMap<Integer, Integer>();
+    Map<Integer, Integer> expected = newLinkedHashMap();
     for (int i = capacity() - 1; i >= 0; i--) {
       expected.put(i, -i);
     }
@@ -273,7 +273,7 @@ public final class EvictionTest extends BaseTest {
 
   @Test(dataProvider = "warmedMap")
   public void descendingMap_snapshot(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    Map<Integer, Integer> expected = new LinkedHashMap<Integer, Integer>();
+    Map<Integer, Integer> expected = newLinkedHashMap();
     for (int i = capacity() - 1; i >= 0; i--) {
       expected.put(i, -i);
     }
@@ -286,7 +286,7 @@ public final class EvictionTest extends BaseTest {
 
   @Test(dataProvider = "warmedMap")
   public void descendingMapWithLimit_greaterThan(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    Map<Integer, Integer> expected = new LinkedHashMap<Integer, Integer>();
+    Map<Integer, Integer> expected = newLinkedHashMap();
     for (int i = capacity() - 1; i >= capacity() / 2; i--) {
       expected.put(i, -i);
     }
@@ -295,7 +295,7 @@ public final class EvictionTest extends BaseTest {
 
   @Test(dataProvider = "warmedMap")
   public void descendingMapWithLimit_lessThan(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    Map<Integer, Integer> expected = new LinkedHashMap<Integer, Integer>();
+    Map<Integer, Integer> expected = newLinkedHashMap();
     for (int i = capacity() - 1; i >= 0; i--) {
       expected.put(i, -i);
     }
@@ -304,7 +304,7 @@ public final class EvictionTest extends BaseTest {
 
   @Test(dataProvider = "warmedMap")
   public void descendingMapWithLimit_snapshot(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    Map<Integer, Integer> expected = new LinkedHashMap<Integer, Integer>();
+    Map<Integer, Integer> expected = newLinkedHashMap();
     for (int i = capacity() - 1; i >= capacity() / 2; i--) {
       expected.put(i, -i);
     }
@@ -702,7 +702,7 @@ public final class EvictionTest extends BaseTest {
     });
   }
 
-  void checkDrainBlocks(final ConcurrentLinkedHashMap<Integer, Integer> map, Runnable task)
+  void checkDrainBlocks(final ConcurrentLinkedHashMap<Integer, Integer> map, final Runnable task)
       throws InterruptedException {
     final ReentrantLock lock = (ReentrantLock) map.evictionLock;
     final CountDownLatch begin = new CountDownLatch(1);
@@ -712,7 +712,7 @@ public final class EvictionTest extends BaseTest {
       @Override public void run() {
         map.drainStatus.set(REQUIRED);
         begin.countDown();
-        map.clear();
+        task.run();
         end.countDown();
       }
     };

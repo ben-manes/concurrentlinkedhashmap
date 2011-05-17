@@ -40,7 +40,7 @@ import java.util.Map;
 import java.util.concurrent.ScheduledExecutorService;
 
 /**
- * Base utilities for testing purposes.
+ * A base testing harness for simplifying unit tests.
  *
  * @author ben.manes@gmail.com (Ben Manes)
  */
@@ -84,7 +84,7 @@ public abstract class BaseTest {
   /* ---------------- Testing aspects -------------- */
 
   @BeforeClass(alwaysRun = true)
-  public void printClassName() {
+  public void initClass() {
     debug = booleanProperty("test.debugMode");
     info("\nRunning %s...\n", getClass().getSimpleName());
   }

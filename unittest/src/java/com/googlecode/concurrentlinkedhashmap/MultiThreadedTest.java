@@ -31,7 +31,7 @@ import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Node;
 
 import org.apache.commons.lang.SerializationUtils;
-import org.testng.annotations.BeforeClass;
+import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import java.util.Arrays;
@@ -70,38 +70,12 @@ public final class MultiThreadedTest extends BaseTest {
     return intProperty("multiThreaded.maximumCapacity");
   }
 
-  @BeforeClass(alwaysRun = true)
+  @BeforeMethod(alwaysRun = true)
   public void beforeMultiThreaded() {
     iterations = intProperty("multiThreaded.iterations");
     nThreads = intProperty("multiThreaded.nThreads");
     timeout = intProperty("multiThreaded.timeout");
     failures = new ConcurrentLinkedQueue<String>();
-  }
-
-  @Test(dataProvider = "builder")
-  public void weightedConcurrency(Builder<Integer, List<Integer>> builder) {
-    final ConcurrentLinkedHashMap<Integer, List<Integer>> map = builder
-        .weigher(Weighers.<Integer>list())
-        .maximumWeightedCapacity(nThreads)
-        .build();
-    final Queue<List<Integer>> values = new ConcurrentLinkedQueue<List<Integer>>();
-    for (int i = 1; i <= nThreads; i++) {
-      Integer[] array = new Integer[i];
-      Arrays.fill(array, Integer.MIN_VALUE);
-      values.add(Arrays.asList(array));
-    }
-    executeWithTimeOut(map, new Callable<Long>() {
-      @Override public Long call() throws Exception {
-        return timeTasks(nThreads, new Runnable() {
-          @Override public void run() {
-            List<Integer> value = values.poll();
-            for (int i = 0; i < iterations; i++) {
-              map.put(i % 10, value);
-            }
-          }
-        });
-      }
-    });
   }
 
   @Test(dataProvider = "builder")
@@ -119,6 +93,33 @@ public final class MultiThreadedTest extends BaseTest {
     executeWithTimeOut(map, new Callable<Long>() {
       @Override public Long call() throws Exception {
         return timeTasks(nThreads, new Thrasher(map, sets));
+      }
+    });
+  }
+
+  @Test(dataProvider = "builder")
+  public void weightedConcurrency(Builder<Integer, List<Integer>> builder) {
+    final ConcurrentLinkedHashMap<Integer, List<Integer>> map = builder
+        .weigher(Weighers.<Integer>list())
+        .maximumWeightedCapacity(nThreads)
+        .concurrencyLevel(nThreads)
+        .build();
+    final Queue<List<Integer>> values = new ConcurrentLinkedQueue<List<Integer>>();
+    for (int i = 1; i <= nThreads; i++) {
+      Integer[] array = new Integer[i];
+      Arrays.fill(array, Integer.MIN_VALUE);
+      values.add(Arrays.asList(array));
+    }
+    executeWithTimeOut(map, new Callable<Long>() {
+      @Override public Long call() throws Exception {
+        return timeTasks(nThreads, new Runnable() {
+          @Override public void run() {
+            List<Integer> value = values.poll();
+            for (int i = 0; i < iterations; i++) {
+              map.put(i % 10, value);
+            }
+          }
+        });
       }
     });
   }
