@@ -18,7 +18,7 @@ package com.googlecode.concurrentlinkedhashmap;
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.BUFFER_THRESHOLD;
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.MAXIMUM_BUFFER_SIZE;
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.MAXIMUM_CAPACITY;
-import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.MAXIMUM_OPERATIONS_TO_DRAIN;
+import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.AMORTIZED_DRAIN_THRESHOLD;
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.bufferIndex;
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.DrainStatus.REQUIRED;
 import static com.googlecode.concurrentlinkedhashmap.IsEmptyCollection.emptyCollection;
@@ -489,7 +489,7 @@ public final class EvictionTest extends BaseTest {
 
   private void checkContainsInOrder(ConcurrentLinkedHashMap<Integer, Integer> map,
       Integer... expect) {
-    map.tryToDrainBuffers(MAXIMUM_OPERATIONS_TO_DRAIN);
+    map.tryToDrainBuffers(AMORTIZED_DRAIN_THRESHOLD);
     List<Integer> evictionList = Lists.newArrayList();
     for (ConcurrentLinkedHashMap<Integer, Integer>.Node node : map.evictionDeque) {
       evictionList.add(node.key);
@@ -554,7 +554,7 @@ public final class EvictionTest extends BaseTest {
     ConcurrentLinkedHashMap<?, ?>.Node first = map.evictionDeque.peek();
 
     operation.run();
-    map.drainBuffers(MAXIMUM_OPERATIONS_TO_DRAIN);
+    map.drainBuffers(AMORTIZED_DRAIN_THRESHOLD);
 
     assertThat(map.evictionDeque.peekFirst(), is(not(first)));
     assertThat(map.evictionDeque.peekLast(), is(first));
@@ -581,7 +581,7 @@ public final class EvictionTest extends BaseTest {
       map.bufferLengths.getAndIncrement(index);
     }
 
-    map.drainBuffers(MAXIMUM_OPERATIONS_TO_DRAIN);
+    map.drainBuffers(AMORTIZED_DRAIN_THRESHOLD);
     assertThat(map.buffers[bufferIndex()].size(), is(0));
     map.bufferLengths.set(bufferIndex(), 0);
   }
@@ -629,7 +629,7 @@ public final class EvictionTest extends BaseTest {
     Thread thread = new Thread() {
       @Override public void run() {
         map.drainStatus.set(REQUIRED);
-        map.tryToDrainBuffers(MAXIMUM_OPERATIONS_TO_DRAIN);
+        map.tryToDrainBuffers(AMORTIZED_DRAIN_THRESHOLD);
         latch.countDown();
       }
     };
@@ -753,8 +753,8 @@ public final class EvictionTest extends BaseTest {
         .build();
     verify(executor).scheduleWithFixedDelay(catchUpTask.capture(), eq(1L), eq(1L), eq(MINUTES));
 
-    warmUp(map, 0, 2 * MAXIMUM_OPERATIONS_TO_DRAIN);
-    assertThat(map.buffers[bufferIndex()], hasSize(2 * MAXIMUM_OPERATIONS_TO_DRAIN));
+    warmUp(map, 0, 2 * AMORTIZED_DRAIN_THRESHOLD);
+    assertThat(map.buffers[bufferIndex()], hasSize(2 * AMORTIZED_DRAIN_THRESHOLD));
 
     catchUpTask.getValue().run();
 

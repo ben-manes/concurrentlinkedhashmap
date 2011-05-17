@@ -15,7 +15,7 @@
  */
 package com.googlecode.concurrentlinkedhashmap;
 
-import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.MAXIMUM_OPERATIONS_TO_DRAIN;
+import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.AMORTIZED_DRAIN_THRESHOLD;
 
 import com.google.common.collect.ImmutableMap;
 
@@ -56,7 +56,7 @@ public final class IsEmptyMap extends TypeSafeDiagnosingMatcher<Map<?, ?>> {
   }
 
   private void checkIsEmpty(ConcurrentLinkedHashMap<?, ?> map, DescriptionBuilder builder) {
-    map.tryToDrainBuffers(MAXIMUM_OPERATIONS_TO_DRAIN);
+    map.tryToDrainBuffers(AMORTIZED_DRAIN_THRESHOLD);
 
     builder.expectEqual(map.size(), 0, "Size != 0");
     builder.expect(map.data.isEmpty(), "Internal not empty");

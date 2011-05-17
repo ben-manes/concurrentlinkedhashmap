@@ -167,7 +167,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   static final int BUFFER_MASK;
 
   /** The maximum number of operations to perform per amortized drain. */
-  static final int MAXIMUM_OPERATIONS_TO_DRAIN;
+  static final int AMORTIZED_DRAIN_THRESHOLD;
 
   static {
     // Find the power-of-two best matching the number of available processors
@@ -176,7 +176,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     while (buffers < availableProcessors) {
       buffers <<= 1;
     }
-    MAXIMUM_OPERATIONS_TO_DRAIN = (1 + buffers) * BUFFER_THRESHOLD;
+    AMORTIZED_DRAIN_THRESHOLD = (1 + buffers) * BUFFER_THRESHOLD;
     NUMBER_OF_BUFFERS = buffers;
     BUFFER_MASK = buffers - 1;
   }
@@ -205,10 +205,9 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   @GuardedBy("evictionLock")
   final LinkedDeque<Node> evictionDeque;
 
+  volatile int capacity;
   @GuardedBy("evictionLock") // must write under lock
   volatile int weightedSize;
-  @GuardedBy("evictionLock")
-  volatile int capacity;
 
   volatile int globalOrder;
   @GuardedBy("evictionLock")
@@ -296,7 +295,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
     evictionLock.lock();
     try {
-      drainBuffers(MAXIMUM_OPERATIONS_TO_DRAIN);
+      drainBuffers(AMORTIZED_DRAIN_THRESHOLD);
       evict();
     } finally {
       evictionLock.unlock();
@@ -346,8 +345,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    */
   void afterCompletion(Task task) {
     boolean delayable = schedule(task);
-    if (executor.isShutdown()) {
-      tryToDrainBuffers(MAXIMUM_OPERATIONS_TO_DRAIN, delayable);
+    if (shouldDrainBuffers(delayable)) {
+      tryToDrainBuffers(AMORTIZED_DRAIN_THRESHOLD);
     }
     notifyListener();
   }
@@ -387,17 +386,17 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   }
 
   /**
-   * Attempts to acquire the eviction lock and apply the pending operations to
-   * the page replacement policy.
+   * Determines whether the buffers should be drained.
    *
-   * @param maxToDrain the maximum number of operations to drain
    * @param delayable if a drain should be delayed until required
+   * @return if a drain should be attempted
    */
-  void tryToDrainBuffers(int maxToDrain, boolean delayable) {
-    DrainStatus status = drainStatus.get();
-    if ((status != PROCESSING) && (!delayable || (status == REQUIRED))) {
-      tryToDrainBuffers(maxToDrain);
+  boolean shouldDrainBuffers(boolean delayable) {
+    if (executor.isShutdown()) {
+      DrainStatus status = drainStatus.get();
+      return (status != PROCESSING) && (!delayable || (status == REQUIRED));
     }
+    return false;
   }
 
   /**
@@ -412,8 +411,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
         drainStatus.set(PROCESSING);
         drainBuffers(maxToDrain);
       } finally {
-        evictionLock.unlock();
         drainStatus.compareAndSet(PROCESSING, IDLE);
+        evictionLock.unlock();
       }
     }
   }
@@ -425,10 +424,10 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    */
   @GuardedBy("evictionLock")
   void drainBuffers(int maxToDrain) {
-    // A strict ordering is achieved by observing that each buffer contains
-    // tasks in a weakly sorted order starting from the last drain. The buffers
-    // can be merged into a sorted list in O(n) time by using counting sort and
-    // chaining on a collision.
+    // A mostly strict ordering is achieved by observing that each buffer
+    // contains tasks in a weakly sorted order starting from the last drain.
+    // The buffers can be merged into a sorted list in O(n) time by using
+    // counting sort and chaining on a collision.
 
     // The output is capped to the expected number of tasks plus additional
     // slack to optimistically handle the concurrent additions to the buffers.
@@ -979,7 +978,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     }
     evictionLock.lock();
     try {
-      drainBuffers(MAXIMUM_OPERATIONS_TO_DRAIN);
+      drainBuffers(AMORTIZED_DRAIN_THRESHOLD);
 
       int size = Math.min(limit, evictionDeque.size());
       Set<K> keys = new LinkedHashSet<K>(size);
@@ -1089,7 +1088,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     }
     evictionLock.lock();
     try {
-      drainBuffers(MAXIMUM_OPERATIONS_TO_DRAIN);
+      drainBuffers(AMORTIZED_DRAIN_THRESHOLD);
 
       int size = Math.min(limit, evictionDeque.size());
       Map<K, V> map = new LinkedHashMap<K, V>(size);
@@ -1189,6 +1188,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       this.next = next;
     }
 
+    /** Retrieves the value held by the current {@link WeightedValue}. */
     V getValue() {
       return get().value;
     }
@@ -1218,6 +1218,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
      * Atomically sets the node to the <tt>dead</tt> state and decrements the
      * <tt>weightedSize</tt>.
      */
+    @GuardedBy("evictionLock")
     void makeDead() {
       for (;;) {
         WeightedValue<V> current = get();
@@ -1729,8 +1730,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
      * @param delay the delay between executions
      * @param unit the time unit of the delay parameter
      * @throws NullPointerException if the executor or time unit is null
-     * @throws IllegalArgumentException if the delay Level is less than or equal
-     *     to zero
+     * @throws IllegalArgumentException if the delay is less than or equal to
+     *     zero
      */
     public Builder<K, V> catchup(ScheduledExecutorService executor, long delay, TimeUnit unit) {
       if (delay <= 0) {

@@ -15,7 +15,7 @@
  */
 package com.googlecode.concurrentlinkedhashmap;
 
-import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.MAXIMUM_OPERATIONS_TO_DRAIN;
+import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.AMORTIZED_DRAIN_THRESHOLD;
 
 import com.google.common.collect.Sets;
 
@@ -55,7 +55,7 @@ public final class IsValidState extends TypeSafeDiagnosingMatcher<ConcurrentLink
 
   private void drain(ConcurrentLinkedHashMap<?, ?> map) {
     for (;;) {
-      map.tryToDrainBuffers(MAXIMUM_OPERATIONS_TO_DRAIN);
+      map.tryToDrainBuffers(AMORTIZED_DRAIN_THRESHOLD);
 
       int pending = 0;
       for (int i = 0; i < map.bufferLengths.length(); i++) {
