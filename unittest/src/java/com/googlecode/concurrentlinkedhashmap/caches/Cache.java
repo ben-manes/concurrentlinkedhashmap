@@ -106,7 +106,7 @@ public enum Cache {
   /** ConcurrentMap with no eviction policy (unbounded). */
   ConcurrentHashMap() {
     @Override public <K, V> ConcurrentMap<K, V> create(CacheBuilder builder) {
-      return new ConcurrentHashMap<K, V>(builder.maximumCapacity, 0.75f, builder.concurrencyLevel);
+      return new ConcurrentHashMap<K, V>(builder.initialCapacity, 0.75f, builder.concurrencyLevel);
     }
   },
 
