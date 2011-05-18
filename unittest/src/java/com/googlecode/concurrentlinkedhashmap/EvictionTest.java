@@ -753,8 +753,8 @@ public final class EvictionTest extends BaseTest {
         .build();
     verify(executor).scheduleWithFixedDelay(catchUpTask.capture(), eq(1L), eq(1L), eq(MINUTES));
 
-    warmUp(map, 0, 2 * AMORTIZED_DRAIN_THRESHOLD);
-    assertThat(map.buffers[bufferIndex()], hasSize(2 * AMORTIZED_DRAIN_THRESHOLD));
+    warmUp(map, 0, 2 * BUFFER_THRESHOLD);
+    assertThat(map.buffers[bufferIndex()], hasSize(2 * BUFFER_THRESHOLD));
 
     catchUpTask.getValue().run();
 

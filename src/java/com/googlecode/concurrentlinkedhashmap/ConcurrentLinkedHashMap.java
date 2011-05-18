@@ -984,7 +984,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       Iterator<Node> iterator = ascending
           ? evictionDeque.iterator()
           : evictionDeque.descendingIterator();
-      while (iterator.hasNext() && (size > keys.size())) {
+      while (size > keys.size()) {
         keys.add(iterator.next().key);
       }
       return unmodifiableSet(keys);
@@ -1094,7 +1094,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       Iterator<Node> iterator = ascending
           ? evictionDeque.iterator()
           : evictionDeque.descendingIterator();
-      while (iterator.hasNext() && (size > map.size())) {
+      while (size > map.size()) {
         Node node = iterator.next();
         map.put(node.key, node.getValue());
       }
