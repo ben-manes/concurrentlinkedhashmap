@@ -828,9 +828,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     }
 
     final WeightedValue<V> weightedValue = node.get();
-    if (weightedValue.isAlive() && weightedValue.hasValue(value)
-        && node.tryToRetire(weightedValue)) {
-      data.remove(key, node);
+    if (weightedValue.hasValue(value) && node.tryToRetire(weightedValue)
+        && data.remove(key, node)) {
       afterCompletion(new RemovalTask(node));
       return true;
     }
@@ -1193,30 +1192,41 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       return get().value;
     }
 
-    /** Atomically sets the node to the <tt>retired</tt> state. */
+    /**
+     * Atomically transitions the node from the <tt>alive</tt> state to the
+     * <tt>retired</tt> state, if a valid transition.
+     */
     void makeRetired() {
       for (;;) {
         WeightedValue<V> current = get();
-        if (tryToRetire(current)) {
+        if (!current.isAlive()) {
+          return;
+        }
+        WeightedValue<V> retired = new WeightedValue<V>(current.value, -current.weight);
+        if (compareAndSet(current, retired)) {
           return;
         }
       }
     }
 
     /**
-     * Attempts to set the node to the <tt>retired</tt> state.
+     * Attempts to transitions the node from the <tt>alive</tt> state to the
+     * <tt>retired</tt> state.
      *
      * @param expect the expected weighted value
      * @return if successful
      */
     boolean tryToRetire(WeightedValue<V> expect) {
-      WeightedValue<V> retired = new WeightedValue<V>(expect.value, -expect.weight);
-      return compareAndSet(expect, retired);
+      if (expect.isAlive()) {
+        WeightedValue<V> retired = new WeightedValue<V>(expect.value, -expect.weight);
+        return compareAndSet(expect, retired);
+      }
+      return false;
     }
 
     /**
-     * Atomically sets the node to the <tt>dead</tt> state and decrements the
-     * <tt>weightedSize</tt>.
+     * Atomically transitions the node to the <tt>dead</tt> state and decrements
+     * the <tt>weightedSize</tt>.
      */
     @GuardedBy("evictionLock")
     void makeDead() {
@@ -1364,7 +1374,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
     @Override
     public Iterator<Entry<K, V>> iterator() {
-      return new EntryIterator(map.data.values().iterator());
+      return new EntryIterator();
     }
 
     @Override
@@ -1394,12 +1404,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
   /** An adapter to safely externalize the entry iterator. */
   final class EntryIterator implements Iterator<Entry<K, V>> {
-    final Iterator<Node> iterator;
+    final Iterator<Node> iterator = data.values().iterator();
     Node current;
-
-    EntryIterator(Iterator<Node> iterator) {
-      this.iterator = iterator;
-    }
 
     @Override
     public boolean hasNext() {
@@ -1719,6 +1725,10 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
     /**
      * Specifies an executor for use in catching up the page replacement policy.
+     * The catch-up phase processes both updates to the retention ordering and
+     * writes that may trigger an eviction. The delay should be chosen carefully
+     * as the map will not automatically evict between executions.
+     * <p>
      * If unspecified or the executor is shutdown, the catching up will be
      * amortized on user threads during write operations (or during read
      * operations, in the absence of writes).
