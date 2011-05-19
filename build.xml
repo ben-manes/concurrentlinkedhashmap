@@ -21,8 +21,9 @@
     <path refid="commons.lang.deploy.path"/>
     <path refid="commons.math.deploy.path"/>
     <path refid="ehcache.deploy.path"/>
-    <path refid="hamcrest.deploy.path" />
     <path refid="guava.deploy.path" />
+    <path refid="hamcrest.deploy.path" />
+    <path refid="high-scale-lib.deploy.path" />
     <path refid="mockito.deploy.path" />
     <path refid="testng.deploy.path" />
   </path>
@@ -307,6 +308,27 @@
       <arg value="-DmaximumCapacity=${caliper.benchmark.maximumCapacity}"/>
       <arg value="-DnumberOfThreads=${caliper.benchmark.numberOfThreads}"/>
       <arg value="-DreadRatio=${caliper.scenario.getPut.readRatio}"/>
+    </java>
+  </target>
+	
+  <target
+    name="run-perf"
+    depends="compile"
+    description="Runs Cliff Click's micro-benchmark over the build artifacts."
+  >  
+    <java
+     classname="com.googlecode.concurrentlinkedhashmap.perf_hash_test"
+     classpathref="benchmark.path"
+     fork="true"
+     maxmemory="${perf.heap}"
+    >
+      <arg value="${perf.readRatio}"/>
+    	<arg value="${perf.thread.min}"/>
+    	<arg value="${perf.thread.max}"/>
+    	<arg value="${perf.thread.increment}"/>
+    	<arg value="${perf.hashtable.size}"/>
+    	<arg value="${perf.hashtable.impl}"/>
+    	<arg value="${perf.hashtable.maxSize}"/>
     </java>
   </target>
   

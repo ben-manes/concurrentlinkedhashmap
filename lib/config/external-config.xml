@@ -145,6 +145,16 @@
     <path refid="hamcrest.compile.path"/>
   </path>
 
+    <!-- High Scalability Lib -->
+  <path id="high-scale-lib.compile.path">
+    <fileset dir="${external.dir}/high-scale-lib/1.1.2">
+      <include name="high-scale-lib.jar"/>
+    </fileset>
+  </path>
+  <path id="high-scale-lib.deploy.path">
+    <path refid="high-scale-lib.compile.path"/>
+  </path>
+
   <!-- JBoss Cache 2.1.0 -->
   <path id="jboss.cache-2.1.0.compile.path">
     <fileset dir="${external.dir}/jboss-cache/2.1.0">

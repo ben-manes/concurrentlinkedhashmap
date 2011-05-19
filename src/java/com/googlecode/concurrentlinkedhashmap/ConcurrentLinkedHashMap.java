@@ -226,7 +226,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
   transient Set<K> keySet;
   transient Collection<V> values;
-  transient Set<Map.Entry<K,V>> entrySet;
+  transient Set<Entry<K, V>> entrySet;
 
   /**
    * Creates an instance based on the builder's configuration.
@@ -260,12 +260,10 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
         : new ConcurrentLinkedQueue<Node>();
   }
 
-  /**
-   * Asserts that the object is not null.
-   */
-  static void checkNotNull(Object o, String message) {
+  /** Asserts that the object is not null. */
+  static void checkNotNull(Object o) {
     if (o == null) {
-      throw new NullPointerException(message);
+      throw new NullPointerException();
     }
   }
 
@@ -634,6 +632,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     @Override
     @GuardedBy("evictionLock")
     public void run() {
+      // add may not have been processed yet
       evictionDeque.remove(node);
       node.makeDead();
     }
@@ -685,7 +684,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * @return the combined weight of the values in this map
    */
   public int weightedSize() {
-    return Math.max(weightedSize, 0);
+    return Math.max(0, weightedSize);
   }
 
   @Override
@@ -720,13 +719,12 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
   @Override
   public boolean containsKey(Object key) {
-    checkNotNull(key, "null key");
     return data.containsKey(key);
   }
 
   @Override
   public boolean containsValue(Object value) {
-    checkNotNull(value, "null value");
+    checkNotNull(value);
 
     for (Node node : data.values()) {
       if (node.getValue().equals(value)) {
@@ -738,8 +736,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
   @Override
   public V get(Object key) {
-    checkNotNull(key, "null key");
-
     final Node node = data.get(key);
     if (node == null) {
       return null;
@@ -769,8 +765,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * @return the prior value in the data store or null if no mapping was found
    */
   V put(K key, V value, boolean onlyIfAbsent) {
-    checkNotNull(key, "null key");
-    checkNotNull(value, "null value");
+    checkNotNull(value);
 
     final int weight = weigher.weightOf(value);
     final WeightedValue<V> weightedValue = new WeightedValue<V>(value, weight);
@@ -805,8 +800,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
   @Override
   public V remove(Object key) {
-    checkNotNull(key, "null key");
-
     final Node node = data.remove(key);
     if (node == null) {
       return null;
@@ -819,11 +812,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
   @Override
   public boolean remove(Object key, Object value) {
-    checkNotNull(key, "null key");
-    checkNotNull(value, "null value");
-
     Node node = data.get(key);
-    if (node == null) {
+    if ((node == null) || (value == null)) {
       return false;
     }
 
@@ -838,8 +828,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
   @Override
   public V replace(K key, V value) {
-    checkNotNull(key, "null key");
-    checkNotNull(value, "null value");
+    checkNotNull(value);
 
     final int weight = weigher.weightOf(value);
     final WeightedValue<V> weightedValue = new WeightedValue<V>(value, weight);
@@ -866,9 +855,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
   @Override
   public boolean replace(K key, V oldValue, V newValue) {
-    checkNotNull(key, "null key");
-    checkNotNull(oldValue, "null oldValue");
-    checkNotNull(newValue, "null newValue");
+    checkNotNull(oldValue);
+    checkNotNull(newValue);
 
     final int weight = weigher.weightOf(newValue);
     final WeightedValue<V> newWeightedValue = new WeightedValue<V>(newValue, weight);
@@ -1704,7 +1692,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
      * @throws NullPointerException if the listener is null
      */
     public Builder<K, V> listener(EvictionListener<K, V> listener) {
-      checkNotNull(listener, null);
+      checkNotNull(listener);
       this.listener = listener;
       return this;
     }
@@ -1718,7 +1706,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
      * @throws NullPointerException if the weigher is null
      */
     public Builder<K, V> weigher(Weigher<? super V> weigher) {
-      checkNotNull(weigher, null);
+      checkNotNull(weigher);
       this.weigher = weigher;
       return this;
     }
@@ -1747,8 +1735,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       if (delay <= 0) {
         throw new IllegalArgumentException();
       }
-      checkNotNull(executor, null);
-      checkNotNull(unit, null);
+      checkNotNull(executor);
+      checkNotNull(unit);
       this.executor = executor;
       this.delay = delay;
       this.unit = unit;

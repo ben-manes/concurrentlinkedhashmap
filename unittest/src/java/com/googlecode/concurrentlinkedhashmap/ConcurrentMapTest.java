@@ -297,9 +297,9 @@ public final class ConcurrentMapTest extends BaseTest {
     map.remove(null, 2);
   }
 
-  @Test(dataProvider = "guardedMap", expectedExceptions = NullPointerException.class)
+  @Test(dataProvider = "guardedMap")
   public void removeConditionally_withNullValue(ConcurrentMap<Integer, Integer> map) {
-    map.remove(1, null);
+    assertThat(map.remove(1, null), is(false)); // matches CHM
   }
 
   @Test(dataProvider = "guardedMap", expectedExceptions = NullPointerException.class)
