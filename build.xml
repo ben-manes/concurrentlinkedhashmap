@@ -97,7 +97,7 @@
 
     <compile.macro srcdir="${api.src.dir}" destdir="${api.build.dir}" pathref="empty.path"/>
     <compile.macro srcdir="${test.src.dir}" destdir="${test.build.dir}" pathref="test.path"/>
-    <compile.macro srcdir="${benchmark.src.dir}" destdir="${benchmark.build.dir}" pathref="test.path"/>
+    <compile.macro srcdir="${benchmark.src.dir}" destdir="${benchmark.build.dir}" pathref="benchmark.path"/>
   </target>
 
   <target
