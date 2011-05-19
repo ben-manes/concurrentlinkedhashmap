@@ -1198,7 +1198,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     }
 
     /**
-     * Attempts to transitions the node from the <tt>alive</tt> state to the
+     * Attempts to transition the node from the <tt>alive</tt> state to the
      * <tt>retired</tt> state.
      *
      * @param expect the expected weighted value
