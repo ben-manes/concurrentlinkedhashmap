@@ -104,7 +104,8 @@ import java.util.concurrent.locks.ReentrantLock;
  * @author ben.manes@gmail.com (Ben Manes)
  * @param <K> the type of keys maintained by this map
  * @param <V> the type of mapped values
- * @see <tt>http://code.google.com/p/concurrentlinkedhashmap/</tt>
+ * @see <a href="http://code.google.com/p/concurrentlinkedhashmap/">
+ *      http://code.google.com/p/concurrentlinkedhashmap/</a>
  */
 @ThreadSafe
 public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
@@ -383,6 +384,14 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     return (int) Thread.currentThread().getId() & BUFFER_MASK;
   }
 
+  /** Returns the ordering value to assign to a task. */
+  int nextOrdering() {
+    // The global order is acquired in a racy fashion as the increment is not
+    // atomic with the insertion into a buffer. This means that concurrent tasks
+    // can have the same ordering and the buffers are in a weakly sorted order.
+    return globalOrder++;
+  }
+
   /**
    * Determines whether the buffers should be drained.
    *
@@ -549,14 +558,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       Task task = tasks[maxTaskIndex];
       drainedOrder = task.getOrder() + 1;
     }
-  }
-
-  /** Returns the ordering value to assign to a task. */
-  int nextOrdering() {
-    // The global order is acquired in a racy fashion as the increment is not
-    // atomic with the insertion into a buffer. This means that concurrent tasks
-    // can have the same ordering and the buffers are in a weakly sorted order.
-    return globalOrder++;
   }
 
   /** Notifies the listener of entries that were evicted. */
@@ -1599,13 +1600,12 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * A builder that creates {@link ConcurrentLinkedHashMap} instances. It
    * provides a flexible approach for constructing customized instances with
    * a named parameter syntax. It can be used in the following manner:
-   * <p>
-   * <pre>
+   * <pre>{@code
    * ConcurrentMap<Vertices, Set<Edge>> graph = new Builder<Vertices, Set<Edge>>()
-   *     .weigher(Weighers.<Edge>set())
    *     .maximumWeightedCapacity(5000)
+   *     .weigher(Weighers.<Edge>set())
    *     .build();
-   * </pre>
+   * }</pre>
    */
   public static final class Builder<K, V> {
     static final ExecutorService DEFAULT_EXECUTOR = new DisabledExecutorService();

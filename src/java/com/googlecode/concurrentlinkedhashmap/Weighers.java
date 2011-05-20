@@ -24,7 +24,8 @@ import java.util.Set;
  * A common set of {@link Weigher} implementations.
  *
  * @author ben.manes@gmail.com (Ben Manes)
- * @see <tt>http://code.google.com/p/concurrentlinkedhashmap/</tt>
+ * @see <a href="http://code.google.com/p/concurrentlinkedhashmap/">
+ *      http://code.google.com/p/concurrentlinkedhashmap/</a>
  */
 public final class Weighers {
 

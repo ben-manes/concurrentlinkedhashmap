@@ -38,6 +38,7 @@
  * {@link java.util.concurrent.ConcurrentHashMap} implementation that is
  * available at runtime.
  *
- * @see <tt>http://code.google.com/p/concurrentlinkedhashmap/</tt>
+ * @see <a href="http://code.google.com/p/concurrentlinkedhashmap/">
+ *      http://code.google.com/p/concurrentlinkedhashmap/</a>
  */
 package com.googlecode.concurrentlinkedhashmap;
