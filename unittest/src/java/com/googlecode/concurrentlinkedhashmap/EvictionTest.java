@@ -23,11 +23,15 @@ import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.MAX
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.MAXIMUM_CAPACITY;
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.bufferIndex;
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.DrainStatus.REQUIRED;
+import static com.googlecode.concurrentlinkedhashmap.EvictionTest.State.ALIVE;
+import static com.googlecode.concurrentlinkedhashmap.EvictionTest.State.DEAD;
+import static com.googlecode.concurrentlinkedhashmap.EvictionTest.State.RETIRED;
 import static com.googlecode.concurrentlinkedhashmap.IsEmptyCollection.emptyCollection;
 import static com.googlecode.concurrentlinkedhashmap.IsEmptyMap.emptyMap;
 import static com.googlecode.concurrentlinkedhashmap.IsValidState.valid;
 import static java.util.Arrays.asList;
 import static java.util.concurrent.TimeUnit.MINUTES;
+import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -385,7 +389,7 @@ public final class EvictionTest extends BaseTest {
   /* ---------------- Eviction -------------- */
 
   @Test(dataProvider = "builder", expectedExceptions = IllegalStateException.class)
-  public void evictionListener_fails(Builder<Integer, Integer> builder) {
+  public void evict_listenerFails(Builder<Integer, Integer> builder) {
     doThrow(new IllegalStateException()).when(listener).onEviction(anyInt(), anyInt());
     ConcurrentLinkedHashMap<Integer, Integer> map = builder
         .maximumWeightedCapacity(0)
@@ -446,6 +450,54 @@ public final class EvictionTest extends BaseTest {
     assertThat(map.weightedSize(), is(10));
 
     assertThat(map, is(valid()));
+  }
+
+  @Test
+  public void evict_alreadyRemoved() throws InterruptedException {
+    final ConcurrentLinkedHashMap<Integer, Integer> map = new Builder<Integer, Integer>()
+        .maximumWeightedCapacity(10)
+        .listener(listener)
+        .build();
+    warmUp(map, 0, 10);
+
+    final CountDownLatch latch = new CountDownLatch(1);
+    map.evictionLock.lock();
+    try {
+      ConcurrentLinkedHashMap<?, ?>.Node node = map.data.get(0);
+      checkState(node, ALIVE);
+      new Thread() {
+        @Override public void run() {
+          map.remove(0);
+          latch.countDown();
+        }
+      }.start();
+      assertThat(latch.await(1, SECONDS), is(true));
+      checkState(node, RETIRED);
+
+      map.capacity = 9;
+      map.evict();
+
+      checkState(node, DEAD);
+      verify(listener, never()).onEviction(anyInt(), anyInt());
+    } finally {
+      map.evictionLock.unlock();
+    }
+  }
+
+  enum State { ALIVE, RETIRED, DEAD }
+
+  private static void checkState(ConcurrentLinkedHashMap<?, ?>.Node node, State expected) {
+    assertThat(node.get().isAlive(), is(expected == ALIVE));
+    assertThat(node.get().isRetired(), is(expected == RETIRED));
+    assertThat(node.get().isDead(), is(expected == DEAD));
+
+    if (node.get().isRetired() || node.get().isDead()) {
+      assertThat(node.tryToRetire(node.get()), is(false));
+    }
+    if (node.get().isDead()) {
+      node.makeRetired();
+      assertThat(node.get().isRetired(), is(false));
+    }
   }
 
   @Test(dataProvider = "builder")
@@ -752,6 +804,7 @@ public final class EvictionTest extends BaseTest {
         .catchup(executor, 1L, MINUTES)
         .build();
     verify(executor).scheduleWithFixedDelay(catchUpTask.capture(), eq(1L), eq(1L), eq(MINUTES));
+    catchUpTask.getValue().run();
 
     warmUp(map, 0, 2 * BUFFER_THRESHOLD);
     assertThat(map.buffers[bufferIndex()], hasSize(2 * BUFFER_THRESHOLD));

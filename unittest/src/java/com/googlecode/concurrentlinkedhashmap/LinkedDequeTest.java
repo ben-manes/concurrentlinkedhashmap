@@ -216,6 +216,22 @@ public final class LinkedDequeTest extends BaseTest {
     assertThat(deque.contains(last), is(true));
   }
 
+  /* ---------------- Element -------------- */
+
+  @Test(dataProvider = "emptyDeque", expectedExceptions = NoSuchElementException.class)
+  public void element_whenEmpty(Deque<SimpleLinkedValue> deque) {
+    deque.element();
+  }
+
+  @Test(dataProvider = "warmedDeque")
+  public void element_whenPopulated(LinkedDeque<SimpleLinkedValue> deque) {
+    SimpleLinkedValue first = deque.first;
+    assertThat(deque.element(), is(first));
+    assertThat(deque.first, is(first));
+    assertThat(deque, hasSize(capacity()));
+    assertThat(deque.contains(first), is(true));
+  }
+
   /* ---------------- Offer -------------- */
 
   @Test(dataProvider = "emptyDeque")
@@ -654,6 +670,11 @@ public final class LinkedDequeTest extends BaseTest {
 
   /* ---------------- Iterators -------------- */
 
+  @Test(dataProvider = "emptyDeque", expectedExceptions = NoSuchElementException.class)
+  public void iterator_noMoreElements(LinkedDeque<SimpleLinkedValue> deque) {
+    deque.iterator().next();
+  }
+
   @Test(dataProvider = "emptyDeque")
   public void iterator_whenEmpty(LinkedDeque<SimpleLinkedValue> deque) {
     assertThat(deque.iterator().hasNext(), is(false));
@@ -667,9 +688,19 @@ public final class LinkedDequeTest extends BaseTest {
     assertThat(elementsEqual(deque.iterator(), expected.iterator()), is(true));
   }
 
+  @Test(dataProvider = "warmedDeque", expectedExceptions = UnsupportedOperationException.class)
+  public void iterator_removal(LinkedDeque<SimpleLinkedValue> deque) {
+    deque.iterator().remove();
+  }
+
+  @Test(dataProvider = "emptyDeque", expectedExceptions = NoSuchElementException.class)
+  public void descendingIterator_noMoreElements(LinkedDeque<SimpleLinkedValue> deque) {
+    deque.descendingIterator().next();
+  }
+
   @Test(dataProvider = "emptyDeque")
   public void descendingIterator_whenEmpty(LinkedDeque<SimpleLinkedValue> deque) {
-    assertThat(deque.iterator().hasNext(), is(false));
+    assertThat(deque.descendingIterator().hasNext(), is(false));
   }
 
   @Test(dataProvider = "warmedDeque")
@@ -679,6 +710,11 @@ public final class LinkedDequeTest extends BaseTest {
     Collections.reverse(expected);
 
     assertThat(elementsEqual(deque.descendingIterator(), expected.iterator()), is(true));
+  }
+
+  @Test(dataProvider = "warmedDeque", expectedExceptions = UnsupportedOperationException.class)
+  public void descendingIterator_removal(LinkedDeque<SimpleLinkedValue> deque) {
+    deque.descendingIterator().remove();
   }
 
   /* ---------------- Deque providers -------------- */

@@ -147,6 +147,26 @@ public final class BuilderTest extends BaseTest {
     assertThat(weigher, is(sameInstance((Object) Weighers.byteArray())));
   }
 
+  @Test(dataProvider = "builder", expectedExceptions = NullPointerException.class)
+  public void catchup_withNullExecutor(Builder<?, ?> builder) {
+    builder.catchup(null, 1, MINUTES);
+  }
+
+  @Test(dataProvider = "builder", expectedExceptions = IllegalArgumentException.class)
+  public void catchup_withZeroDelay(Builder<?, ?> builder) {
+    builder.catchup(executor, 0, MINUTES);
+  }
+
+  @Test(dataProvider = "builder", expectedExceptions = IllegalArgumentException.class)
+  public void catchup_withNegativeDelay(Builder<?, ?> builder) {
+    builder.catchup(executor, -1, MINUTES);
+  }
+
+  @Test(dataProvider = "builder", expectedExceptions = NullPointerException.class)
+  public void catchup_withNullTimeUnit(Builder<?, ?> builder) {
+    builder.catchup(executor, 1, null);
+  }
+
   @Test(dataProvider = "builder")
   public void catchup_withDefault(Builder<?, ?> builder) {
     assertThat(builder.build().executor, is(DEFAULT_EXECUTOR));
