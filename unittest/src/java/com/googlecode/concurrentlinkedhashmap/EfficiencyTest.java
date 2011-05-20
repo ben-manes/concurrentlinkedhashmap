@@ -38,7 +38,7 @@ import java.util.Map;
  *
  * @author ben.manes@gmail.com (Ben Manes)
  */
-public final class EfficiencyTest extends BaseTest {
+public final class EfficiencyTest extends AbstractTest {
   private Distribution distribution;
   private int size;
 

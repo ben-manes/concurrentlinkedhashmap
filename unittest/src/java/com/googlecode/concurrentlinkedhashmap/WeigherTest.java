@@ -52,7 +52,7 @@ import java.util.Set;
  * @author ben.manes@gmail.com (Ben Manes)
  */
 @Test(groups = "development")
-public final class WeigherTest extends BaseTest {
+public final class WeigherTest extends AbstractTest {
   @Mock Iterable<Integer> iterable;
 
   @Override

@@ -45,7 +45,7 @@ import java.util.concurrent.RejectedExecutionException;
  * @author bmanes@google.com (Ben Manes)
  */
 @Test(groups = "development")
-public final class BuilderTest extends BaseTest {
+public final class BuilderTest extends AbstractTest {
 
   @Override
   protected int capacity() {

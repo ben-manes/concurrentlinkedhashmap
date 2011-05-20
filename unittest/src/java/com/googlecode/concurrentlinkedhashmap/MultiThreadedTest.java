@@ -58,7 +58,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * @author ben.manes@gmail.com (Ben Manes)
  */
 @Test(groups = "development")
-public final class MultiThreadedTest extends BaseTest {
+public final class MultiThreadedTest extends AbstractTest {
   private Queue<String> failures;
   private List<Integer> keys;
   private int iterations;

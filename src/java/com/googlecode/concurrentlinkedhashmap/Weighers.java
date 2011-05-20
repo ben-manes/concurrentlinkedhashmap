@@ -80,8 +80,7 @@ public final class Weighers {
    */
   @SuppressWarnings({"cast", "unchecked"})
   public static <E> Weigher<? super Iterable<E>> iterable() {
-    Weigher<?> weigher = IterableWeigher.INSTANCE;
-    return (Weigher<Iterable<E>>) weigher;
+    return (Weigher<Iterable<E>>) (Weigher<?>) IterableWeigher.INSTANCE;
   }
 
   /**
@@ -99,8 +98,7 @@ public final class Weighers {
    */
   @SuppressWarnings({"cast", "unchecked"})
   public static <E> Weigher<? super Collection<E>> collection() {
-    Weigher<?> weigher = CollectionWeigher.INSTANCE;
-    return (Weigher<Collection<E>>) weigher;
+    return (Weigher<Collection<E>>) (Weigher<?>) CollectionWeigher.INSTANCE;
   }
 
   /**
@@ -118,8 +116,7 @@ public final class Weighers {
    */
   @SuppressWarnings({"cast", "unchecked"})
   public static <E> Weigher<? super List<E>> list() {
-    Weigher<?> weigher = ListWeigher.INSTANCE;
-    return (Weigher<List<E>>) weigher;
+    return (Weigher<List<E>>) (Weigher<?>) ListWeigher.INSTANCE;
   }
 
   /**
@@ -137,8 +134,7 @@ public final class Weighers {
    */
   @SuppressWarnings({"cast", "unchecked"})
   public static <E> Weigher<? super Set<E>> set() {
-    Weigher<?> weigher = SetWeigher.INSTANCE;
-    return (Weigher<Set<E>>) weigher;
+    return (Weigher<Set<E>>) (Weigher<?>) SetWeigher.INSTANCE;
   }
 
   /**
@@ -156,8 +152,7 @@ public final class Weighers {
    */
   @SuppressWarnings({"cast", "unchecked"})
   public static <A, B> Weigher<? super Map<A, B>> map() {
-    Weigher<?> weigher = MapWeigher.INSTANCE;
-    return (Weigher<Map<A, B>>) weigher;
+    return (Weigher<Map<A, B>>) (Weigher<?>) MapWeigher.INSTANCE;
   }
 
   private enum SingletonWeigher implements Weigher<Object> {

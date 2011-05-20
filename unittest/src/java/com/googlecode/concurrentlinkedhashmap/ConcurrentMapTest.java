@@ -54,7 +54,7 @@ import java.util.concurrent.ConcurrentMap;
  * @author ben.manes@gmail.com (Ben Manes)
  */
 @Test(groups = "development")
-public final class ConcurrentMapTest extends BaseTest {
+public final class ConcurrentMapTest extends AbstractTest {
 
   @Override
   protected int capacity() {

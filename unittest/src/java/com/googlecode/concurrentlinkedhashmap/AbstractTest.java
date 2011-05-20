@@ -40,11 +40,11 @@ import java.util.Map;
 import java.util.concurrent.ScheduledExecutorService;
 
 /**
- * A base testing harness for simplifying unit tests.
+ * A testing harness for simplifying the unit tests.
  *
  * @author ben.manes@gmail.com (Ben Manes)
  */
-public abstract class BaseTest {
+public abstract class AbstractTest {
   private boolean debug;
 
   @Mock protected EvictionListener<Integer, Integer> listener;

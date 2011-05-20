@@ -170,6 +170,9 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   /** The maximum number of operations to perform per amortized drain. */
   static final int AMORTIZED_DRAIN_THRESHOLD;
 
+  /** A queue that discards all entries. */
+  static final Queue<?> DISCARDING_QUEUE = new DiscardingQueue();
+
   static {
     // Find the power-of-two best matching the number of available processors
     int buffers = 1;
@@ -181,9 +184,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     NUMBER_OF_BUFFERS = buffers;
     BUFFER_MASK = buffers - 1;
   }
-
-  /** A queue that discards all entries. */
-  static final Queue<?> discardingQueue = new DiscardingQueue();
 
   /** The draining status of the buffers. */
   enum DrainStatus {
@@ -257,7 +257,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     // The notification queue and listener
     listener = builder.listener;
     pendingNotifications = (listener == DiscardingListener.INSTANCE)
-        ? (Queue<Node>) discardingQueue
+        ? (Queue<Node>) DISCARDING_QUEUE
         : new ConcurrentLinkedQueue<Node>();
   }
 

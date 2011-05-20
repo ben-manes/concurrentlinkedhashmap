@@ -42,7 +42,7 @@ import java.util.NoSuchElementException;
  * @author ben.manes@gmail.com (Ben Manes)
  */
 @Test(groups = "development")
-public final class LinkedDequeTest extends BaseTest {
+public final class LinkedDequeTest extends AbstractTest {
 
   @Override
   protected int capacity() {

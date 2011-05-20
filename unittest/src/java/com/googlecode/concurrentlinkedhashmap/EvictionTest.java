@@ -76,7 +76,7 @@ import java.util.concurrent.locks.ReentrantLock;
  * @author ben.manes@gmail.com (Ben Manes)
  */
 @Test(groups = "development")
-public final class EvictionTest extends BaseTest {
+public final class EvictionTest extends AbstractTest {
 
   @Override
   protected int capacity() {
