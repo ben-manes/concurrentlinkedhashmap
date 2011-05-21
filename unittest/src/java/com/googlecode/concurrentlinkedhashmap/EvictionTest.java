@@ -615,7 +615,7 @@ public final class EvictionTest extends AbstractTest {
 
   @Test(dataProvider = "guardedMap")
   public void applyInRecencyOrder(final ConcurrentLinkedHashMap<Integer, Integer> map) {
-    final AtomicInteger expected = new AtomicInteger(map.globalOrder);
+    final AtomicInteger expected = new AtomicInteger(map.nextOrder);
 
     for (int i = 0; i < 2 * BUFFER_THRESHOLD; i++) {
       final int id = map.nextOrdering();

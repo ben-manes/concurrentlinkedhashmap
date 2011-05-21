@@ -210,7 +210,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   @GuardedBy("evictionLock") // must write under lock
   volatile int weightedSize;
 
-  volatile int globalOrder;
+  volatile int nextOrder;
   @GuardedBy("evictionLock")
   int drainedOrder;
 
@@ -241,7 +241,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
     // The eviction support
     executor = builder.executor;
-    globalOrder = Integer.MIN_VALUE;
+    nextOrder = Integer.MIN_VALUE;
     drainedOrder = Integer.MIN_VALUE;
     evictionLock = new ReentrantLock();
     evictionDeque = new LinkedDeque<Node>();
@@ -386,10 +386,10 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
   /** Returns the ordering value to assign to a task. */
   int nextOrdering() {
-    // The global order is acquired in a racy fashion as the increment is not
+    // The next ordering is acquired in a racy fashion as the increment is not
     // atomic with the insertion into a buffer. This means that concurrent tasks
     // can have the same ordering and the buffers are in a weakly sorted order.
-    return globalOrder++;
+    return nextOrder++;
   }
 
   /**
