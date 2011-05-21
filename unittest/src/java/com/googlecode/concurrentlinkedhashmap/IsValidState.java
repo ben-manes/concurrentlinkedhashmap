@@ -1,18 +1,32 @@
+/*
+ * Copyright 2011 Benjamin Manes
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package com.googlecode.concurrentlinkedhashmap;
 
-import com.google.common.collect.Lists;
+import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.AMORTIZED_DRAIN_THRESHOLD;
+
 import com.google.common.collect.Sets;
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Node;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.WeightedValue;
 
 import org.hamcrest.Description;
 import org.hamcrest.Factory;
-import org.hamcrest.Matcher;
 import org.hamcrest.TypeSafeDiagnosingMatcher;
 
-import java.util.IdentityHashMap;
 import java.util.Set;
-import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
@@ -21,113 +35,94 @@ import java.util.concurrent.locks.ReentrantLock;
  *
  * @author ben.manes@gmail.com (Ben Manes)
  */
+@SuppressWarnings("unchecked")
 public final class IsValidState extends TypeSafeDiagnosingMatcher<ConcurrentLinkedHashMap<?, ?>> {
 
+  @Override
   public void describeTo(Description description) {
     description.appendText("state");
   }
 
   @Override
   protected boolean matchesSafely(ConcurrentLinkedHashMap<?, ?> map, Description description) {
-    boolean matches = true;
-    map.tryToDrainEvictionQueues(false);
+    DescriptionBuilder builder = new DescriptionBuilder(description);
 
-    matches &= check(map.writeQueue.isEmpty(), "writeQueue", description);
-    for (int i = 0; i < map.recencyQueue.length; i++) {
-      matches &= check(map.recencyQueue[i].isEmpty(), "recencyQueue", description);
-      matches &= check(map.recencyQueueLength.get(i) == 0, "recencyQueueLength", description);
+    drain(map);
+    checkMap(map, builder);
+    checkEvictionDeque(map, builder);
+    return builder.matches();
+  }
+
+  private void drain(ConcurrentLinkedHashMap<?, ?> map) {
+    for (;;) {
+      map.tryToDrainBuffers(AMORTIZED_DRAIN_THRESHOLD);
+
+      int pending = 0;
+      for (int i = 0; i < map.bufferLengths.length(); i++) {
+        pending += map.bufferLengths.get(i);
+      }
+      if (pending == 0) {
+        break;
+      }
     }
-    matches &= check(map.listenerQueue.isEmpty(), "listenerQueue", description);
-    matches &= check(map.data.size() == map.size(), "Inconsistent size", description);
-    matches &= check(map.weightedSize() == map.weightedSize, "weightedSize", description);
-    matches &= check(map.capacity() == map.maximumWeightedSize, "capacity", description);
-    matches &= check(map.maximumWeightedSize >= map.weightedSize(), "overflow", description);
-    matches &= check(map.sentinel.prev != null, "link corruption", description);
-    matches &= check(map.sentinel.next != null, "link corruption", description);
+  }
+
+  private void checkMap(ConcurrentLinkedHashMap<?, ?> map, DescriptionBuilder builder) {
+    for (int i = 0; i < map.buffers.length; i++) {
+      builder.expect(map.buffers[i].isEmpty(), "recencyQueue not empty");
+      builder.expect(map.bufferLengths.get(i) == 0, "recencyQueueLength != 0");
+    }
+    builder.expect(map.pendingNotifications.isEmpty(), "listenerQueue");
+    builder.expectEqual(map.data.size(), map.size(), "Inconsistent size");
+    builder.expectEqual(map.weightedSize(), map.weightedSize, "weightedSize");
+    builder.expectEqual(map.capacity(), map.capacity, "capacity");
+    builder.expect(map.capacity >= map.weightedSize(), "overflow");
+    builder.expectNot(((ReentrantLock) map.evictionLock).isLocked());
+
     if (map.isEmpty()) {
-      matches &= new IsEmptyMap().matchesSafely(map, description);
+      builder.expect(IsEmptyMap.emptyMap().matchesSafely(map, builder.getDescription()));
     }
-    matches &= checkLinks(map, description);
-    matches &= checkLocks(map, description);
-    return matches;
   }
 
-  /** Validates the doubly-linked list. */
-  @SuppressWarnings("unchecked")
-  private boolean checkLinks(ConcurrentLinkedHashMap<?, ?> map, Description description) {
+  private void checkEvictionDeque(ConcurrentLinkedHashMap<?, ?> map, DescriptionBuilder builder) {
+    LinkedDeque<?> deque = map.evictionDeque;
+
+    checkLinks(map, builder);
+    builder.expectEqual(deque.size(), map.size());
+    IsValidDeque.validDeque().matchesSafely(map.evictionDeque, builder.getDescription());
+  }
+
+  private void checkLinks(ConcurrentLinkedHashMap<?, ?> map, DescriptionBuilder builder) {
     int weightedSize = 0;
-    boolean matches = true;
-    matches &= checkSentinel(map, description);
-    Set<Node> seen = Sets.newSetFromMap(new IdentityHashMap<Node, Boolean>());
-    Node current = map.sentinel.next;
-    while (current != map.sentinel) {
-      matches &= check(seen.add(current),
-          String.format("Loop detected: %s, saw %s in %s", current, seen, map), description);
-      matches &= checkDataNode(map, current, description);
-      weightedSize += current.weightedValue.weight;
-      current = current.next;
+    Set<Node> seen = Sets.newIdentityHashSet();
+    for (Node node : map.evictionDeque) {
+      builder.expect(seen.add(node), "Loop detected: %s, saw %s in %s", node, seen, map);
+      weightedSize += ((WeightedValue) node.get()).weight;
+      checkNode(map, node, builder);
     }
-    matches &= check(map.size() == seen.size(), "Size != list length", description);
-    matches &= check(map.weightedSize() == weightedSize, "WeightedSize != link weights", description);
-    return matches;
+
+    builder.expectEqual(map.size(), seen.size(), "Size != list length");
+    builder.expectEqual(map.weightedSize(), weightedSize, "WeightedSize != link weights"
+        + " [" + map.weightedSize() + " vs. " + weightedSize + "]"
+        + " {size: " + map.size() + " vs. " + seen.size() + "}");
   }
 
-  /** Validates the sentinel node. */
-  private boolean checkSentinel(ConcurrentLinkedHashMap<?, ?> map, Description description) {
-    boolean matches = true;
-    matches &= check(map.sentinel.key == null, "key", description);
-    matches &= check(map.sentinel.weightedValue == null, "value", description);
-    matches &= check(map.sentinel.segment == -1, "segment", description);
-    matches &= check(map.sentinel.prev.next == map.sentinel, "circular", description);
-    matches &= check(map.sentinel.next.prev == map.sentinel, "circular", description);
-    matches &= check(!map.data.containsValue(map.sentinel), "in map", description);
-    return matches;
-  }
+  private void checkNode(ConcurrentLinkedHashMap<?, ?> map, Node node,
+      DescriptionBuilder builder) {
+    builder.expectNotEqual(node.key, null, "null key");
+    builder.expectNotEqual(node.get(), null, "null weighted value");
+    builder.expectNotEqual(node.getValue(), null, "null value");
+    builder.expectEqual(((WeightedValue) node.get()).weight,
+      ((Weigher) map.weigher).weightOf(node.getValue()), "weight");
 
-  /** Validates the data node. */
-  @SuppressWarnings("unchecked")
-  private boolean checkDataNode(ConcurrentLinkedHashMap<?, ?> map, Node node,
-      Description description) {
-    boolean matches = true;
-    matches &= check(node.key != null, "null key", description);
-    matches &= check(node.weightedValue != null, "null weighted value", description);
-    matches &= check(node.weightedValue.value != null, "null value", description);
-    matches &= check(node.weightedValue.weight ==
-      ((Weigher) map.weigher).weightOf(node.weightedValue.value), "weight", description);
-
-    matches &= check(map.containsKey(node.key), "inconsistent", description);
-    matches &= check(map.containsValue(node.weightedValue.value),
-        String.format("Could not find value: %s", node.weightedValue.value), description);
-    matches &= check(map.data.get(node.key) == node, "found wrong node", description);
-    matches &= check(node.prev != null, "null prev", description);
-    matches &= check(node.next != null, "null next", description);
-    matches &= check(node != node.prev, "circular node", description);
-    matches &= check(node != node.next, "circular node", description);
-    matches &= check(node == node.prev.next, "link corruption", description);
-    matches &= check(node == node.next.prev, "link corruption", description);
-    matches &= check(node.segment == map.segmentFor(node.key), "bad segment", description);
-    return matches;
-  }
-
-  /** Validates that the locks are not held. */
-  private boolean checkLocks(ConcurrentLinkedHashMap<?, ?> map, Description description) {
-    boolean matches = true;
-    for (Lock lock : Lists.asList(map.evictionLock, map.segmentLock)) {
-      boolean isLocked = !((ReentrantLock) lock).isLocked();
-      matches &= check(isLocked, "locked", description);
-    }
-    return matches;
-  }
-
-  private boolean check(boolean expression, String errorMsg, Description description) {
-    if (!expression) {
-      description.appendText(" " + errorMsg);
-    }
-    return expression;
+    builder.expect(map.containsKey(node.key), "inconsistent");
+    builder.expect(map.containsValue(node.getValue()),
+        "Could not find value: %s", node.getValue());
+    builder.expectEqual(map.data.get(node.key), node, "found wrong node");
   }
 
   @Factory
-  public static Matcher<ConcurrentLinkedHashMap<?, ?>> valid() {
+  public static IsValidState valid() {
     return new IsValidState();
   }
 }

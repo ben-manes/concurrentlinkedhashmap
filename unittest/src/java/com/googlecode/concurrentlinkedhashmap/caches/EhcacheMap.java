@@ -1,3 +1,18 @@
+/*
+ * Copyright 2011 Benjamin Manes
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package com.googlecode.concurrentlinkedhashmap.caches;
 
 import static net.sf.ehcache.Cache.DEFAULT_CACHE_NAME;
@@ -77,6 +92,7 @@ final class EhcacheMap<K, V> extends AbstractMap<K, V> implements ConcurrentMap<
     return old;
   }
 
+  @Override
   public V putIfAbsent(K key, V value) {
     V old = get(key);
     if (old == null) {
@@ -94,6 +110,7 @@ final class EhcacheMap<K, V> extends AbstractMap<K, V> implements ConcurrentMap<
     return old;
   }
 
+  @Override
   public boolean remove(Object key, Object value) {
     if (value.equals(get(key))) {
       map.remove(key);
@@ -102,6 +119,7 @@ final class EhcacheMap<K, V> extends AbstractMap<K, V> implements ConcurrentMap<
     return false;
   }
 
+  @Override
   public V replace(K key, V value) {
     V old = get(key);
     if (old != null) {
@@ -110,6 +128,7 @@ final class EhcacheMap<K, V> extends AbstractMap<K, V> implements ConcurrentMap<
     return old;
   }
 
+  @Override
   public boolean replace(K key, V oldValue, V newValue) {
     if (oldValue.equals(get(key))) {
       map.put(new Element(key, newValue));
@@ -139,37 +158,37 @@ final class EhcacheMap<K, V> extends AbstractMap<K, V> implements ConcurrentMap<
     public KeySetAdapter(List<K> keys) {
       this.keys = keys;
     }
-    public boolean add(K o) {
+    @Override public boolean add(K o) {
       return keys.add(o);
     }
-    public boolean addAll(Collection<? extends K> c) {
+    @Override public boolean addAll(Collection<? extends K> c) {
       return keys.addAll(c);
     }
-    public void clear() {
+    @Override public void clear() {
       keys.clear();
     }
-    public boolean contains(Object o) {
+    @Override public boolean contains(Object o) {
       return keys.contains(o);
     }
-    public boolean containsAll(Collection<?> c) {
+    @Override public boolean containsAll(Collection<?> c) {
       return keys.containsAll(c);
     }
-    public boolean isEmpty() {
+    @Override public boolean isEmpty() {
       return keys.isEmpty();
     }
-    public Iterator<K> iterator() {
+    @Override public Iterator<K> iterator() {
       return keys.iterator();
     }
-    public boolean remove(Object o) {
+    @Override public boolean remove(Object o) {
       return keys.remove(o);
     }
-    public boolean removeAll(Collection<?> c) {
+    @Override public boolean removeAll(Collection<?> c) {
       return keys.removeAll(c);
     }
-    public boolean retainAll(Collection<?> c) {
+    @Override public boolean retainAll(Collection<?> c) {
       return keys.retainAll(c);
     }
-    public int size() {
+    @Override public int size() {
       return keys.size();
     }
     @Override public boolean equals(Object o) {
@@ -178,10 +197,10 @@ final class EhcacheMap<K, V> extends AbstractMap<K, V> implements ConcurrentMap<
     @Override public int hashCode() {
       return keys.hashCode();
     }
-    public Object[] toArray() {
+    @Override public Object[] toArray() {
       return keys.toArray();
     }
-    public <T> T[] toArray(T[] a) {
+    @Override public <T> T[] toArray(T[] a) {
       return keys.toArray(a);
     }
   }

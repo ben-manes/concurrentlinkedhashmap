@@ -1,29 +1,74 @@
+/*
+ * Copyright 2011 Benjamin Manes
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package com.googlecode.concurrentlinkedhashmap;
 
+import static com.google.common.collect.Maps.newLinkedHashMap;
+import static com.google.common.collect.Sets.newLinkedHashSet;
+import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.AMORTIZED_DRAIN_THRESHOLD;
+import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.BUFFER_THRESHOLD;
+import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.MAXIMUM_BUFFER_SIZE;
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.MAXIMUM_CAPACITY;
-import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.RECENCY_THRESHOLD;
+import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.bufferIndex;
+import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.DrainStatus.REQUIRED;
+import static com.googlecode.concurrentlinkedhashmap.EvictionTest.State.ALIVE;
+import static com.googlecode.concurrentlinkedhashmap.EvictionTest.State.DEAD;
+import static com.googlecode.concurrentlinkedhashmap.EvictionTest.State.RETIRED;
+import static com.googlecode.concurrentlinkedhashmap.IsEmptyCollection.emptyCollection;
+import static com.googlecode.concurrentlinkedhashmap.IsEmptyMap.emptyMap;
 import static com.googlecode.concurrentlinkedhashmap.IsValidState.valid;
 import static java.util.Arrays.asList;
+import static java.util.concurrent.TimeUnit.MINUTES;
+import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.mockito.Matchers.anyInt;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
-import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Node;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.DrainStatus;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Task;
 
-import org.testng.annotations.DataProvider;
+import org.mockito.invocation.InvocationOnMock;
+import org.mockito.stubbing.Answer;
 import org.testng.annotations.Test;
 
+import java.lang.ref.WeakReference;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.Queue;
+import java.util.Set;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * A unit-test for the page replacement algorithm and its public methods.
@@ -31,12 +76,260 @@ import java.util.Queue;
  * @author ben.manes@gmail.com (Ben Manes)
  */
 @Test(groups = "development")
-public final class EvictionTest extends BaseTest {
+public final class EvictionTest extends AbstractTest {
 
   @Override
   protected int capacity() {
     return 100;
   }
+
+  /* ---------------- Ascending KeySet -------------- */
+
+  @Test(dataProvider = "warmedMap")
+  public void ascendingKeySet(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    Map<Integer, Integer> expected = newLinkedHashMap();
+    warmUp(expected, 0, capacity());
+
+    assertThat(map.ascendingKeySet(), is(equalTo(expected.keySet())));
+  }
+
+  @Test(dataProvider = "warmedMap")
+  public void ascendingKeySet_snapshot(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    Map<Integer, Integer> expected = newLinkedHashMap();
+    warmUp(expected, 0, capacity());
+
+    Set<Integer> original = map.ascendingKeySet();
+    map.put(capacity(), -capacity());
+
+    assertThat(original, is(equalTo(expected.keySet())));
+  }
+
+  @Test(dataProvider = "warmedMap")
+  public void ascendingKeySetWithLimit_greaterThan(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    Map<Integer, Integer> expected = newLinkedHashMap();
+    warmUp(expected, 0, capacity() / 2);
+
+    assertThat(map.ascendingKeySetWithLimit(capacity() / 2), is(equalTo(expected.keySet())));
+  }
+
+  @Test(dataProvider = "warmedMap")
+  public void ascendingKeySetWithLimit_lessThan(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    Map<Integer, Integer> expected = newLinkedHashMap();
+    warmUp(expected, 0, capacity());
+
+    assertThat(map.ascendingKeySetWithLimit(capacity() * 2), is(equalTo(expected.keySet())));
+  }
+
+  @Test(dataProvider = "warmedMap")
+  public void ascendingKeySetWithLimit_snapshot(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    Map<Integer, Integer> expected = newLinkedHashMap();
+    warmUp(expected, 0, capacity() / 2);
+
+    Set<Integer> original = map.ascendingKeySetWithLimit(capacity() / 2);
+    map.put(capacity(), -capacity());
+
+    assertThat(original, is(equalTo(expected.keySet())));
+  }
+
+  @Test(dataProvider = "warmedMap")
+  public void ascendingKeySetWithLimit_zero(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    assertThat(map.ascendingKeySetWithLimit(0), is(emptyCollection()));
+  }
+
+  @Test(dataProvider = "warmedMap", expectedExceptions = IllegalArgumentException.class)
+  public void ascendingKeySetWithLimit_negative(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    map.ascendingKeySetWithLimit(-1);
+  }
+
+  /* ---------------- Descending KeySet -------------- */
+
+  @Test(dataProvider = "warmedMap")
+  public void descendingKeySet(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    Set<Integer> expected = newLinkedHashSet();
+    for (int i = capacity() - 1; i >= 0; i--) {
+      expected.add(i);
+    }
+    assertThat(map.descendingKeySet(), is(equalTo(expected)));
+  }
+
+  @Test(dataProvider = "warmedMap")
+  public void descendingKeySet_snapshot(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    Set<Integer> expected = newLinkedHashSet();
+    for (int i = capacity() - 1; i >= 0; i--) {
+      expected.add(i);
+    }
+
+    Set<Integer> original = map.descendingKeySet();
+    map.put(capacity(), -capacity());
+
+    assertThat(original, is(equalTo(expected)));
+  }
+
+  @Test(dataProvider = "warmedMap")
+  public void descendingKeySetWithLimit_greaterThan(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    Set<Integer> expected = newLinkedHashSet();
+    for (int i = capacity() - 1; i >= capacity() / 2; i--) {
+      expected.add(i);
+    }
+    assertThat(map.descendingKeySetWithLimit(capacity() / 2), is(equalTo(expected)));
+  }
+
+  @Test(dataProvider = "warmedMap")
+  public void descendingKeySetWithLimit_lessThan(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    Set<Integer> expected = newLinkedHashSet();
+    for (int i = capacity() - 1; i >= 0; i--) {
+      expected.add(i);
+    }
+    assertThat(map.descendingKeySetWithLimit(capacity() * 2), is(equalTo(expected)));
+  }
+
+  @Test(dataProvider = "warmedMap")
+  public void descendingKeySetWithLimit_snapshot(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    Set<Integer> expected = newLinkedHashSet();
+    for (int i = capacity() - 1; i >= capacity() / 2; i--) {
+      expected.add(i);
+    }
+
+    Set<Integer> original = map.descendingKeySetWithLimit(capacity() / 2);
+    map.put(capacity(), -capacity());
+
+    assertThat(original, is(equalTo(expected)));
+  }
+
+  @Test(dataProvider = "warmedMap")
+  public void descendingKeySetWithLimit_zero(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    assertThat(map.descendingKeySetWithLimit(0), is(emptyCollection()));
+  }
+
+  @Test(dataProvider = "warmedMap", expectedExceptions = IllegalArgumentException.class)
+  public void descendingKeySetWithLimit_negative(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    map.descendingKeySetWithLimit(-1);
+  }
+
+  /* ---------------- Ascending Map -------------- */
+
+  @Test(dataProvider = "warmedMap")
+  public void ascendingMap(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    Map<Integer, Integer> expected = newLinkedHashMap();
+    warmUp(expected, 0, capacity());
+
+    assertThat(map.ascendingMap(), is(equalTo(expected)));
+  }
+
+  @Test(dataProvider = "warmedMap")
+  public void ascendingMap_snapshot(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    Map<Integer, Integer> expected = newLinkedHashMap();
+    warmUp(expected, 0, capacity());
+
+    Map<Integer, Integer> original = map.ascendingMap();
+    map.put(capacity(), -capacity());
+
+    assertThat(original, is(equalTo(expected)));
+  }
+
+  @Test(dataProvider = "warmedMap")
+  public void ascendingMapWithLimit_greaterThan(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    Map<Integer, Integer> expected = newLinkedHashMap();
+    warmUp(expected, 0, capacity() / 2);
+
+    assertThat(map.ascendingMapWithLimit(capacity() / 2), is(equalTo(expected)));
+  }
+
+  @Test(dataProvider = "warmedMap")
+  public void ascendingMapWithLimit_lessThan(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    Map<Integer, Integer> expected = newLinkedHashMap();
+    warmUp(expected, 0, capacity());
+
+    assertThat(map.ascendingMapWithLimit(capacity() * 2), is(equalTo(expected)));
+  }
+
+  @Test(dataProvider = "warmedMap")
+  public void ascendingMapWithLimit_snapshot(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    Map<Integer, Integer> expected = newLinkedHashMap();
+    warmUp(expected, 0, capacity() / 2);
+
+    Map<Integer, Integer> original = map.ascendingMapWithLimit(capacity() / 2);
+    map.put(capacity(), -capacity());
+
+    assertThat(original, is(equalTo(expected)));
+  }
+
+  @Test(dataProvider = "warmedMap")
+  public void ascendingMapWithLimit_zero(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    assertThat(map.ascendingMapWithLimit(0), is(emptyMap()));
+  }
+
+  @Test(dataProvider = "warmedMap", expectedExceptions = IllegalArgumentException.class)
+  public void ascendingMapWithLimit_negative(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    map.ascendingMapWithLimit(-1);
+  }
+
+  /* ---------------- Descending Map -------------- */
+
+  @Test(dataProvider = "warmedMap")
+  public void descendingMap(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    Map<Integer, Integer> expected = newLinkedHashMap();
+    for (int i = capacity() - 1; i >= 0; i--) {
+      expected.put(i, -i);
+    }
+    assertThat(map.descendingMap(), is(equalTo(expected)));
+  }
+
+  @Test(dataProvider = "warmedMap")
+  public void descendingMap_snapshot(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    Map<Integer, Integer> expected = newLinkedHashMap();
+    for (int i = capacity() - 1; i >= 0; i--) {
+      expected.put(i, -i);
+    }
+
+    Map<Integer, Integer> original = map.descendingMap();
+    map.put(capacity(), -capacity());
+
+    assertThat(original, is(equalTo(expected)));
+  }
+
+  @Test(dataProvider = "warmedMap")
+  public void descendingMapWithLimit_greaterThan(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    Map<Integer, Integer> expected = newLinkedHashMap();
+    for (int i = capacity() - 1; i >= capacity() / 2; i--) {
+      expected.put(i, -i);
+    }
+    assertThat(map.descendingMapWithLimit(capacity() / 2), is(equalTo(expected)));
+  }
+
+  @Test(dataProvider = "warmedMap")
+  public void descendingMapWithLimit_lessThan(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    Map<Integer, Integer> expected = newLinkedHashMap();
+    for (int i = capacity() - 1; i >= 0; i--) {
+      expected.put(i, -i);
+    }
+    assertThat(map.descendingMapWithLimit(capacity() * 2), is(equalTo(expected)));
+  }
+
+  @Test(dataProvider = "warmedMap")
+  public void descendingMapWithLimit_snapshot(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    Map<Integer, Integer> expected = newLinkedHashMap();
+    for (int i = capacity() - 1; i >= capacity() / 2; i--) {
+      expected.put(i, -i);
+    }
+
+    Map<Integer, Integer> original = map.descendingMapWithLimit(capacity() / 2);
+    map.put(capacity(), -capacity());
+
+    assertThat(original, is(equalTo(expected)));
+  }
+
+  @Test(dataProvider = "warmedMap")
+  public void descendingMapWithLimit_zero(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    assertThat(map.descendingMapWithLimit(0), is(emptyMap()));
+  }
+
+  @Test(dataProvider = "warmedMap", expectedExceptions = IllegalArgumentException.class)
+  public void descendingMapWithLimit_negative(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    map.descendingMapWithLimit(-1);
+  }
+
+  /* ---------------- Capacity -------------- */
 
   @Test(dataProvider = "warmedMap")
   public void capacity_increase(ConcurrentLinkedHashMap<Integer, Integer> map) {
@@ -71,7 +364,6 @@ public final class EvictionTest extends BaseTest {
   }
 
   private void checkDecreasedCapacity(int newMaxCapacity) {
-    CollectingListener<Integer, Integer> listener = new CollectingListener<Integer, Integer>();
     ConcurrentLinkedHashMap<Integer, Integer> map = new Builder<Integer, Integer>()
         .maximumWeightedCapacity(capacity())
         .listener(listener)
@@ -82,7 +374,7 @@ public final class EvictionTest extends BaseTest {
     assertThat(map, is(valid()));
     assertThat(map.size(), is(equalTo(newMaxCapacity)));
     assertThat(map.capacity(), is(equalTo(newMaxCapacity)));
-    assertThat(listener.evicted, hasSize(capacity() - newMaxCapacity));
+    verify(listener, times(capacity() - newMaxCapacity)).onEviction(anyInt(), anyInt());
   }
 
   @Test(dataProvider = "warmedMap", expectedExceptions = IllegalArgumentException.class)
@@ -94,15 +386,14 @@ public final class EvictionTest extends BaseTest {
     }
   }
 
+  /* ---------------- Eviction -------------- */
+
   @Test(dataProvider = "builder", expectedExceptions = IllegalStateException.class)
-  public void evictionListener_fails(Builder<Integer, Integer> builder) {
+  public void evict_listenerFails(Builder<Integer, Integer> builder) {
+    doThrow(new IllegalStateException()).when(listener).onEviction(anyInt(), anyInt());
     ConcurrentLinkedHashMap<Integer, Integer> map = builder
-        .listener(new EvictionListener<Integer, Integer>() {
-          public void onEviction(Integer key, Integer value) {
-            throw new IllegalStateException();
-          }
-        })
         .maximumWeightedCapacity(0)
+        .listener(listener)
         .build();
     try {
       warmUp(map, 0, capacity());
@@ -112,58 +403,7 @@ public final class EvictionTest extends BaseTest {
   }
 
   @Test
-  public void evictWith_neverDiscard() {
-    checkEvictWith(new CapacityLimiter() {
-      public boolean hasExceededCapacity(ConcurrentLinkedHashMap<?, ?> map) {
-        return false;
-      }
-    }, capacity());
-  }
-
-  @Test
-  public void evictWith_alwaysDiscard() {
-    checkEvictWith(new CapacityLimiter() {
-      public boolean hasExceededCapacity(ConcurrentLinkedHashMap<?, ?> map) {
-        return true;
-      }
-    }, 0);
-  }
-
-  @Test
-  public void evictWith_decrease() {
-    final int maxSize = capacity() / 2;
-    checkEvictWith(new CapacityLimiter() {
-      public boolean hasExceededCapacity(ConcurrentLinkedHashMap<?, ?> map) {
-        return map.size() > maxSize;
-      }
-    }, maxSize);
-  }
-
-  private void checkEvictWith(CapacityLimiter capacityLimiter, int expectedSize) {
-    CollectingListener<Integer, Integer> listener = new CollectingListener<Integer, Integer>();
-    ConcurrentLinkedHashMap<Integer, Integer> map = new Builder<Integer, Integer>()
-        .maximumWeightedCapacity(capacity())
-        .listener(listener)
-        .build();
-    warmUp(map, 0, capacity());
-    map.evictWith(capacityLimiter);
-
-    assertThat(map, is(valid()));
-    assertThat(map.size(), is(expectedSize));
-    assertThat(listener.evicted, hasSize(capacity() - expectedSize));
-  }
-
-  @Test(dataProvider = "warmedMap", expectedExceptions = IllegalStateException.class)
-  public void evictWith_fails(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    map.evictWith(new CapacityLimiter() {
-      public boolean hasExceededCapacity(ConcurrentLinkedHashMap<?, ?> map) {
-        throw new IllegalStateException();
-      }
-    });
-  }
-
-  @Test(dataProvider = "collectingListener")
-  public void evict_alwaysDiscard(CollectingListener<Integer, Integer> listener) {
+  public void evict_alwaysDiscard() {
     ConcurrentLinkedHashMap<Integer, Integer> map = new Builder<Integer, Integer>()
         .maximumWeightedCapacity(0)
         .listener(listener)
@@ -171,11 +411,11 @@ public final class EvictionTest extends BaseTest {
     warmUp(map, 0, 100);
 
     assertThat(map, is(valid()));
-    assertThat(listener.evicted, hasSize(100));
+    verify(listener, times(100)).onEviction(anyInt(), anyInt());
   }
 
-  @Test(dataProvider = "collectingListener")
-  public void evict(CollectingListener<Integer, Integer> listener) {
+  @Test
+  public void evict() {
     ConcurrentLinkedHashMap<Integer, Integer> map = new Builder<Integer, Integer>()
         .maximumWeightedCapacity(10)
         .listener(listener)
@@ -185,7 +425,7 @@ public final class EvictionTest extends BaseTest {
     assertThat(map, is(valid()));
     assertThat(map.size(), is(10));
     assertThat(map.weightedSize(), is(10));
-    assertThat(listener.evicted, hasSize(10));
+    verify(listener, times(10)).onEviction(anyInt(), anyInt());
   }
 
   @Test(dataProvider = "builder")
@@ -210,6 +450,54 @@ public final class EvictionTest extends BaseTest {
     assertThat(map.weightedSize(), is(10));
 
     assertThat(map, is(valid()));
+  }
+
+  @Test
+  public void evict_alreadyRemoved() throws InterruptedException {
+    final ConcurrentLinkedHashMap<Integer, Integer> map = new Builder<Integer, Integer>()
+        .maximumWeightedCapacity(10)
+        .listener(listener)
+        .build();
+    warmUp(map, 0, 10);
+
+    final CountDownLatch latch = new CountDownLatch(1);
+    map.evictionLock.lock();
+    try {
+      ConcurrentLinkedHashMap<?, ?>.Node node = map.data.get(0);
+      checkState(node, ALIVE);
+      new Thread() {
+        @Override public void run() {
+          map.remove(0);
+          latch.countDown();
+        }
+      }.start();
+      assertThat(latch.await(1, SECONDS), is(true));
+      checkState(node, RETIRED);
+
+      map.capacity = 9;
+      map.evict();
+
+      checkState(node, DEAD);
+      verify(listener, never()).onEviction(anyInt(), anyInt());
+    } finally {
+      map.evictionLock.unlock();
+    }
+  }
+
+  enum State { ALIVE, RETIRED, DEAD }
+
+  private static void checkState(ConcurrentLinkedHashMap<?, ?>.Node node, State expected) {
+    assertThat(node.get().isAlive(), is(expected == ALIVE));
+    assertThat(node.get().isRetired(), is(expected == RETIRED));
+    assertThat(node.get().isDead(), is(expected == DEAD));
+
+    if (node.get().isRetired() || node.get().isDead()) {
+      assertThat(node.tryToRetire(node.get()), is(false));
+    }
+    if (node.get().isDead()) {
+      node.makeRetired();
+      assertThat(node.get().isRetired(), is(false));
+    }
   }
 
   @Test(dataProvider = "builder")
@@ -253,12 +541,10 @@ public final class EvictionTest extends BaseTest {
 
   private void checkContainsInOrder(ConcurrentLinkedHashMap<Integer, Integer> map,
       Integer... expect) {
-    map.tryToDrainEvictionQueues(false);
+    map.tryToDrainBuffers(AMORTIZED_DRAIN_THRESHOLD);
     List<Integer> evictionList = Lists.newArrayList();
-    ConcurrentLinkedHashMap<Integer, Integer>.Node current = map.sentinel.next;
-    while (current != map.sentinel) {
-      evictionList.add(current.key);
-      current = current.next;
+    for (ConcurrentLinkedHashMap<Integer, Integer>.Node node : map.evictionDeque) {
+      evictionList.add(node.key);
     }
     assertThat(map.size(), is(equalTo(expect.length)));
     assertThat(map.keySet(), containsInAnyOrder(expect));
@@ -267,40 +553,40 @@ public final class EvictionTest extends BaseTest {
 
   @Test(dataProvider = "warmedMap")
   public void updateRecency_onGet(final ConcurrentLinkedHashMap<Integer, Integer> map) {
-    final ConcurrentLinkedHashMap<Integer, Integer>.Node originalHead = map.sentinel.next;
+    final ConcurrentLinkedHashMap<Integer, Integer>.Node first = map.evictionDeque.peek();
     updateRecency(map, new Runnable() {
-      public void run() {
-        map.get(originalHead.key);
+      @Override public void run() {
+        map.get(first.key);
       }
     });
   }
 
   @Test(dataProvider = "warmedMap")
   public void updateRecency_onPutIfAbsent(final ConcurrentLinkedHashMap<Integer, Integer> map) {
-    final ConcurrentLinkedHashMap<Integer, Integer>.Node originalHead = map.sentinel.next;
+    final ConcurrentLinkedHashMap<Integer, Integer>.Node first = map.evictionDeque.peek();
     updateRecency(map, new Runnable() {
-      public void run() {
-        map.putIfAbsent(originalHead.key, originalHead.key);
+      @Override public void run() {
+        map.putIfAbsent(first.key, first.key);
       }
     });
   }
 
   @Test(dataProvider = "warmedMap")
   public void updateRecency_onPut(final ConcurrentLinkedHashMap<Integer, Integer> map) {
-    final ConcurrentLinkedHashMap<Integer, Integer>.Node originalHead = map.sentinel.next;
+    final ConcurrentLinkedHashMap<Integer, Integer>.Node first = map.evictionDeque.peek();
     updateRecency(map, new Runnable() {
-      public void run() {
-        map.put(originalHead.key, originalHead.key);
+      @Override public void run() {
+        map.put(first.key, first.key);
       }
     });
   }
 
   @Test(dataProvider = "warmedMap")
   public void updateRecency_onReplace(final ConcurrentLinkedHashMap<Integer, Integer> map) {
-    final ConcurrentLinkedHashMap<Integer, Integer>.Node originalHead = map.sentinel.next;
+    final ConcurrentLinkedHashMap<Integer, Integer>.Node first = map.evictionDeque.peek();
     updateRecency(map, new Runnable() {
-      public void run() {
-        map.replace(originalHead.key, originalHead.key);
+      @Override public void run() {
+        map.replace(first.key, first.key);
       }
     });
   }
@@ -308,81 +594,242 @@ public final class EvictionTest extends BaseTest {
   @Test(dataProvider = "warmedMap")
   public void updateRecency_onReplaceConditionally(
       final ConcurrentLinkedHashMap<Integer, Integer> map) {
-    final ConcurrentLinkedHashMap<Integer, Integer>.Node originalHead = map.sentinel.next;
+    final ConcurrentLinkedHashMap<Integer, Integer>.Node first = map.evictionDeque.peek();
     updateRecency(map, new Runnable() {
-      public void run() {
-        map.replace(originalHead.key, originalHead.key, originalHead.key);
+      @Override public void run() {
+        map.replace(first.key, first.key, first.key);
       }
     });
   }
 
-  @SuppressWarnings("unchecked")
   private void updateRecency(ConcurrentLinkedHashMap<?, ?> map, Runnable operation) {
-    Node originalHead = map.sentinel.next;
+    ConcurrentLinkedHashMap<?, ?>.Node first = map.evictionDeque.peek();
 
     operation.run();
-    map.drainRecencyQueues();
+    map.drainBuffers(AMORTIZED_DRAIN_THRESHOLD);
 
-    assertThat(map.sentinel.next, is(not(originalHead)));
-    assertThat(map.sentinel.prev, is(originalHead));
+    assertThat(map.evictionDeque.peekFirst(), is(not(first)));
+    assertThat(map.evictionDeque.peekLast(), is(first));
     assertThat(map, is(valid()));
   }
 
+  @Test(dataProvider = "guardedMap")
+  public void applyInRecencyOrder(final ConcurrentLinkedHashMap<Integer, Integer> map) {
+    final AtomicInteger expected = new AtomicInteger(map.nextOrder);
+
+    for (int i = 0; i < 2 * BUFFER_THRESHOLD; i++) {
+      final int id = map.nextOrdering();
+      Task task = mock(Task.class);
+      when(task.getOrder()).thenReturn(id);
+      doAnswer(new Answer<Void>() {
+        @Override public Void answer(InvocationOnMock invocation) {
+          assertThat(id, is(expected.getAndIncrement()));
+          return null;
+        }
+      }).when(task).run();
+
+      int index = i % Runtime.getRuntime().availableProcessors();
+      map.buffers[index].add(task);
+      map.bufferLengths.getAndIncrement(index);
+    }
+
+    map.drainBuffers(AMORTIZED_DRAIN_THRESHOLD);
+    assertThat(map.buffers[bufferIndex()].size(), is(0));
+    map.bufferLengths.set(bufferIndex(), 0);
+  }
+
+  @Test(dataProvider = "guardedMap")
+  public void exceedsMaximumBufferSize_onRead(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    map.bufferLengths.set(bufferIndex(), MAXIMUM_BUFFER_SIZE);
+
+    Task task = mock(Task.class);
+    map.afterCompletion(task);
+    verify(task, never()).run();
+
+    assertThat(map.buffers[bufferIndex()].size(), is(0));
+    map.bufferLengths.set(bufferIndex(), 0);
+  }
+
+  @Test(dataProvider = "guardedMap")
+  public void exceedsMaximumBufferSize_onWrite(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    map.bufferLengths.set(bufferIndex(), MAXIMUM_BUFFER_SIZE);
+
+    Task task = mock(Task.class);
+    when(task.isWrite()).thenReturn(true);
+    map.afterCompletion(task);
+    verify(task, times(1)).run();
+
+    assertThat(map.buffers[bufferIndex()].size(), is(0));
+    map.bufferLengths.set(bufferIndex(), 0);
+  }
+
   @Test(dataProvider = "warmedMap")
-  public void drainRecencyQueue(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    for (int i = 0; i < RECENCY_THRESHOLD; i++) {
+  public void drain(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    for (int i = 0; i < BUFFER_THRESHOLD; i++) {
       map.get(1);
     }
-    int index = (int) Thread.currentThread().getId() % map.recencyQueue.length;
-    assertThat(map.recencyQueueLength.get(index), is(equalTo(RECENCY_THRESHOLD)));
+    int index = bufferIndex();
+    assertThat(map.bufferLengths.get(index), is(equalTo(BUFFER_THRESHOLD)));
     map.get(1);
-    assertThat(map.recencyQueueLength.get(index), is(equalTo(0)));
+    assertThat(map.bufferLengths.get(index), is(equalTo(0)));
   }
 
-  @Test(dataProvider = "recencyOrderings")
-  public void applyInRecencyOrder(List<Integer> recencyOrderings) {
-    Integer last = null;
-    for (Integer recencyOrder : recencyOrderings) {
-      if (last != null) {
-        assertThat(recencyOrder, is(equalTo(last + 1)));
+  @Test(dataProvider = "guardedMap")
+  public void drain_nonblocking(final ConcurrentLinkedHashMap<Integer, Integer> map)
+      throws InterruptedException {
+    final CountDownLatch latch = new CountDownLatch(1);
+    Thread thread = new Thread() {
+      @Override public void run() {
+        map.drainStatus.set(REQUIRED);
+        map.tryToDrainBuffers(AMORTIZED_DRAIN_THRESHOLD);
+        latch.countDown();
       }
-      last = recencyOrder;
+    };
+    map.evictionLock.lock();
+    try {
+      thread.start();
+      assertThat(latch.await(1, TimeUnit.SECONDS), is(true));
+    } finally {
+      map.evictionLock.unlock();
     }
   }
 
-  /**
-   * Creates a list of orderings based on how the recency queues are drained
-   * and merged. The resulting list is the order of recencies that would have
-   * been applied the the page replacement policy.
-   */
-  @DataProvider(name = "recencyOrderings")
-  public Object[][] providesRecencyOrderings() {
-    ConcurrentLinkedHashMap<Integer, Integer> map = new Builder<Integer, Integer>()
-      .maximumWeightedCapacity(Integer.MAX_VALUE)
-      .build();
+  @Test(dataProvider = "guardedMap")
+  public void drain_blocksClear(final ConcurrentLinkedHashMap<Integer, Integer> map)
+      throws InterruptedException {
+    checkDrainBlocks(map, new Runnable() {
+      @Override public void run() {
+        map.clear();
+      }
+    });
+  }
 
-    // Add a dummy set of recency operations to the queues.
-    int numberOfRecenciesToSort = map.recencyQueue.length * RECENCY_THRESHOLD;
-    for (int i = 0; i < numberOfRecenciesToSort; i++) {
-      map.addToRecencyQueue(null);
-    }
+  @Test(dataProvider = "guardedMap")
+  public void drain_blocksAscendingKeySet(final ConcurrentLinkedHashMap<Integer, Integer> map)
+      throws InterruptedException {
+    checkDrainBlocks(map, new Runnable() {
+      @Override public void run() {
+        map.ascendingKeySet();
+      }
+    });
+  }
 
-    // Perform the merging in the same manner as when draining the queues
-    Queue<List<ConcurrentLinkedHashMap<Integer, Integer>.RecencyReference>> lists =
-        Lists.newLinkedList();
-    for (int i = 0; i < map.recencyQueue.length; i = i + 2) {
-      lists.add(map.moveRecenciesIntoMergedList(i, i + 1));
-    }
-    while (lists.size() > 1) {
-      lists.add(map.mergeRecencyLists(lists.poll(), lists.poll()));
-    }
+  @Test(dataProvider = "guardedMap")
+  public void drain_blocksDescendingKeySet(final ConcurrentLinkedHashMap<Integer, Integer> map)
+      throws InterruptedException {
+    checkDrainBlocks(map, new Runnable() {
+      @Override public void run() {
+        map.descendingKeySet();
+      }
+    });
+  }
 
-    // Extract the recency orderings
-    List<Integer> ordering = Lists.newArrayList();
-    for (ConcurrentLinkedHashMap<Integer, Integer>.RecencyReference recency : lists.poll()) {
-      ordering.add(recency.recencyOrder);
+  @Test(dataProvider = "guardedMap")
+  public void drain_blocksAscendingMap(final ConcurrentLinkedHashMap<Integer, Integer> map)
+      throws InterruptedException {
+    checkDrainBlocks(map, new Runnable() {
+      @Override public void run() {
+        map.ascendingMap();
+      }
+    });
+  }
+
+  @Test(dataProvider = "guardedMap")
+  public void drain_blocksDescendingMap(final ConcurrentLinkedHashMap<Integer, Integer> map)
+      throws InterruptedException {
+    checkDrainBlocks(map, new Runnable() {
+      @Override public void run() {
+        map.descendingMap();
+      }
+    });
+  }
+
+  @Test(dataProvider = "guardedMap")
+  public void drain_blocksCapacity(final ConcurrentLinkedHashMap<Integer, Integer> map)
+      throws InterruptedException {
+    checkDrainBlocks(map, new Runnable() {
+      @Override public void run() {
+        map.setCapacity(0);
+      }
+    });
+  }
+
+  void checkDrainBlocks(final ConcurrentLinkedHashMap<Integer, Integer> map, final Runnable task)
+      throws InterruptedException {
+    final ReentrantLock lock = (ReentrantLock) map.evictionLock;
+    final CountDownLatch begin = new CountDownLatch(1);
+    final CountDownLatch end = new CountDownLatch(1);
+
+    Thread thread = new Thread() {
+      @Override public void run() {
+        map.drainStatus.set(REQUIRED);
+        begin.countDown();
+        task.run();
+        end.countDown();
+      }
+    };
+    lock.lock();
+    try {
+      thread.start();
+      begin.await();
+      long endTime = System.nanoTime() + TimeUnit.SECONDS.toNanos(1);
+      while (!lock.hasQueuedThread(thread) && (endTime > System.nanoTime())) { /* busy wait */ }
+      assertThat(lock.hasQueuedThread(thread), is(true));
+    } finally {
+      lock.unlock();
     }
-    assertThat(ordering, hasSize(numberOfRecenciesToSort));
-    return new Object[][] {{ ordering }};
+    assertThat(end.await(1, TimeUnit.SECONDS), is(true));
+  }
+
+  @Test(dataProvider = "builder")
+  void drain_withShutdownExecutor(Builder<Integer, Integer> builder) {
+    when(executor.isShutdown()).thenReturn(true);
+
+    final ConcurrentLinkedHashMap<Integer, Integer> map = builder
+        .maximumWeightedCapacity(capacity())
+        .catchup(executor, 1, MINUTES)
+        .build();
+    map.put(1, 1);
+
+    assertThat(((ReentrantLock) map.evictionLock).isLocked(), is(false));
+    assertThat(map.drainStatus.get(), is(DrainStatus.IDLE));
+    assertThat(map.buffers[bufferIndex()], hasSize(0));
+    assertThat(map, is(valid()));
+  }
+
+  @Test(dataProvider = "builder")
+  void drain_withExecutor(Builder<Integer, Integer> builder) {
+    ConcurrentLinkedHashMap<Integer, Integer> map = builder
+        .maximumWeightedCapacity(capacity())
+        .catchup(executor, 1L, MINUTES)
+        .build();
+    verify(executor).scheduleWithFixedDelay(catchUpTask.capture(), eq(1L), eq(1L), eq(MINUTES));
+    catchUpTask.getValue().run();
+
+    warmUp(map, 0, 2 * BUFFER_THRESHOLD);
+    assertThat(map.buffers[bufferIndex()], hasSize(2 * BUFFER_THRESHOLD));
+
+    catchUpTask.getValue().run();
+
+    assertThat(((ReentrantLock) map.evictionLock).isLocked(), is(false));
+    assertThat(map.drainStatus.get(), is(DrainStatus.IDLE));
+    assertThat(map.buffers[bufferIndex()], hasSize(0));
+    assertThat(map, is(valid()));
+  }
+
+  @Test(dataProvider = "builder", expectedExceptions = CancellationException.class)
+  void drain_garbageCollected(Builder<Integer, Integer> builder) {
+    ConcurrentLinkedHashMap<Integer, Integer> map = builder
+        .maximumWeightedCapacity(capacity())
+        .catchup(executor, 1L, MINUTES)
+        .build();
+    WeakReference<?> ref = new WeakReference<Object>(map);
+    map = null;
+    do {
+      System.gc();
+    } while (ref.get() != null);
+
+    verify(executor).scheduleWithFixedDelay(catchUpTask.capture(), eq(1L), eq(1L), eq(MINUTES));
+    catchUpTask.getValue().run();
   }
 }

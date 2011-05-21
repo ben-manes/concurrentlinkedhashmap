@@ -127,8 +127,8 @@
 	
   <!-- Guava -->
   <path id="guava.compile.path">
-    <fileset dir="${external.dir}/guava/r07">
-      <include name="guava-r07.jar"/>
+    <fileset dir="${external.dir}/guava/r08">
+      <include name="guava-r08.jar"/>
     </fileset>
   </path>
   <path id="guava.deploy.path">
@@ -143,6 +143,16 @@
   </path>
   <path id="hamcrest.deploy.path">
     <path refid="hamcrest.compile.path"/>
+  </path>
+
+    <!-- High Scalability Lib -->
+  <path id="high-scale-lib.compile.path">
+    <fileset dir="${external.dir}/high-scale-lib/1.1.2">
+      <include name="high-scale-lib.jar"/>
+    </fileset>
+  </path>
+  <path id="high-scale-lib.deploy.path">
+    <path refid="high-scale-lib.compile.path"/>
   </path>
 
   <!-- JBoss Cache 2.1.0 -->
@@ -193,6 +203,16 @@
       <include name="jgroups.jar"/>
       <include name="jta.jar"/>
     </fileset>
+  </path>
+
+  <!-- Mockito -->
+  <path id="mockito.compile.path">
+    <fileset dir="${external.dir}/mockito/1.8.5">
+      <include name="mockito-all-1.8.5.jar"/>
+    </fileset>
+  </path>
+  <path id="mockito.deploy.path">
+    <path refid="mockito.compile.path"/>
   </path>
 
   <!-- PMD -->

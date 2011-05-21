@@ -1,18 +1,43 @@
+/*
+ * Copyright 2011 Benjamin Manes
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package com.googlecode.concurrentlinkedhashmap;
 
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.MAXIMUM_CAPACITY;
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder.DEFAULT_CONCURRENCY_LEVEL;
+import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder.DEFAULT_EXECUTOR;
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder.DEFAULT_INITIAL_CAPACITY;
+import static java.util.concurrent.TimeUnit.MINUTES;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.verify;
 
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.BoundedWeigher;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.DiscardingListener;
-import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.WeightedCapacityLimiter;
 
 import org.testng.annotations.Test;
+
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.RejectedExecutionException;
 
 /**
  * A unit-test for the builder methods.
@@ -20,7 +45,7 @@ import org.testng.annotations.Test;
  * @author bmanes@google.com (Ben Manes)
  */
 @Test(groups = "development")
-public final class BuilderTest extends BaseTest {
+public final class BuilderTest extends AbstractTest {
 
   @Override
   protected int capacity() {
@@ -39,7 +64,7 @@ public final class BuilderTest extends BaseTest {
 
   @Test(dataProvider = "builder")
   public void initialCapacity_withDefault(Builder<?, ?> builder) {
-    assertThat(builder.initialCapacity, is(equalTo(DEFAULT_INITIAL_CAPACITY)));
+    assertThat(builder.initialCapacity, is(DEFAULT_INITIAL_CAPACITY));
     builder.build(); // can't check, so just assert that it builds
   }
 
@@ -62,7 +87,7 @@ public final class BuilderTest extends BaseTest {
   @Test(dataProvider = "builder")
   public void maximumWeightedCapacity_aboveMaximum(Builder<?, ?> builder) {
     builder.maximumWeightedCapacity(MAXIMUM_CAPACITY + 1);
-    assertThat(builder.build().capacity(), is(equalTo(MAXIMUM_CAPACITY)));
+    assertThat(builder.build().capacity(), is(MAXIMUM_CAPACITY));
   }
 
   @Test(dataProvider = "builder", expectedExceptions = IllegalArgumentException.class)
@@ -77,7 +102,7 @@ public final class BuilderTest extends BaseTest {
 
   @Test(dataProvider = "builder")
   public void concurrencyLevel_withDefault(Builder<?, ?> builder) {
-    assertThat(builder.build().concurrencyLevel, is(equalTo(DEFAULT_CONCURRENCY_LEVEL)));
+    assertThat(builder.build().concurrencyLevel, is(DEFAULT_CONCURRENCY_LEVEL));
   }
 
   @Test(dataProvider = "builder")
@@ -96,9 +121,9 @@ public final class BuilderTest extends BaseTest {
     assertThat(builder.build().listener, is(sameInstance(listener)));
   }
 
-  @Test(dataProvider = "guardingListener")
-  public void listener_withCustom(EvictionListener<Object, Object> listener) {
-    Builder<Object, Object> builder = new Builder<Object, Object>()
+  @Test
+  public void listener_withCustom() {
+    Builder<Integer, Integer> builder = new Builder<Integer, Integer>()
         .maximumWeightedCapacity(capacity())
         .listener(listener);
     assertThat(builder.build().listener, is(sameInstance(listener)));
@@ -111,34 +136,57 @@ public final class BuilderTest extends BaseTest {
 
   @Test(dataProvider = "builder")
   public void weigher_withDefault(Builder<Integer, Integer> builder) {
-    assertThat((Object) builder.build().weigher, sameInstance((Object) Weighers.singleton()));
+    Weigher<?> weigher = ((BoundedWeigher<?>) builder.build().weigher).delegate;
+    assertThat(weigher, sameInstance((Object) Weighers.singleton()));
   }
 
   @Test(dataProvider = "builder")
   public void weigher_withCustom(Builder<Integer, byte[]> builder) {
     builder.weigher(Weighers.byteArray());
-    assertThat((Object) builder.build().weigher, is(sameInstance((Object) Weighers.byteArray())));
+    Weigher<?> weigher = ((BoundedWeigher<?>) builder.build().weigher).delegate;
+    assertThat(weigher, is(sameInstance((Object) Weighers.byteArray())));
   }
 
   @Test(dataProvider = "builder", expectedExceptions = NullPointerException.class)
-  public void capacityLimiter_withNull(Builder<?, ?> builder) {
-    builder.capacityLimiter(null);
+  public void catchup_withNullExecutor(Builder<?, ?> builder) {
+    builder.catchup(null, 1, MINUTES);
+  }
+
+  @Test(dataProvider = "builder", expectedExceptions = IllegalArgumentException.class)
+  public void catchup_withZeroDelay(Builder<?, ?> builder) {
+    builder.catchup(executor, 0, MINUTES);
+  }
+
+  @Test(dataProvider = "builder", expectedExceptions = IllegalArgumentException.class)
+  public void catchup_withNegativeDelay(Builder<?, ?> builder) {
+    builder.catchup(executor, -1, MINUTES);
+  }
+
+  @Test(dataProvider = "builder", expectedExceptions = NullPointerException.class)
+  public void catchup_withNullTimeUnit(Builder<?, ?> builder) {
+    builder.catchup(executor, 1, null);
   }
 
   @Test(dataProvider = "builder")
-  public void capacityLimiter_withDefault(Builder<Object, Object> builder) {
-    CapacityLimiter capacityLimiter = WeightedCapacityLimiter.INSTANCE;
-    assertThat(builder.build().capacityLimiter, is(sameInstance(capacityLimiter)));
+  public void catchup_withDefault(Builder<?, ?> builder) {
+    assertThat(builder.build().executor, is(DEFAULT_EXECUTOR));
   }
 
   @Test(dataProvider = "builder")
-  public void capacityLimiter_withCustom(Builder<Object, Object> builder) {
-    CapacityLimiter capacityLimiter = new CapacityLimiter() {
-      public boolean hasExceededCapacity(ConcurrentLinkedHashMap<?, ?> map) {
-        return false;
-      }
-    };
-    builder.maximumWeightedCapacity(capacity()).capacityLimiter(capacityLimiter);
-    assertThat(builder.build().capacityLimiter, is(sameInstance(capacityLimiter)));
+  public void catchup_withCustom(Builder<?, ?> builder) {
+    builder.catchup(executor, 1, MINUTES).build();
+    assertThat(builder.executor, is((ExecutorService) executor));
+
+    verify(executor).scheduleWithFixedDelay(catchUpTask.capture(), eq(1L), eq(1L), eq(MINUTES));
+    assertThat(catchUpTask.getAllValues(), hasSize(1));
+  }
+
+  @Test(dataProvider = "builder", expectedExceptions = RejectedExecutionException.class)
+  public void catchup_withRejected(Builder<?, ?> builder) {
+    doThrow(new RejectedExecutionException()).when(executor)
+        .scheduleWithFixedDelay(any(Runnable.class), eq(1L), eq(1L), eq(MINUTES));
+
+    builder.catchup(executor, 1, MINUTES);
+    builder.build();
   }
 }

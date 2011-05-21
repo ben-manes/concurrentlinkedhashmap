@@ -1,3 +1,18 @@
+/*
+ * Copyright 2011 Benjamin Manes
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package com.googlecode.concurrentlinkedhashmap.caches;
 
 import java.util.LinkedHashMap;
@@ -35,6 +50,7 @@ final class BoundedLinkedHashMap<K, V> extends LinkedHashMap<K, V> implements Co
     return size() > maximumCapacity;
   }
 
+  @Override
   public V putIfAbsent(K key, V value) {
     V currentValue = get(key);
     return (currentValue == null)
@@ -42,6 +58,7 @@ final class BoundedLinkedHashMap<K, V> extends LinkedHashMap<K, V> implements Co
         : currentValue;
   }
 
+  @Override
   public boolean remove(Object key, Object value) {
     if (value.equals(get(key))) {
       remove(key);
@@ -50,12 +67,14 @@ final class BoundedLinkedHashMap<K, V> extends LinkedHashMap<K, V> implements Co
     return false;
   }
 
+  @Override
   public V replace(K key, V value) {
     return containsKey(key)
         ? put(key, value)
         : null;
   }
 
+  @Override
   public boolean replace(K key, V oldValue, V newValue) {
     V currentValue = get(key);
     if (oldValue.equals(currentValue)) {

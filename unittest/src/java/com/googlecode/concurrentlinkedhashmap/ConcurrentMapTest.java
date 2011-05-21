@@ -1,3 +1,18 @@
+/*
+ * Copyright 2011 Benjamin Manes
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package com.googlecode.concurrentlinkedhashmap;
 
 import static com.google.common.collect.Maps.immutableEntry;
@@ -24,7 +39,6 @@ import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 
 import org.testng.annotations.Test;
 
-import java.io.Serializable;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.Map;
@@ -40,7 +54,7 @@ import java.util.concurrent.ConcurrentMap;
  * @author ben.manes@gmail.com (Ben Manes)
  */
 @Test(groups = "development")
-public final class ConcurrentMapTest extends BaseTest {
+public final class ConcurrentMapTest extends AbstractTest {
 
   @Override
   protected int capacity() {
@@ -92,7 +106,7 @@ public final class ConcurrentMapTest extends BaseTest {
   @Test(dataProvider = "guardedMap")
   public void equals_whenEmpty(Map<Object, Object> map) {
     Map<Object, Object> empty = ImmutableMap.of();
-    assertThat(map, is(empty));
+    assertThat(map, is(equalTo(empty)));
     assertThat(empty, is(equalTo(map)));
   }
 
@@ -283,9 +297,9 @@ public final class ConcurrentMapTest extends BaseTest {
     map.remove(null, 2);
   }
 
-  @Test(dataProvider = "guardedMap", expectedExceptions = NullPointerException.class)
+  @Test(dataProvider = "warmedMap")
   public void removeConditionally_withNullValue(ConcurrentMap<Integer, Integer> map) {
-    map.remove(1, null);
+    assertThat(map.remove(1, null), is(false)); // matches CHM
   }
 
   @Test(dataProvider = "guardedMap", expectedExceptions = NullPointerException.class)
@@ -387,7 +401,7 @@ public final class ConcurrentMapTest extends BaseTest {
   }
 
   @Test(dataProvider = "guardedMap")
-  public void toString_whenempty(Map<Integer, Integer> map) {
+  public void toString_whenEmpty(Map<Integer, Integer> map) {
     assertThat(map, hasToString(ImmutableMap.of().toString()));
   }
 
@@ -415,7 +429,6 @@ public final class ConcurrentMapTest extends BaseTest {
       EvictionListener<Integer, Collection<Integer>> listener) {
     Map<Integer, Collection<Integer>> map =
       new Builder<Integer, Collection<Integer>>()
-          .capacityLimiter(new SerializableCapacityLimiter())
           .weigher(Weighers.<Integer>collection())
           .maximumWeightedCapacity(500)
           .initialCapacity(100)
@@ -424,13 +437,6 @@ public final class ConcurrentMapTest extends BaseTest {
           .build();
     map.put(1, singletonList(2));
     assertThat(map, is(reserializable()));
-  }
-
-  @SuppressWarnings("serial")
-  static final class SerializableCapacityLimiter implements CapacityLimiter, Serializable {
-    public boolean hasExceededCapacity(ConcurrentLinkedHashMap<?, ?> map) {
-      return false;
-    }
   }
 
   /* ---------------- Key Set -------------- */

@@ -23,6 +23,8 @@
     <path refid="ehcache.deploy.path"/>
     <path refid="guava.deploy.path" />
     <path refid="hamcrest.deploy.path" />
+    <path refid="high-scale-lib.deploy.path" />
+    <path refid="mockito.deploy.path" />
     <path refid="testng.deploy.path" />
   </path>
 
@@ -95,7 +97,7 @@
 
     <compile.macro srcdir="${api.src.dir}" destdir="${api.build.dir}" pathref="empty.path"/>
     <compile.macro srcdir="${test.src.dir}" destdir="${test.build.dir}" pathref="test.path"/>
-    <compile.macro srcdir="${benchmark.src.dir}" destdir="${benchmark.build.dir}" pathref="test.path"/>
+    <compile.macro srcdir="${benchmark.src.dir}" destdir="${benchmark.build.dir}" pathref="benchmark.path"/>
   </target>
 
   <target
@@ -103,7 +105,9 @@
    depends="compile"
    description="Generates API documentation in HTML format."
   >
-    <javadoc sourcepath="${api.src.dir}" destdir="${javadoc.build.dir}"/>
+    <javadoc sourcepath="${api.src.dir}" destdir="${javadoc.build.dir}">
+      <link offline="false" href="http://download.oracle.com/javase/6/docs/api/" /> 
+    </javadoc>
   </target>
 
   <target
@@ -207,7 +211,7 @@
       >
         <classfileset dir="${test.build.dir}"/>
         <jvmarg value="-Xms64m"/>
-        <jvmarg value="-Xmx512m"/>
+        <jvmarg value="-Xmx1024m"/>
         <jvmarg value="-Xss1m"/>
 
         <!-- All tests -->
@@ -304,6 +308,27 @@
       <arg value="-DmaximumCapacity=${caliper.benchmark.maximumCapacity}"/>
       <arg value="-DnumberOfThreads=${caliper.benchmark.numberOfThreads}"/>
       <arg value="-DreadRatio=${caliper.scenario.getPut.readRatio}"/>
+    </java>
+  </target>
+	
+  <target
+    name="run-perf"
+    depends="compile"
+    description="Runs Cliff Click's micro-benchmark over the build artifacts."
+  >  
+    <java
+     classname="com.googlecode.concurrentlinkedhashmap.perf_hash_test"
+     classpathref="benchmark.path"
+     fork="true"
+     maxmemory="${perf.heap}"
+    >
+      <arg value="${perf.readRatio}"/>
+    	<arg value="${perf.thread.min}"/>
+    	<arg value="${perf.thread.max}"/>
+    	<arg value="${perf.thread.increment}"/>
+    	<arg value="${perf.hashtable.size}"/>
+    	<arg value="${perf.hashtable.impl}"/>
+    	<arg value="${perf.hashtable.maxSize}"/>
     </java>
   </target>
   

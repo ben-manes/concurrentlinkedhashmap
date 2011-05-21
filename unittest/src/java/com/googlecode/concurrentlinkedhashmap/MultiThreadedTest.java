@@ -1,9 +1,23 @@
+/*
+ * Copyright 2011 Benjamin Manes
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package com.googlecode.concurrentlinkedhashmap;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.collect.Lists.newArrayList;
-import static com.google.common.collect.Sets.newSetFromMap;
 import static com.googlecode.concurrentlinkedhashmap.Benchmarks.shuffle;
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentTestHarness.timeTasks;
 import static com.googlecode.concurrentlinkedhashmap.IsValidState.valid;
@@ -11,15 +25,17 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.testng.Assert.fail;
 
+import com.google.common.collect.Sets;
+
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Node;
 
 import org.apache.commons.lang.SerializationUtils;
-import org.testng.annotations.BeforeClass;
+import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import java.util.Arrays;
-import java.util.IdentityHashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map.Entry;
 import java.util.Queue;
@@ -42,7 +58,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * @author ben.manes@gmail.com (Ben Manes)
  */
 @Test(groups = "development")
-public final class MultiThreadedTest extends BaseTest {
+public final class MultiThreadedTest extends AbstractTest {
   private Queue<String> failures;
   private List<Integer> keys;
   private int iterations;
@@ -54,38 +70,12 @@ public final class MultiThreadedTest extends BaseTest {
     return intProperty("multiThreaded.maximumCapacity");
   }
 
-  @BeforeClass(alwaysRun = true)
+  @BeforeMethod(alwaysRun = true)
   public void beforeMultiThreaded() {
     iterations = intProperty("multiThreaded.iterations");
     nThreads = intProperty("multiThreaded.nThreads");
     timeout = intProperty("multiThreaded.timeout");
     failures = new ConcurrentLinkedQueue<String>();
-  }
-
-  @Test(dataProvider = "builder")
-  public void weightedConcurrency(Builder<Integer, List<Integer>> builder) {
-    final ConcurrentLinkedHashMap<Integer, List<Integer>> map = builder
-        .weigher(Weighers.<Integer>list())
-        .maximumWeightedCapacity(nThreads)
-        .build();
-    final Queue<List<Integer>> values = new ConcurrentLinkedQueue<List<Integer>>();
-    for (int i = 1; i <= nThreads; i++) {
-      Integer[] array = new Integer[i];
-      Arrays.fill(array, Integer.MIN_VALUE);
-      values.add(Arrays.asList(array));
-    }
-    executeWithTimeOut(map, new Callable<Long>() {
-      public Long call() throws Exception {
-        return timeTasks(nThreads, new Runnable() {
-          public void run() {
-            List<Integer> value = values.poll();
-            for (int i = 0; i < iterations; i++) {
-              map.put(i % 10, value);
-            }
-          }
-        });
-      }
-    });
   }
 
   @Test(dataProvider = "builder")
@@ -101,26 +91,54 @@ public final class MultiThreadedTest extends BaseTest {
         .concurrencyLevel(nThreads)
         .build();
     executeWithTimeOut(map, new Callable<Long>() {
-      public Long call() throws Exception {
+      @Override public Long call() throws Exception {
         return timeTasks(nThreads, new Thrasher(map, sets));
       }
     });
   }
 
+  @Test(dataProvider = "builder")
+  public void weightedConcurrency(Builder<Integer, List<Integer>> builder) {
+    final ConcurrentLinkedHashMap<Integer, List<Integer>> map = builder
+        .weigher(Weighers.<Integer>list())
+        .maximumWeightedCapacity(nThreads)
+        .concurrencyLevel(nThreads)
+        .build();
+    final Queue<List<Integer>> values = new ConcurrentLinkedQueue<List<Integer>>();
+    for (int i = 1; i <= nThreads; i++) {
+      Integer[] array = new Integer[i];
+      Arrays.fill(array, Integer.MIN_VALUE);
+      values.add(Arrays.asList(array));
+    }
+    executeWithTimeOut(map, new Callable<Long>() {
+      @Override public Long call() throws Exception {
+        return timeTasks(nThreads, new Runnable() {
+          @Override public void run() {
+            List<Integer> value = values.poll();
+            for (int i = 0; i < iterations; i++) {
+              map.put(i % 10, value);
+            }
+          }
+        });
+      }
+    });
+  }
+
   /**
-   * Executes operations against the cache to simulate random load.
+   * Executes operations against the map to simulate random load.
    */
   private final class Thrasher implements Runnable {
-    private final ConcurrentLinkedHashMap<Integer, Integer> cache;
+    private final ConcurrentLinkedHashMap<Integer, Integer> map;
     private final List<List<Integer>> sets;
     private final AtomicInteger index;
 
-    public Thrasher(ConcurrentLinkedHashMap<Integer, Integer> cache, List<List<Integer>> sets) {
+    public Thrasher(ConcurrentLinkedHashMap<Integer, Integer> map, List<List<Integer>> sets) {
       this.index = new AtomicInteger();
-      this.cache = cache;
+      this.map = map;
       this.sets = sets;
     }
 
+    @Override
     public void run() {
       Operation[] ops = Operation.values();
       int id = index.getAndIncrement();
@@ -129,17 +147,17 @@ public final class MultiThreadedTest extends BaseTest {
       for (Integer key : sets.get(id)) {
         Operation operation = ops[random.nextInt(ops.length)];
         try {
-          operation.execute(cache, key);
+          operation.execute(map, key);
         } catch (RuntimeException e) {
           String error =
               String.format("Failed: key %s on operation %s for node %s",
-                  key, operation, nodeToString(findNode(key, cache)));
+                  key, operation, nodeToString(findNode(key, map)));
           failures.add(error);
           throw e;
         } catch (Throwable thr) {
           String error =
               String.format("Halted: key %s on operation %s for node %s",
-                  key, operation, nodeToString(findNode(key, cache)));
+                  key, operation, nodeToString(findNode(key, map)));
           failures.add(error);
         }
       }
@@ -226,6 +244,26 @@ public final class MultiThreadedTest extends BaseTest {
           checkNotNull(i);
         }
         cache.keySet().toArray(new Integer[cache.size()]);
+      }
+    },
+   ASCENDING() {
+      @Override void execute(ConcurrentLinkedHashMap<Integer, Integer> cache, Integer key) {
+        for (Integer i : cache.ascendingKeySet()) {
+          checkNotNull(i);
+        }
+        for (Entry<Integer, Integer> entry : cache.ascendingMap().entrySet()) {
+          checkNotNull(entry);
+        }
+      }
+    },
+    DESCENDING() {
+      @Override void execute(ConcurrentLinkedHashMap<Integer, Integer> cache, Integer key) {
+        for (Integer i : cache.descendingKeySet()) {
+          checkNotNull(i);
+        }
+        for (Entry<Integer, Integer> entry : cache.descendingMap().entrySet()) {
+          checkNotNull(entry);
+        }
       }
     },
     VALUES() {
@@ -316,8 +354,8 @@ public final class MultiThreadedTest extends BaseTest {
 
     // Print the state of the cache
     debug("Cached Elements: %s", cache.toString());
-    debug("List Forward:\n%s", listForwardToString(cache));
-    debug("List Backward:\n%s", listBackwardsToString(cache));
+    debug("Deque Forward:\n%s", ascendingToString(cache));
+    debug("Deque Backward:\n%s", descendingToString(cache));
 
     // Print the recorded failures
     for (String failure : failures) {
@@ -326,34 +364,31 @@ public final class MultiThreadedTest extends BaseTest {
     fail("Spun forever", e);
   }
 
-  static String listForwardToString(ConcurrentLinkedHashMap<?, ?> map) {
-    return listToString(map, true);
+  static String ascendingToString(ConcurrentLinkedHashMap<?, ?> map) {
+    return dequeToString(map, true);
   }
 
-  static String listBackwardsToString(ConcurrentLinkedHashMap<?, ?> map) {
-    return listToString(map, false);
+  static String descendingToString(ConcurrentLinkedHashMap<?, ?> map) {
+    return dequeToString(map, false);
   }
 
-  private static String listToString(ConcurrentLinkedHashMap<?, ?> map, boolean forward) {
+  @SuppressWarnings("unchecked")
+  private static String dequeToString(ConcurrentLinkedHashMap<?, ?> map, boolean ascending) {
     map.evictionLock.lock();
     try {
       StringBuilder buffer = new StringBuilder("\n");
-      Set<Object> seen = newSetFromMap(new IdentityHashMap<Object, Boolean>());
-      @SuppressWarnings("unchecked")
-      ConcurrentLinkedHashMap.Node current;
-      if (forward) {
-        current = map.sentinel.next;
-      } else {
-        current = map.sentinel.prev;
-      }
-      while (current != map.sentinel) {
-        buffer.append(nodeToString(current)).append("\n");
-        boolean added = seen.add(current);
+      Set<Object> seen = Sets.newIdentityHashSet();
+      Iterator<? extends Node> iterator = ascending
+          ? map.evictionDeque.iterator()
+          : map.evictionDeque.descendingIterator();
+      while (iterator.hasNext()) {
+        Node node = iterator.next();
+        buffer.append(nodeToString(node)).append("\n");
+        boolean added = seen.add(node);
         if (!added) {
           buffer.append("Failure: Loop detected\n");
           break;
         }
-        current = forward ? current.next : current.prev;
       }
       return buffer.toString();
     } finally {
@@ -363,26 +398,19 @@ public final class MultiThreadedTest extends BaseTest {
 
   @SuppressWarnings("unchecked")
   static String nodeToString(Node node) {
-    if (node == null) {
-      return "null";
-    } else if (node.segment == -1) {
-      return "setinel";
-    }
-    return node.key + "=" + node.weightedValue.value;
+    return node.key + "=" + node.getValue();
   }
 
   /** Finds the node in the map by walking the list. Returns null if not found. */
+  @SuppressWarnings("unchecked")
   static ConcurrentLinkedHashMap<?, ?>.Node findNode(
       Object key, ConcurrentLinkedHashMap<?, ?> map) {
     map.evictionLock.lock();
     try {
-      @SuppressWarnings("unchecked")
-      ConcurrentLinkedHashMap.Node current = map.sentinel;
-      while (current != map.sentinel) {
-        if (current.equals(key)) {
-          return current;
+      for (Node node : map.evictionDeque) {
+        if (node.key.equals(key)) {
+          return node;
         }
-        current = map.sentinel.next;
       }
       return null;
     } finally {

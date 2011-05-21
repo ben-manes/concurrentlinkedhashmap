@@ -1,6 +1,21 @@
+/*
+ * Copyright 2011 Benjamin Manes
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package com.googlecode.concurrentlinkedhashmap;
 
-import static com.google.common.collect.Maps.immutableEntry;
+import static com.googlecode.concurrentlinkedhashmap.IsValidDeque.validDeque;
 import static com.googlecode.concurrentlinkedhashmap.IsValidState.valid;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
@@ -9,27 +24,38 @@ import static org.testng.Assert.fail;
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 
+import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
 import org.testng.ITestResult;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeClass;
+import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.DataProvider;
 
 import java.io.Serializable;
-import java.util.Collection;
+import java.util.Deque;
 import java.util.Map;
-import java.util.Map.Entry;
-import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ScheduledExecutorService;
 
 /**
- * Base utilities for testing purposes.
+ * A testing harness for simplifying the unit tests.
  *
  * @author ben.manes@gmail.com (Ben Manes)
  */
-public abstract class BaseTest {
+public abstract class AbstractTest {
   private boolean debug;
+
+  @Mock protected EvictionListener<Integer, Integer> listener;
+  @Captor protected ArgumentCaptor<Runnable> catchUpTask;
+  @Mock protected ScheduledExecutorService executor;
+  @Mock protected Weigher<Integer> weigher;
 
   /** Retrieves the maximum weighted capacity to build maps with. */
   protected abstract int capacity();
+
+  /* ---------------- Properties methods ----------- */
 
   protected static int intProperty(String property) {
     return Integer.getInteger(property);
@@ -57,30 +83,43 @@ public abstract class BaseTest {
 
   /* ---------------- Testing aspects -------------- */
 
-  private ConcurrentLinkedHashMap<?, ?> rawMap;
-
-  /** Initializes the test with runtime properties. */
   @BeforeClass(alwaysRun = true)
-  public void before() {
+  public void initClass() {
     debug = booleanProperty("test.debugMode");
     info("\nRunning %s...\n", getClass().getSimpleName());
   }
 
-  /** Validates the state of a provided map. */
+  @BeforeMethod(alwaysRun = true)
+  public void initMocks() {
+    MockitoAnnotations.initMocks(this);
+  }
+
   @AfterMethod(alwaysRun = true)
-  public void verifyValidState(ITestResult result) {
-    boolean successful = result.isSuccess();
+  public void validateIfSuccessful(ITestResult result) {
     try {
-      if (successful && (rawMap != null)) { // dataProvider used
-        assertThat(rawMap, is(valid()));
+      if (result.isSuccess()) {
+        for (Object provided : result.getParameters()) {
+          validate(provided);
+        }
       }
-    } catch (Throwable caught) {
-      successful = false;
-      fail("Test: " + result.getMethod().getMethodName(), caught);
+    } catch (AssertionError caught) {
+      result.setStatus(ITestResult.FAILURE);
+      result.setThrowable(caught);
     } finally {
-      if (!successful) {
+      if (!result.isSuccess()) {
         info(" * %s: Failed", result.getMethod().getMethodName());
       }
+    }
+  }
+
+  /** Validates the state of the injected parameter. */
+  @SuppressWarnings("unchecked")
+  private static void validate(Object param) {
+    if (param instanceof ConcurrentLinkedHashMap<?, ?>) {
+      assertThat((ConcurrentLinkedHashMap<?, ?>) param, is(valid()));
+    }
+    if (param instanceof Deque<?>) {
+      assertThat((Deque<? extends Linked<?>>) param, is(validDeque()));
     }
   }
 
@@ -97,8 +136,7 @@ public abstract class BaseTest {
   /** Provides an empty map for test methods. */
   @DataProvider(name = "emptyMap")
   public Object[][] providesEmptyMap() {
-    rawMap = newEmptyMap();
-    return new Object[][] {{ rawMap }};
+    return new Object[][] {{ newEmptyMap() }};
   }
 
   /** Creates a map with the default capacity. */
@@ -111,8 +149,7 @@ public abstract class BaseTest {
   /** Provides a guarded map for test methods. */
   @DataProvider(name = "guardedMap")
   public Object[][] providesGuardedMap() {
-    rawMap = newGuarded();
-    return new Object[][] {{ rawMap }};
+    return new Object[][] {{ newGuarded() }};
   }
 
   /** Creates a map that fails if an eviction occurs. */
@@ -126,8 +163,7 @@ public abstract class BaseTest {
   /** Provides a warmed map for test methods. */
   @DataProvider(name = "warmedMap")
   public Object[][] providesWarmedMap() {
-    rawMap = newWarmedMap();
-    return new Object[][] {{ rawMap }};
+    return new Object[][] {{ newWarmedMap() }};
   }
 
   /** Creates a map with warmed to capacity. */
@@ -137,14 +173,16 @@ public abstract class BaseTest {
     return map;
   }
 
-  /**
-   * Populates the map with the half-closed interval [start, end) where the
-   * value is the negation of the key.
-   */
-  protected void warmUp(Map<Integer, Integer> map, int start, int end) {
-    for (Integer i = start; i < end; i++) {
-      assertThat(map.put(i, -i), is(nullValue()));
-    }
+  @DataProvider(name = "guardedWeightedMap")
+  public Object[][] providesGuardedWeightedMap() {
+    return new Object[][] {{ newWeightedMap() }};
+  }
+
+  protected <K, V> ConcurrentLinkedHashMap<K, Iterable<V>> newWeightedMap() {
+    return new Builder<K, Iterable<V>>()
+        .weigher(Weighers.<V>iterable())
+        .maximumWeightedCapacity(capacity())
+        .build();
   }
 
   /* ---------------- Weigher providers -------------- */
@@ -186,46 +224,32 @@ public abstract class BaseTest {
 
   /* ---------------- Listener providers -------------- */
 
-  private EvictionListener<?, ?> rawListener;
-
   /** Provides a listener that fails on eviction. */
   @DataProvider(name = "guardingListener")
   public Object[][] providesGuardedListener() {
-    rawListener = new GuardingListener<Object, Object>();
-    return new Object[][] {{ rawListener }};
-  }
-
-  /** Provides a listener that collects evicted entries. */
-  @DataProvider(name = "collectingListener")
-  public Object[][] providesMonitorableListener() {
-    rawListener = new CollectingListener<Object, Object>();
-    return new Object[][] {{ rawListener }};
+    return new Object[][] {{ new GuardingListener<Object, Object>() }};
   }
 
   /** A listener that fails if invoked. */
   private static final class GuardingListener<K, V>
     implements EvictionListener<K, V>, Serializable {
 
-    public void onEviction(Object key, Object value) {
+    @Override public void onEviction(Object key, Object value) {
       fail(String.format("Evicted %s=%s", key, value));
     }
 
     private static final long serialVersionUID = 1L;
   }
 
-  /** A listener that collects the evicted entries. */
-  protected static final class CollectingListener<K, V>
-      implements EvictionListener<K, V>, Serializable {
-    final Collection<Entry<K, V>> evicted;
+  /* ---------------- Utility methods ------------- */
 
-    public CollectingListener() {
-      this.evicted = new ConcurrentLinkedQueue<Entry<K, V>>();
+  /**
+   * Populates the map with the half-closed interval [start, end) where the
+   * value is the negation of the key.
+   */
+  protected void warmUp(Map<Integer, Integer> map, int start, int end) {
+    for (Integer i = start; i < end; i++) {
+      assertThat(map.put(i, -i), is(nullValue()));
     }
-
-    public void onEviction(K key, V value) {
-      evicted.add(immutableEntry(key, value));
-    }
-
-    private static final long serialVersionUID = 1L;
   }
 }
