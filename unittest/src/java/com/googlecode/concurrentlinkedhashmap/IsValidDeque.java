@@ -21,7 +21,6 @@ import org.hamcrest.Description;
 import org.hamcrest.Factory;
 import org.hamcrest.TypeSafeDiagnosingMatcher;
 
-import java.util.Deque;
 import java.util.Iterator;
 import java.util.Set;
 
@@ -31,15 +30,14 @@ import java.util.Set;
  *
  * @author ben.manes@gmail.com (Ben Manes)
  */
-public final class IsValidDeque extends TypeSafeDiagnosingMatcher<Deque<? extends Linked<?>>> {
+public final class IsValidDeque extends TypeSafeDiagnosingMatcher<LinkedDeque<?>> {
 
-  @Override
   public void describeTo(Description description) {
     description.appendText("deque");
   }
 
   @Override
-  protected boolean matchesSafely(Deque<? extends Linked<?>> deque, Description description) {
+  protected boolean matchesSafely(LinkedDeque<?> deque, Description description) {
     DescriptionBuilder builder = new DescriptionBuilder(description);
 
     if (deque.isEmpty()) {
@@ -51,14 +49,14 @@ public final class IsValidDeque extends TypeSafeDiagnosingMatcher<Deque<? extend
     return builder.matches();
   }
 
-  void checkEmpty(Deque<? extends Linked<?>> deque, DescriptionBuilder builder) {
+  void checkEmpty(LinkedDeque<?> deque, DescriptionBuilder builder) {
     IsEmptyCollection.emptyCollection().matchesSafely(deque, builder.getDescription());
     builder.expectEqual(deque.poll(), null);
     builder.expectEqual(deque.pollFirst(), null);
     builder.expectEqual(deque.pollLast(), null);
   }
 
-  void checkIterator(Deque<? extends Linked<?>> deque, Iterator<? extends Linked<?>> iterator,
+  void checkIterator(LinkedDeque<?> deque, Iterator<? extends Linked<?>> iterator,
       DescriptionBuilder builder) {
     Set<Linked<?>> seen = Sets.newIdentityHashSet();
     while (iterator.hasNext()) {
@@ -69,7 +67,7 @@ public final class IsValidDeque extends TypeSafeDiagnosingMatcher<Deque<? extend
     builder.expectEqual(deque.size(), seen.size());
   }
 
-  void checkElement(Deque<? extends Linked<?>> deque, Linked<?> element, DescriptionBuilder builder) {
+  void checkElement(LinkedDeque<?> deque, Linked<?> element, DescriptionBuilder builder) {
     Linked<?> first = deque.peekFirst();
     Linked<?> last = deque.peekLast();
     if (element == first) {

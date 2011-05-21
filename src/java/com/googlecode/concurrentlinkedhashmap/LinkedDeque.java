@@ -17,12 +17,11 @@ package com.googlecode.concurrentlinkedhashmap;
 
 import java.util.AbstractCollection;
 import java.util.Collection;
-import java.util.Deque;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
 /**
- * Linked list implementation of the {@link Deque} interface where the link
+ * Linked list implementation of the the JDK6 Deque interface where the link
  * pointers are tightly integrated with the element. Linked deques have no
  * capacity restrictions; they grow as necessary to support usage. They are not
  * thread-safe; in the absence of external synchronization, they do not support
@@ -44,7 +43,7 @@ import java.util.NoSuchElementException;
  *      http://code.google.com/p/concurrentlinkedhashmap/</a>
  */
 @NotThreadSafe
-final class LinkedDeque<E extends Linked<E>> extends AbstractCollection<E> implements Deque<E> {
+final class LinkedDeque<E extends Linked<E>> extends AbstractCollection<E> {
 
   // This class provides a doubly-linked list that is optimized for the virtual
   // machine. The first and last elements are manipulated instead of a slightly
@@ -219,44 +218,36 @@ final class LinkedDeque<E extends Linked<E>> extends AbstractCollection<E> imple
     }
   }
 
-  @Override
   public E peek() {
     return peekFirst();
   }
 
-  @Override
   public E peekFirst() {
     return first;
   }
 
-  @Override
   public E peekLast() {
     return last;
   }
 
-  @Override
   public E getFirst() {
     checkNotEmpty();
     return peekFirst();
   }
 
-  @Override
   public E getLast() {
     checkNotEmpty();
     return peekLast();
   }
 
-  @Override
   public E element() {
     return getFirst();
   }
 
-  @Override
   public boolean offer(E e) {
     return offerLast(e);
   }
 
-  @Override
   public boolean offerFirst(E e) {
     if (contains(e)) {
       return false;
@@ -266,7 +257,6 @@ final class LinkedDeque<E extends Linked<E>> extends AbstractCollection<E> imple
     return true;
   }
 
-  @Override
   public boolean offerLast(E e) {
     if (contains(e)) {
       return false;
@@ -281,27 +271,22 @@ final class LinkedDeque<E extends Linked<E>> extends AbstractCollection<E> imple
     return offerLast(e);
   }
 
-
-  @Override
   public void addFirst(E e) {
     if (!offerFirst(e)) {
       throw new IllegalArgumentException();
     }
   }
 
-  @Override
   public void addLast(E e) {
     if (!offerLast(e)) {
       throw new IllegalArgumentException();
     }
   }
 
-  @Override
   public E poll() {
     return pollFirst();
   }
 
-  @Override
   public E pollFirst() {
     if (isEmpty()) {
       return null;
@@ -310,7 +295,6 @@ final class LinkedDeque<E extends Linked<E>> extends AbstractCollection<E> imple
     return unlinkFirst();
   }
 
-  @Override
   public E pollLast() {
     if (isEmpty()) {
       return null;
@@ -319,7 +303,6 @@ final class LinkedDeque<E extends Linked<E>> extends AbstractCollection<E> imple
     return unlinkLast();
   }
 
-  @Override
   public E remove() {
     return removeFirst();
   }
@@ -335,24 +318,20 @@ final class LinkedDeque<E extends Linked<E>> extends AbstractCollection<E> imple
     return false;
   }
 
-  @Override
   public E removeFirst() {
     checkNotEmpty();
     return pollFirst();
   }
 
-  @Override
   public boolean removeFirstOccurrence(Object o) {
     return remove(o);
   }
 
-  @Override
   public E removeLast() {
     checkNotEmpty();
     return pollLast();
   }
 
-  @Override
   public boolean removeLastOccurrence(Object o) {
     return remove(o);
   }
@@ -366,12 +345,10 @@ final class LinkedDeque<E extends Linked<E>> extends AbstractCollection<E> imple
     return modified;
   }
 
-  @Override
   public void push(E e) {
     addFirst(e);
   }
 
-  @Override
   public E pop() {
     return removeFirst();
   }
@@ -385,7 +362,6 @@ final class LinkedDeque<E extends Linked<E>> extends AbstractCollection<E> imple
     };
   }
 
-  @Override
   public Iterator<E> descendingIterator() {
     return new AbstractLinkedIterator(last) {
       @Override E computeNext() {
@@ -406,12 +382,10 @@ final class LinkedDeque<E extends Linked<E>> extends AbstractCollection<E> imple
       cursor = start;
     }
 
-    @Override
     public boolean hasNext() {
       return (cursor != null);
     }
 
-    @Override
     public E next() {
       if (!hasNext()) {
         throw new NoSuchElementException();
@@ -421,7 +395,6 @@ final class LinkedDeque<E extends Linked<E>> extends AbstractCollection<E> imple
       return e;
     }
 
-    @Override
     public void remove() {
       throw new UnsupportedOperationException();
     }

@@ -25,7 +25,6 @@ public final class CHMCacheWrapper extends AbstractCacheWrapper {
         .makeCache(Cache.ConcurrentHashMap);
   }
 
-  @Override
   public void setUp() throws Exception {
     map.clear();
   }

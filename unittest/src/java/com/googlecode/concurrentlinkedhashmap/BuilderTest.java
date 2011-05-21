@@ -19,7 +19,7 @@ import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.MAX
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder.DEFAULT_CONCURRENCY_LEVEL;
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder.DEFAULT_EXECUTOR;
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder.DEFAULT_INITIAL_CAPACITY;
-import static java.util.concurrent.TimeUnit.MINUTES;
+import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -149,17 +149,17 @@ public final class BuilderTest extends AbstractTest {
 
   @Test(dataProvider = "builder", expectedExceptions = NullPointerException.class)
   public void catchup_withNullExecutor(Builder<?, ?> builder) {
-    builder.catchup(null, 1, MINUTES);
+    builder.catchup(null, 1, SECONDS);
   }
 
   @Test(dataProvider = "builder", expectedExceptions = IllegalArgumentException.class)
   public void catchup_withZeroDelay(Builder<?, ?> builder) {
-    builder.catchup(executor, 0, MINUTES);
+    builder.catchup(executor, 0, SECONDS);
   }
 
   @Test(dataProvider = "builder", expectedExceptions = IllegalArgumentException.class)
   public void catchup_withNegativeDelay(Builder<?, ?> builder) {
-    builder.catchup(executor, -1, MINUTES);
+    builder.catchup(executor, -1, SECONDS);
   }
 
   @Test(dataProvider = "builder", expectedExceptions = NullPointerException.class)
@@ -174,19 +174,19 @@ public final class BuilderTest extends AbstractTest {
 
   @Test(dataProvider = "builder")
   public void catchup_withCustom(Builder<?, ?> builder) {
-    builder.catchup(executor, 1, MINUTES).build();
+    builder.catchup(executor, 1, SECONDS).build();
     assertThat(builder.executor, is((ExecutorService) executor));
 
-    verify(executor).scheduleWithFixedDelay(catchUpTask.capture(), eq(1L), eq(1L), eq(MINUTES));
+    verify(executor).scheduleWithFixedDelay(catchUpTask.capture(), eq(1L), eq(1L), eq(SECONDS));
     assertThat(catchUpTask.getAllValues(), hasSize(1));
   }
 
   @Test(dataProvider = "builder", expectedExceptions = RejectedExecutionException.class)
   public void catchup_withRejected(Builder<?, ?> builder) {
     doThrow(new RejectedExecutionException()).when(executor)
-        .scheduleWithFixedDelay(any(Runnable.class), eq(1L), eq(1L), eq(MINUTES));
+        .scheduleWithFixedDelay(any(Runnable.class), eq(1L), eq(1L), eq(SECONDS));
 
-    builder.catchup(executor, 1, MINUTES);
+    builder.catchup(executor, 1, SECONDS);
     builder.build();
   }
 }

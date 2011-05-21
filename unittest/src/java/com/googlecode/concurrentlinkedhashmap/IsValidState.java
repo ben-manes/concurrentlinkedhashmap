@@ -38,7 +38,6 @@ import java.util.concurrent.locks.ReentrantLock;
 @SuppressWarnings("unchecked")
 public final class IsValidState extends TypeSafeDiagnosingMatcher<ConcurrentLinkedHashMap<?, ?>> {
 
-  @Override
   public void describeTo(Description description) {
     description.appendText("state");
   }

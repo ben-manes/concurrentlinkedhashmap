@@ -9,7 +9,7 @@ package com.googlecode.concurrentlinkedhashmap;
 import com.googlecode.concurrentlinkedhashmap.caches.Cache;
 import com.googlecode.concurrentlinkedhashmap.caches.CacheBuilder;
 
-import org.cliffc.high_scale_lib.NonBlockingHashMap;
+//import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
@@ -31,7 +31,7 @@ public class perf_hash_test extends Thread {
     case 3: return new ConcurrentHashMap<String,String>(_table_size,0.75f,  16); // force to   16 striping
     case 4: return new ConcurrentHashMap<String,String>(_table_size,0.75f, 256); // force to  256 striping
     case 5: return new ConcurrentHashMap<String,String>(_table_size,0.75f,4096); // force to 4096 striping
-    case 6: return new NonBlockingHashMap<String,String>();
+    case 6: return null;//new NonBlockingHashMap<String,String>();
     case 7: return new CacheBuilder().maximumCapacity(Integer.MAX_VALUE).makeCache(Cache.LinkedHashMap_Lru_Sync);
     case 8:
       return new ConcurrentLinkedHashMap.Builder<String, String>()
@@ -211,12 +211,12 @@ public class perf_hash_test extends Thread {
 
       // Note: sum of nanos does not mean much if there are more threads than cpus
       //System.out.printf("+-%f%%",(ops_per_sec - ops_per_sec_n)*100.0/ops_per_sec);
-      if( HM instanceof NonBlockingHashMap ) {
-        long reprobes = ((NonBlockingHashMap)HM).reprobes();
-        if( reprobes > 0 ) {
-          System.out.printf("(%5.2f)",(double)reprobes/(double)sum_ops);
-        }
-      }
+//      if( HM instanceof NonBlockingHashMap ) {
+//        long reprobes = ((NonBlockingHashMap)HM).reprobes();
+//        if( reprobes > 0 ) {
+//          System.out.printf("(%5.2f)",(double)reprobes/(double)sum_ops);
+//        }
+//      }
 
     }
 
@@ -370,8 +370,8 @@ public class perf_hash_test extends Thread {
     } else {
       if( _hash instanceof ConcurrentLinkedHashMap) {
         total = run_normal( (ConcurrentLinkedHashMap) _hash);
-      } else if( _hash instanceof NonBlockingHashMap ) {
-        total = run_normal( (NonBlockingHashMap) _hash);
+//      } else if( _hash instanceof NonBlockingHashMap ) {
+//        total = run_normal( (NonBlockingHashMap) _hash);
       } else if( _hash instanceof ConcurrentHashMap ) {
         total = run_normal( (ConcurrentHashMap) _hash);
       } else {
@@ -415,32 +415,32 @@ public class perf_hash_test extends Thread {
     return get_ops+put_ops+del_ops;
   }
 
-  public int run_normal( NonBlockingHashMap<String,String> hm ) {
-    SimpleRandom R = new SimpleRandom();
-
-    int get_ops = 0;
-    int put_ops = 0;
-    int del_ops = 0;
-    while( !_stop ) {
-      int x = R.nextInt()&((1<<20)-1);
-      String key = KEYS[R.nextInt()&(KEYS.length-1)];
-      if( x < _gr ) {
-        get_ops++;
-        String val = hm.get(key);
-        if( val != null && !val.equals(key) ) {
-          throw new IllegalArgumentException("Mismatched key="+key+" and val="+val);
-        }
-      } else if( x < _pr ) {
-        put_ops++;
-    hm.putIfAbsent( key, key );
-      } else {
-        del_ops++;
-        hm.remove( key );
-      }
-    }
-    // We stopped; report results into shared result structure
-    return get_ops+put_ops+del_ops;
-  }
+//  public int run_normal( NonBlockingHashMap<String,String> hm ) {
+//    SimpleRandom R = new SimpleRandom();
+//
+//    int get_ops = 0;
+//    int put_ops = 0;
+//    int del_ops = 0;
+//    while( !_stop ) {
+//      int x = R.nextInt()&((1<<20)-1);
+//      String key = KEYS[R.nextInt()&(KEYS.length-1)];
+//      if( x < _gr ) {
+//        get_ops++;
+//        String val = hm.get(key);
+//        if( val != null && !val.equals(key) ) {
+//          throw new IllegalArgumentException("Mismatched key="+key+" and val="+val);
+//        }
+//      } else if( x < _pr ) {
+//        put_ops++;
+//    hm.putIfAbsent( key, key );
+//      } else {
+//        del_ops++;
+//        hm.remove( key );
+//      }
+//    }
+//    // We stopped; report results into shared result structure
+//    return get_ops+put_ops+del_ops;
+//  }
 
   public int run_normal( ConcurrentHashMap<String,String> hm ) {
     SimpleRandom R = new SimpleRandom();

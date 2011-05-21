@@ -30,7 +30,7 @@ import static com.googlecode.concurrentlinkedhashmap.IsEmptyCollection.emptyColl
 import static com.googlecode.concurrentlinkedhashmap.IsEmptyMap.emptyMap;
 import static com.googlecode.concurrentlinkedhashmap.IsValidState.valid;
 import static java.util.Arrays.asList;
-import static java.util.concurrent.TimeUnit.MINUTES;
+import static java.util.concurrent.TimeUnit.SECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -463,7 +463,7 @@ public final class EvictionTest extends AbstractTest {
     final CountDownLatch latch = new CountDownLatch(1);
     map.evictionLock.lock();
     try {
-      ConcurrentLinkedHashMap<?, ?>.Node node = map.data.get(0);
+      ConcurrentLinkedHashMap<Integer, Integer>.Node node = map.data.get(0);
       checkState(node, ALIVE);
       new Thread() {
         @Override public void run() {
@@ -486,7 +486,7 @@ public final class EvictionTest extends AbstractTest {
 
   enum State { ALIVE, RETIRED, DEAD }
 
-  private static void checkState(ConcurrentLinkedHashMap<?, ?>.Node node, State expected) {
+  private static void checkState(ConcurrentLinkedHashMap<Integer, Integer>.Node node, State expected) {
     assertThat(node.get().isAlive(), is(expected == ALIVE));
     assertThat(node.get().isRetired(), is(expected == RETIRED));
     assertThat(node.get().isDead(), is(expected == DEAD));
@@ -555,7 +555,7 @@ public final class EvictionTest extends AbstractTest {
   public void updateRecency_onGet(final ConcurrentLinkedHashMap<Integer, Integer> map) {
     final ConcurrentLinkedHashMap<Integer, Integer>.Node first = map.evictionDeque.peek();
     updateRecency(map, new Runnable() {
-      @Override public void run() {
+      public void run() {
         map.get(first.key);
       }
     });
@@ -565,7 +565,7 @@ public final class EvictionTest extends AbstractTest {
   public void updateRecency_onPutIfAbsent(final ConcurrentLinkedHashMap<Integer, Integer> map) {
     final ConcurrentLinkedHashMap<Integer, Integer>.Node first = map.evictionDeque.peek();
     updateRecency(map, new Runnable() {
-      @Override public void run() {
+      public void run() {
         map.putIfAbsent(first.key, first.key);
       }
     });
@@ -575,7 +575,7 @@ public final class EvictionTest extends AbstractTest {
   public void updateRecency_onPut(final ConcurrentLinkedHashMap<Integer, Integer> map) {
     final ConcurrentLinkedHashMap<Integer, Integer>.Node first = map.evictionDeque.peek();
     updateRecency(map, new Runnable() {
-      @Override public void run() {
+      public void run() {
         map.put(first.key, first.key);
       }
     });
@@ -585,7 +585,7 @@ public final class EvictionTest extends AbstractTest {
   public void updateRecency_onReplace(final ConcurrentLinkedHashMap<Integer, Integer> map) {
     final ConcurrentLinkedHashMap<Integer, Integer>.Node first = map.evictionDeque.peek();
     updateRecency(map, new Runnable() {
-      @Override public void run() {
+      public void run() {
         map.replace(first.key, first.key);
       }
     });
@@ -596,20 +596,20 @@ public final class EvictionTest extends AbstractTest {
       final ConcurrentLinkedHashMap<Integer, Integer> map) {
     final ConcurrentLinkedHashMap<Integer, Integer>.Node first = map.evictionDeque.peek();
     updateRecency(map, new Runnable() {
-      @Override public void run() {
+      public void run() {
         map.replace(first.key, first.key, first.key);
       }
     });
   }
 
   private void updateRecency(ConcurrentLinkedHashMap<?, ?> map, Runnable operation) {
-    ConcurrentLinkedHashMap<?, ?>.Node first = map.evictionDeque.peek();
+    ConcurrentLinkedHashMap.Node first = map.evictionDeque.peek();
 
     operation.run();
     map.drainBuffers(AMORTIZED_DRAIN_THRESHOLD);
 
-    assertThat(map.evictionDeque.peekFirst(), is(not(first)));
-    assertThat(map.evictionDeque.peekLast(), is(first));
+    assertThat(map.evictionDeque.peekFirst(), is(not((Object) first)));
+    assertThat(map.evictionDeque.peekLast(), is((Object) first));
     assertThat(map, is(valid()));
   }
 
@@ -622,7 +622,7 @@ public final class EvictionTest extends AbstractTest {
       Task task = mock(Task.class);
       when(task.getOrder()).thenReturn(id);
       doAnswer(new Answer<Void>() {
-        @Override public Void answer(InvocationOnMock invocation) {
+        public Void answer(InvocationOnMock invocation) {
           assertThat(id, is(expected.getAndIncrement()));
           return null;
         }
@@ -698,7 +698,7 @@ public final class EvictionTest extends AbstractTest {
   public void drain_blocksClear(final ConcurrentLinkedHashMap<Integer, Integer> map)
       throws InterruptedException {
     checkDrainBlocks(map, new Runnable() {
-      @Override public void run() {
+      public void run() {
         map.clear();
       }
     });
@@ -708,7 +708,7 @@ public final class EvictionTest extends AbstractTest {
   public void drain_blocksAscendingKeySet(final ConcurrentLinkedHashMap<Integer, Integer> map)
       throws InterruptedException {
     checkDrainBlocks(map, new Runnable() {
-      @Override public void run() {
+      public void run() {
         map.ascendingKeySet();
       }
     });
@@ -718,7 +718,7 @@ public final class EvictionTest extends AbstractTest {
   public void drain_blocksDescendingKeySet(final ConcurrentLinkedHashMap<Integer, Integer> map)
       throws InterruptedException {
     checkDrainBlocks(map, new Runnable() {
-      @Override public void run() {
+      public void run() {
         map.descendingKeySet();
       }
     });
@@ -728,7 +728,7 @@ public final class EvictionTest extends AbstractTest {
   public void drain_blocksAscendingMap(final ConcurrentLinkedHashMap<Integer, Integer> map)
       throws InterruptedException {
     checkDrainBlocks(map, new Runnable() {
-      @Override public void run() {
+      public void run() {
         map.ascendingMap();
       }
     });
@@ -738,7 +738,7 @@ public final class EvictionTest extends AbstractTest {
   public void drain_blocksDescendingMap(final ConcurrentLinkedHashMap<Integer, Integer> map)
       throws InterruptedException {
     checkDrainBlocks(map, new Runnable() {
-      @Override public void run() {
+      public void run() {
         map.descendingMap();
       }
     });
@@ -748,7 +748,7 @@ public final class EvictionTest extends AbstractTest {
   public void drain_blocksCapacity(final ConcurrentLinkedHashMap<Integer, Integer> map)
       throws InterruptedException {
     checkDrainBlocks(map, new Runnable() {
-      @Override public void run() {
+      public void run() {
         map.setCapacity(0);
       }
     });
@@ -787,7 +787,7 @@ public final class EvictionTest extends AbstractTest {
 
     final ConcurrentLinkedHashMap<Integer, Integer> map = builder
         .maximumWeightedCapacity(capacity())
-        .catchup(executor, 1, MINUTES)
+        .catchup(executor, 1, SECONDS)
         .build();
     map.put(1, 1);
 
@@ -801,9 +801,9 @@ public final class EvictionTest extends AbstractTest {
   void drain_withExecutor(Builder<Integer, Integer> builder) {
     ConcurrentLinkedHashMap<Integer, Integer> map = builder
         .maximumWeightedCapacity(capacity())
-        .catchup(executor, 1L, MINUTES)
+        .catchup(executor, 1L, SECONDS)
         .build();
-    verify(executor).scheduleWithFixedDelay(catchUpTask.capture(), eq(1L), eq(1L), eq(MINUTES));
+    verify(executor).scheduleWithFixedDelay(catchUpTask.capture(), eq(1L), eq(1L), eq(SECONDS));
     catchUpTask.getValue().run();
 
     warmUp(map, 0, 2 * BUFFER_THRESHOLD);
@@ -821,7 +821,7 @@ public final class EvictionTest extends AbstractTest {
   void drain_garbageCollected(Builder<Integer, Integer> builder) {
     ConcurrentLinkedHashMap<Integer, Integer> map = builder
         .maximumWeightedCapacity(capacity())
-        .catchup(executor, 1L, MINUTES)
+        .catchup(executor, 1L, SECONDS)
         .build();
     WeakReference<?> ref = new WeakReference<Object>(map);
     map = null;
@@ -829,7 +829,7 @@ public final class EvictionTest extends AbstractTest {
       System.gc();
     } while (ref.get() != null);
 
-    verify(executor).scheduleWithFixedDelay(catchUpTask.capture(), eq(1L), eq(1L), eq(MINUTES));
+    verify(executor).scheduleWithFixedDelay(catchUpTask.capture(), eq(1L), eq(1L), eq(SECONDS));
     catchUpTask.getValue().run();
   }
 }

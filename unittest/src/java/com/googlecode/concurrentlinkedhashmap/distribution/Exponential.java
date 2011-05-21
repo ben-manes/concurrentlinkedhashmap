@@ -41,7 +41,6 @@ final class Exponential implements Supplier<Double> {
   /**
    * Random value with expected mean value.
    */
-  @Override
   public Double get() {
     return random.nextExponential(mean);
   }

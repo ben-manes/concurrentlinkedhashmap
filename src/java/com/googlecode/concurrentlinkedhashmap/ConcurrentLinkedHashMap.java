@@ -32,6 +32,7 @@ import java.util.AbstractCollection;
 import java.util.AbstractMap;
 import java.util.AbstractQueue;
 import java.util.AbstractSet;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -576,7 +577,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       this.node = node;
     }
 
-    @Override
     @GuardedBy("evictionLock")
     public void run() {
       // An entry may scheduled for reordering despite having been previously
@@ -588,7 +588,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       }
     }
 
-    @Override
     public boolean isWrite() {
       return false;
     }
@@ -604,7 +603,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       this.node = node;
     }
 
-    @Override
     @GuardedBy("evictionLock")
     public void run() {
       weightedSize += weight;
@@ -616,7 +614,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       }
     }
 
-    @Override
     public boolean isWrite() {
       return true;
     }
@@ -630,7 +627,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       this.node = node;
     }
 
-    @Override
     @GuardedBy("evictionLock")
     public void run() {
       // add may not have been processed yet
@@ -638,7 +634,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       node.makeDead();
     }
 
-    @Override
     public boolean isWrite() {
       return true;
     }
@@ -750,7 +745,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     return put(key, value, false);
   }
 
-  @Override
   public V putIfAbsent(K key, V value) {
     return put(key, value, true);
   }
@@ -811,7 +805,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     return node.getValue();
   }
 
-  @Override
   public boolean remove(Object key, Object value) {
     Node node = data.get(key);
     if ((node == null) || (value == null)) {
@@ -827,7 +820,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     return false;
   }
 
-  @Override
   public V replace(K key, V value) {
     checkNotNull(value);
 
@@ -854,7 +846,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     }
   }
 
-  @Override
   public boolean replace(K key, V oldValue, V newValue) {
     checkNotNull(oldValue);
     checkNotNull(newValue);
@@ -1152,25 +1143,21 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       this.next = null;
     }
 
-    @Override
     @GuardedBy("evictionLock")
     public Node getPrevious() {
       return prev;
     }
 
-    @Override
     @GuardedBy("evictionLock")
     public void setPrevious(Node prev) {
       this.prev = prev;
     }
 
-    @Override
     @GuardedBy("evictionLock")
     public Node getNext() {
       return next;
     }
 
-    @Override
     @GuardedBy("evictionLock")
     public void setNext(Node next) {
       this.next = next;
@@ -1275,18 +1262,15 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     final Iterator<K> iterator = data.keySet().iterator();
     K current;
 
-    @Override
     public boolean hasNext() {
       return iterator.hasNext();
     }
 
-    @Override
     public K next() {
       current = iterator.next();
       return current;
     }
 
-    @Override
     public void remove() {
       if (current == null) {
         throw new IllegalStateException();
@@ -1318,6 +1302,24 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     public boolean contains(Object o) {
       return containsValue(o);
     }
+    
+    @Override
+    public Object[] toArray() {
+      Collection<V> values = new ArrayList<V>(size());
+      for (V value : this) {
+        values.add(value);
+      }
+      return values.toArray();
+    }
+
+    @Override
+    public <T> T[] toArray(T[] array) {
+      Collection<V> values = new ArrayList<V>(size());
+      for (V value : this) {
+        values.add(value);
+      }
+      return values.toArray(array);
+    }
   }
 
   /** An adapter to safely externalize the value iterator. */
@@ -1326,18 +1328,15 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     Node current;
     V value;
 
-    @Override
     public boolean hasNext() {
       return iterator.hasNext();
     }
 
-    @Override
     public V next() {
       current = iterator.next();
       return current.getValue();
     }
 
-    @Override
     public void remove() {
       if (current == null) {
         throw new IllegalStateException();
@@ -1389,6 +1388,24 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       Entry<?, ?> entry = (Entry<?, ?>) obj;
       return map.remove(entry.getKey(), entry.getValue());
     }
+    
+    @Override
+    public Object[] toArray() {
+      Collection<Entry<K, V>> entries = new ArrayList<Entry<K, V>>(size());
+      for (Entry<K, V> entry : this) {
+        entries.add(new SimpleEntry<K, V>(entry));
+      }
+      return entries.toArray();
+    }
+
+    @Override
+    public <T> T[] toArray(T[] array) {
+      Collection<Entry<K, V>> entries = new ArrayList<Entry<K, V>>(size());
+      for (Entry<K, V> entry : this) {
+        entries.add(new SimpleEntry<K, V>(entry));
+      }
+      return entries.toArray(array);
+    }
   }
 
   /** An adapter to safely externalize the entry iterator. */
@@ -1396,18 +1413,15 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     final Iterator<Node> iterator = data.values().iterator();
     Node current;
 
-    @Override
     public boolean hasNext() {
       return iterator.hasNext();
     }
 
-    @Override
     public Entry<K, V> next() {
       current = iterator.next();
       return new WriteThroughEntry(current);
     }
 
-    @Override
     public void remove() {
       if (current == null) {
         throw new IllegalStateException();
@@ -1435,6 +1449,63 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       return new SimpleEntry<K, V>(this);
     }
   }
+  
+  /**
+   * This duplicates {@link java.util.AbstractMap.SimpleEntry} (public in JDK-6).
+   */
+  static class SimpleEntry<K, V> implements Entry<K, V>, Serializable {
+    private static final long serialVersionUID = -8499721149061103585L;
+    private final K key;
+    private V value;
+
+    public SimpleEntry(K key, V value) {
+      this.key = key;
+      this.value = value;
+    }
+
+    public SimpleEntry(Entry<K, V> e) {
+      this.key = e.getKey();
+      this.value = e.getValue();
+    }
+
+    public K getKey() {
+      return key;
+    }
+
+    public V getValue() {
+      return value;
+    }
+
+    public V setValue(V value) {
+      V oldValue = this.value;
+      this.value = value;
+      return oldValue;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+      if (!(o instanceof Map.Entry<?, ?>)) {
+        return false;
+      }
+      Entry<?, ?> e = (Map.Entry<?, ?>) o;
+      return eq(key, e.getKey()) && eq(value, e.getValue());
+    }
+
+    @Override
+    public int hashCode() {
+      return ((key == null) ? 0 : key.hashCode()) ^
+             ((value == null) ? 0 : value.hashCode());
+    }
+
+    @Override
+    public String toString() {
+      return key + "=" + value;
+    }
+
+    private static boolean eq(Object o1, Object o2) {
+      return (o1 == null) ? (o2 == null) : o1.equals(o2);
+    }
+  }
 
   /** A weigher that enforces that the weight falls within a valid range. */
   static final class BoundedWeigher<V> implements Weigher<V> {
@@ -1444,7 +1515,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       this.delegate = weigher;
     }
 
-    @Override
     public int weightOf(V value) {
       int weight = delegate.weightOf(value);
       if ((weight < 1) || (weight > MAXIMUM_WEIGHT)) {
@@ -1462,7 +1532,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       this.mapRef = new WeakReference<ConcurrentLinkedHashMap<?, ?>>(map);
     }
 
-    @Override
     public void run() {
       ConcurrentLinkedHashMap<?, ?> map = mapRef.get();
       if (map == null) {
@@ -1480,20 +1549,20 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
   /** An executor that is always terminated. */
   static final class DisabledExecutorService extends AbstractExecutorService {
-    @Override public boolean isShutdown() { return true; }
-    @Override public boolean isTerminated() { return true; }
-    @Override public void shutdown() {}
-    @Override public List<Runnable> shutdownNow() { return Collections.emptyList(); }
-    @Override public boolean awaitTermination(long timeout, TimeUnit unit) { return true; }
-    @Override public void execute(Runnable command) { throw new RejectedExecutionException(); }
+    public boolean isShutdown() { return true; }
+    public boolean isTerminated() { return true; }
+    public void shutdown() {}
+    public List<Runnable> shutdownNow() { return Collections.emptyList(); }
+    public boolean awaitTermination(long timeout, TimeUnit unit) { return true; }
+    public void execute(Runnable command) { throw new RejectedExecutionException(); }
   }
 
   /** A queue that discards all additions and is always empty. */
   static final class DiscardingQueue extends AbstractQueue<Object> {
     @Override public boolean add(Object e) { return true; }
-    @Override public boolean offer(Object e) { return true; }
-    @Override public Object poll() { return null; }
-    @Override public Object peek() { return null; }
+    public boolean offer(Object e) { return true; }
+    public Object poll() { return null; }
+    public Object peek() { return null; }
     @Override public int size() { return 0; }
     @Override public Iterator<Object> iterator() { return emptyList().iterator(); }
   }
@@ -1502,7 +1571,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   enum DiscardingListener implements EvictionListener<Object, Object> {
     INSTANCE;
 
-    @Override public void onEviction(Object key, Object value) {}
+    public void onEviction(Object key, Object value) {}
   }
 
   /** An operation that can be lazily applied to the page replacement policy. */
@@ -1530,17 +1599,14 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       this.order = nextOrdering();
     }
 
-    @Override
     public int getOrder() {
       return order;
     }
 
-    @Override
     public Task getNext() {
       return task;
     }
 
-    @Override
     public void setNext(Task task) {
       this.task = task;
     }

@@ -35,7 +35,6 @@ import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.DataProvider;
 
 import java.io.Serializable;
-import java.util.Deque;
 import java.util.Map;
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -118,8 +117,8 @@ public abstract class AbstractTest {
     if (param instanceof ConcurrentLinkedHashMap<?, ?>) {
       assertThat((ConcurrentLinkedHashMap<?, ?>) param, is(valid()));
     }
-    if (param instanceof Deque<?>) {
-      assertThat((Deque<? extends Linked<?>>) param, is(validDeque()));
+    if (param instanceof LinkedDeque<?>) {
+      assertThat((LinkedDeque<?>) param, is(validDeque()));
     }
   }
 
@@ -234,7 +233,7 @@ public abstract class AbstractTest {
   private static final class GuardingListener<K, V>
     implements EvictionListener<K, V>, Serializable {
 
-    @Override public void onEviction(Object key, Object value) {
+    public void onEviction(Object key, Object value) {
       fail(String.format("Evicted %s=%s", key, value));
     }
 

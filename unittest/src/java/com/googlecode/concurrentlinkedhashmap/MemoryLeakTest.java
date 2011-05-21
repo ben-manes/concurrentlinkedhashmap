@@ -73,7 +73,7 @@ public final class MemoryLeakTest {
   @Test(timeOut = TIME_OUT)
   public void memoryLeak() throws InterruptedException {
     timeTasks(THREADS, new Runnable() {
-      @Override public void run() {
+      public void run() {
         Long id = Thread.currentThread().getId();
         map.put(id, id);
         for (;;) {
@@ -88,7 +88,7 @@ public final class MemoryLeakTest {
     return new Runnable() {
       int runningTime;
 
-      @Override public void run() {
+      public void run() {
         long pending = 0;
         for (int i = 0; i < map.buffers.length; i++) {
           pending += map.bufferLengths.get(i);

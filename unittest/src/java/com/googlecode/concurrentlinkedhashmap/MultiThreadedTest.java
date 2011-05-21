@@ -91,7 +91,7 @@ public final class MultiThreadedTest extends AbstractTest {
         .concurrencyLevel(nThreads)
         .build();
     executeWithTimeOut(map, new Callable<Long>() {
-      @Override public Long call() throws Exception {
+      public Long call() throws Exception {
         return timeTasks(nThreads, new Thrasher(map, sets));
       }
     });
@@ -111,9 +111,9 @@ public final class MultiThreadedTest extends AbstractTest {
       values.add(Arrays.asList(array));
     }
     executeWithTimeOut(map, new Callable<Long>() {
-      @Override public Long call() throws Exception {
+      public Long call() throws Exception {
         return timeTasks(nThreads, new Runnable() {
-          @Override public void run() {
+          public void run() {
             List<Integer> value = values.poll();
             for (int i = 0; i < iterations; i++) {
               map.put(i % 10, value);
@@ -138,7 +138,6 @@ public final class MultiThreadedTest extends AbstractTest {
       this.sets = sets;
     }
 
-    @Override
     public void run() {
       Operation[] ops = Operation.values();
       int id = index.getAndIncrement();

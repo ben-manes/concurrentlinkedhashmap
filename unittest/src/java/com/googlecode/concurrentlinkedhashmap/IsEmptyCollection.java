@@ -23,7 +23,6 @@ import org.hamcrest.Factory;
 import org.hamcrest.TypeSafeDiagnosingMatcher;
 
 import java.util.Collection;
-import java.util.Deque;
 import java.util.List;
 import java.util.Queue;
 import java.util.Set;
@@ -31,13 +30,12 @@ import java.util.Set;
 /**
  * A matcher that performs an exhaustive empty check throughout the
  * {@link Collection}, {@link Set}, {@link List}, {@link Queue}, and
- * {@link Deque} contracts.
+ * {@link LinkedDeque} contracts.
  *
  * @author ben.manes@gmail.com (Ben Manes)
  */
 public final class IsEmptyCollection extends TypeSafeDiagnosingMatcher<Collection<?>> {
 
-  @Override
   public void describeTo(Description description) {
     description.appendText("empty");
   }
@@ -55,9 +53,6 @@ public final class IsEmptyCollection extends TypeSafeDiagnosingMatcher<Collectio
     }
     if (c instanceof Queue<?>) {
       checkQueue((Queue<?>) c, builder);
-    }
-    if (c instanceof Deque<?>) {
-      checkDeque((Deque<?>) c, builder);
     }
     if (c instanceof LinkedDeque<?>) {
       checkLinkedDeque((LinkedDeque<?>) c, builder);
@@ -89,13 +84,10 @@ public final class IsEmptyCollection extends TypeSafeDiagnosingMatcher<Collectio
     builder.expectEqual(queue.peek(), null);
   }
 
-  private void checkDeque(Deque<?> deque, DescriptionBuilder builder) {
+  private void checkLinkedDeque(LinkedDeque<?> deque, DescriptionBuilder builder) {
     builder.expectEqual(deque.peekFirst(), null);
     builder.expectEqual(deque.peekLast(), null);
     builder.expect(!deque.descendingIterator().hasNext());
-  }
-
-  private void checkLinkedDeque(LinkedDeque<?> deque, DescriptionBuilder builder) {
     builder.expectEqual(deque.first, null);
     builder.expectEqual(deque.last, null);
     builder.expectEqual(deque.size, 0);

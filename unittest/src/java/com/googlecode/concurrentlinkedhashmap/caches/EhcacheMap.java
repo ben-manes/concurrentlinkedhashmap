@@ -92,7 +92,6 @@ final class EhcacheMap<K, V> extends AbstractMap<K, V> implements ConcurrentMap<
     return old;
   }
 
-  @Override
   public V putIfAbsent(K key, V value) {
     V old = get(key);
     if (old == null) {
@@ -110,7 +109,6 @@ final class EhcacheMap<K, V> extends AbstractMap<K, V> implements ConcurrentMap<
     return old;
   }
 
-  @Override
   public boolean remove(Object key, Object value) {
     if (value.equals(get(key))) {
       map.remove(key);
@@ -119,7 +117,6 @@ final class EhcacheMap<K, V> extends AbstractMap<K, V> implements ConcurrentMap<
     return false;
   }
 
-  @Override
   public V replace(K key, V value) {
     V old = get(key);
     if (old != null) {
@@ -128,7 +125,6 @@ final class EhcacheMap<K, V> extends AbstractMap<K, V> implements ConcurrentMap<
     return old;
   }
 
-  @Override
   public boolean replace(K key, V oldValue, V newValue) {
     if (oldValue.equals(get(key))) {
       map.put(new Element(key, newValue));
@@ -158,37 +154,37 @@ final class EhcacheMap<K, V> extends AbstractMap<K, V> implements ConcurrentMap<
     public KeySetAdapter(List<K> keys) {
       this.keys = keys;
     }
-    @Override public boolean add(K o) {
+    public boolean add(K o) {
       return keys.add(o);
     }
-    @Override public boolean addAll(Collection<? extends K> c) {
+    public boolean addAll(Collection<? extends K> c) {
       return keys.addAll(c);
     }
-    @Override public void clear() {
+    public void clear() {
       keys.clear();
     }
-    @Override public boolean contains(Object o) {
+    public boolean contains(Object o) {
       return keys.contains(o);
     }
-    @Override public boolean containsAll(Collection<?> c) {
+    public boolean containsAll(Collection<?> c) {
       return keys.containsAll(c);
     }
-    @Override public boolean isEmpty() {
+    public boolean isEmpty() {
       return keys.isEmpty();
     }
-    @Override public Iterator<K> iterator() {
+    public Iterator<K> iterator() {
       return keys.iterator();
     }
-    @Override public boolean remove(Object o) {
+    public boolean remove(Object o) {
       return keys.remove(o);
     }
-    @Override public boolean removeAll(Collection<?> c) {
+    public boolean removeAll(Collection<?> c) {
       return keys.removeAll(c);
     }
-    @Override public boolean retainAll(Collection<?> c) {
+    public boolean retainAll(Collection<?> c) {
       return keys.retainAll(c);
     }
-    @Override public int size() {
+    public int size() {
       return keys.size();
     }
     @Override public boolean equals(Object o) {
@@ -197,10 +193,10 @@ final class EhcacheMap<K, V> extends AbstractMap<K, V> implements ConcurrentMap<
     @Override public int hashCode() {
       return keys.hashCode();
     }
-    @Override public Object[] toArray() {
+    public Object[] toArray() {
       return keys.toArray();
     }
-    @Override public <T> T[] toArray(T[] a) {
+    public <T> T[] toArray(T[] a) {
       return keys.toArray(a);
     }
   }
