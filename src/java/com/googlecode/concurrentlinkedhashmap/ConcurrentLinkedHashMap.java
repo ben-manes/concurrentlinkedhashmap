@@ -206,9 +206,10 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   @GuardedBy("evictionLock")
   final LinkedDeque<Node> evictionDeque;
 
-  volatile int capacity;
   @GuardedBy("evictionLock") // must write under lock
   volatile int weightedSize;
+  @GuardedBy("evictionLock") // must write under lock
+  volatile int capacity;
 
   volatile int nextOrder;
   @GuardedBy("evictionLock")
@@ -290,10 +291,10 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     if (capacity < 0) {
       throw new IllegalArgumentException();
     }
-    this.capacity = Math.min(capacity, MAXIMUM_CAPACITY);
 
     evictionLock.lock();
     try {
+      this.capacity = Math.min(capacity, MAXIMUM_CAPACITY);
       drainBuffers(AMORTIZED_DRAIN_THRESHOLD);
       evict();
     } finally {
