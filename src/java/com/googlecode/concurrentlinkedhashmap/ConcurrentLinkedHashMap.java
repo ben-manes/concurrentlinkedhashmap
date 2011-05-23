@@ -458,7 +458,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   int moveTasksFromBuffers(Task[] tasks) {
     int maxTaskIndex = -1;
     for (int i = 0; i < buffers.length; i++) {
-      int maxIndex = moveTasksFromBuffer(i, tasks);
+      int maxIndex = moveTasksFromBuffer(tasks, i);
       maxTaskIndex = Math.max(maxIndex, maxTaskIndex);
     }
     return maxTaskIndex;
@@ -467,12 +467,12 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   /**
    * Moves the tasks from the specified buffer into the output array.
    *
-   * @param bufferIndex the buffer to drain
    * @param tasks the ordered array of the pending operations
+   * @param bufferIndex the buffer to drain into the tasks array
    * @return the highest index location of a task that was added to the array
    */
   @GuardedBy("evictionLock")
-  int moveTasksFromBuffer(int bufferIndex, Task[] tasks) {
+  int moveTasksFromBuffer(Task[] tasks, int bufferIndex) {
     // While a buffer is being drained it may be concurrently appended to. The
     // number of tasks removed are tracked so that the length can be decremented
     // by the delta rather than set to zero.
