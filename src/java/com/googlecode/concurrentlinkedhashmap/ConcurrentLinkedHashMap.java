@@ -217,7 +217,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   final Lock evictionLock;
   final Queue<Task>[] buffers;
   final ExecutorService executor;
-  final BoundedWeigher<V> weigher;
+  final Weigher<? super V> weigher;
   final AtomicIntegerArray bufferLengths;
   final AtomicReference<DrainStatus> drainStatus;
 
@@ -240,12 +240,12 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     data = new ConcurrentHashMap<K, Node>(builder.initialCapacity, 0.75f, concurrencyLevel);
 
     // The eviction support
+    weigher = builder.weigher;
     executor = builder.executor;
     nextOrder = Integer.MIN_VALUE;
     drainedOrder = Integer.MIN_VALUE;
     evictionLock = new ReentrantLock();
     evictionDeque = new LinkedDeque<Node>();
-    weigher = new BoundedWeigher<V>(builder.weigher);
     drainStatus = new AtomicReference<DrainStatus>(IDLE);
 
     buffers = (Queue<Task>[]) new Queue[NUMBER_OF_BUFFERS];
@@ -1437,20 +1437,26 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   }
 
   /** A weigher that enforces that the weight falls within a valid range. */
-  static final class BoundedWeigher<V> implements Weigher<V> {
-    final Weigher<? super V> delegate;
+  static final class BoundedWeigher<V> implements Weigher<V>, Serializable {
+    static final long serialVersionUID = 1;
+    final Weigher<? super V> weigher;
 
     BoundedWeigher(Weigher<? super V> weigher) {
-      this.delegate = weigher;
+      checkNotNull(weigher);
+      this.weigher = weigher;
     }
 
     @Override
     public int weightOf(V value) {
-      int weight = delegate.weightOf(value);
+      int weight = weigher.weightOf(value);
       if ((weight < 1) || (weight > MAXIMUM_WEIGHT)) {
         throw new IllegalArgumentException("invalid weight");
       }
       return weight;
+    }
+
+    Object writeReplace() {
+      return weigher;
     }
   }
 
@@ -1574,10 +1580,10 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
     SerializationProxy(ConcurrentLinkedHashMap<K, V> map) {
       concurrencyLevel = map.concurrencyLevel;
-      weigher = map.weigher.delegate;
       data = new HashMap<K, V>(map);
       capacity = map.capacity;
       listener = map.listener;
+      weigher = map.weigher;
     }
 
     Object readResolve() {
@@ -1706,8 +1712,9 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
      * @throws NullPointerException if the weigher is null
      */
     public Builder<K, V> weigher(Weigher<? super V> weigher) {
-      checkNotNull(weigher);
-      this.weigher = weigher;
+      if (weigher != Weighers.singleton()) {
+        this.weigher = new BoundedWeigher<V>(weigher);
+      }
       return this;
     }
 

@@ -136,14 +136,14 @@ public final class BuilderTest extends AbstractTest {
 
   @Test(dataProvider = "builder")
   public void weigher_withDefault(Builder<Integer, Integer> builder) {
-    Weigher<?> weigher = ((BoundedWeigher<?>) builder.build().weigher).delegate;
-    assertThat(weigher, sameInstance((Object) Weighers.singleton()));
+    Weigher<?> weigher = builder.build().weigher;
+    assertThat(builder.build().weigher, sameInstance((Object) Weighers.singleton()));
   }
 
   @Test(dataProvider = "builder")
   public void weigher_withCustom(Builder<Integer, byte[]> builder) {
     builder.weigher(Weighers.byteArray());
-    Weigher<?> weigher = ((BoundedWeigher<?>) builder.build().weigher).delegate;
+    Weigher<?> weigher = ((BoundedWeigher<?>) builder.build().weigher).weigher;
     assertThat(weigher, is(sameInstance((Object) Weighers.byteArray())));
   }
 
