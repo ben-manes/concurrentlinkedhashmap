@@ -104,7 +104,7 @@
       <extension>
         <groupId>org.jvnet.wagon-svn</groupId>
         <artifactId>wagon-svn</artifactId>
-        <version>RELEASE</version>
+        <version>1.9</version>
       </extension>
     </extensions>
     <plugins>
