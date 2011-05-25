@@ -56,6 +56,8 @@ public class CacheBuilder {
   /**
    * Specifies the maximum capacity to coerces the map to and may exceed it
    * temporarily.
+   * <p>
+   * Ignored if the cache does not support size bounding.
    *
    * @param maximumCapacity the threshold to bound the map by
    * @throws IllegalArgumentException if the maximumCapacity is negative
@@ -72,6 +74,8 @@ public class CacheBuilder {
    * Specifies the estimated number of concurrently updating threads. The
    * implementation performs internal sizing to try to accommodate this many
    * threads (default <tt>16</tt>).
+   * <p>
+   * Ignored if the cache does not use lock striping.
    *
    * @param concurrencyLevel the estimated number of concurrently updating
    *     threads

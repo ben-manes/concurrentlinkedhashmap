@@ -352,12 +352,15 @@
       </classpath>
 
       <jvmarg value="-Xms${cacheBenchFwk.heap}"/>
-
-      <sysproperty key="cacheBenchFwk.cacheConfigFile" value="${cacheBenchFwk.config}"/>
-      <sysproperty key="cacheBenchFwk.cacheProductName" value="${cacheBenchFwk.product}"/>
       <sysproperty key="cacheBenchFwk.cacheWrapperClassName" value="${cacheBenchFwk.wrapper}"/>
       <sysproperty key="cacheBenchFwk.fwkCfgFile" value="${cacheBenchFwk.config.file}"/>
       <sysproperty key="localOnly" value="true"/>
+
+      <sysproperty key="cacheBenchFwk.cache.type" value="${cacheBenchFwk.cache.type}"/>
+      <sysproperty key="cacheBenchFwk.cache.run" value="${cacheBenchFwk.cache.run}"/>
+      <sysproperty key="cacheBenchFwk.cache.initialCapacity" value="${cacheBenchFwk.cache.initialCapacity}"/>
+      <sysproperty key="cacheBenchFwk.cache.maximumCapacity" value="${cacheBenchFwk.cache.maximumCapacity}"/>
+      <sysproperty key="cacheBenchFwk.cache.concurrencyLevel" value="${cacheBenchFwk.cache.concurrencyLevel}"/>
     </java>
   </target>
 
@@ -376,7 +379,6 @@
       </classpath>
 
       <arg line="-chartType ${cacheBenchFwk.report.chart}"/>
-      <arg line="-o ${cacheBenchFwk.report.file}"/>
       <arg line="-reportDir ."/>
     </java>
   </target>

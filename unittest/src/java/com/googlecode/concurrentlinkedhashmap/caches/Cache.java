@@ -15,11 +15,15 @@
  */
 package com.googlecode.concurrentlinkedhashmap.caches;
 
+import com.google.common.collect.MapMaker;
+
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 import com.googlecode.concurrentlinkedhashmap.caches.BoundedLinkedHashMap.AccessOrder;
 import com.googlecode.concurrentlinkedhashmap.caches.ProductionMap.EvictionPolicy;
 
 import net.sf.ehcache.store.MemoryStoreEvictionPolicy;
+
+import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -103,11 +107,12 @@ public enum Cache {
     }
   },
 
-  /** ConcurrentMap with no eviction policy (unbounded). */
+  /** ConcurrentHashMap (unbounded). */
   ConcurrentHashMap() {
     @Override public <K, V> ConcurrentMap<K, V> create(CacheBuilder builder) {
       return new ConcurrentHashMap<K, V>(builder.initialCapacity, 0.75f, builder.concurrencyLevel);
     }
+    @Override public boolean isBounded() { return false; }
   },
 
   /** Ehcache, using FIFO eviction. */
@@ -122,8 +127,31 @@ public enum Cache {
     @Override public <K, V> ConcurrentMap<K, V> create(CacheBuilder builder) {
       return new EhcacheMap<K, V>(MemoryStoreEvictionPolicy.LRU, builder);
     }
+  },
+
+  /** NonBlockingHashMap (unbounded). */
+  NonBlockingHashMap() {
+    @Override public <K, V> ConcurrentMap<K, V> create(CacheBuilder builder) {
+      return new NonBlockingHashMap<K, V>(builder.initialCapacity);
+    }
+    @Override public boolean isBounded() { return false; }
+  },
+
+  /** MapMaker, with a maximum size. */
+  MapMaker() {
+    @Override public <K, V> ConcurrentMap<K, V> create(CacheBuilder builder) {
+      return new MapMaker()
+          .initialCapacity(builder.initialCapacity)
+          .concurrencyLevel(builder.concurrencyLevel)
+          .maximumSize(builder.maximumCapacity)
+          .makeMap();
+    }
   };
 
   /** Creates the cache instance. */
   abstract <K, V> ConcurrentMap<K, V> create(CacheBuilder builder);
+
+  public boolean isBounded() {
+    return true;
+  }
 }
