@@ -1713,9 +1713,9 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
      * @throws NullPointerException if the weigher is null
      */
     public Builder<K, V> weigher(Weigher<? super V> weigher) {
-      if (weigher != Weighers.singleton()) {
-        this.weigher = new BoundedWeigher<V>(weigher);
-      }
+      this.weigher = (weigher == Weighers.singleton())
+          ? Weighers.<V>singleton()
+          : new BoundedWeigher<V>(weigher);
       return this;
     }
 
