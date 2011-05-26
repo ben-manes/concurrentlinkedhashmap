@@ -16,7 +16,7 @@ public final class CustomCsvStatisticReportGenerator extends CsvStatisticReportG
   @Override public void setOutputFile(String fileName) {
     if ("-generic-".equals(fileName)) {
       String type = System.getProperty("cacheBenchFwk.cache.type");
-      Integer run = Integer.getInteger("cacheBenchFwk.cache.run");
+      String run = System.getProperty("cacheBenchFwk.cache.run");
       this.output = new File(type + (run == null ? "" : "-" + run) + ".csv");
     } else {
       super.setOutputFile(fileName);
