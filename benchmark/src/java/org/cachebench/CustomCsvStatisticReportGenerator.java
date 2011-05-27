@@ -2,6 +2,8 @@
 
 package org.cachebench;
 
+import static com.google.common.base.Strings.emptyToNull;
+
 import org.cachebench.reportgenerators.CsvStatisticReportGenerator;
 
 import java.io.File;
@@ -16,7 +18,7 @@ public final class CustomCsvStatisticReportGenerator extends CsvStatisticReportG
   @Override public void setOutputFile(String fileName) {
     if ("-generic-".equals(fileName)) {
       String type = System.getProperty("cacheBenchFwk.cache.type");
-      String run = System.getProperty("cacheBenchFwk.cache.run");
+      String run = emptyToNull(System.getProperty("cacheBenchFwk.cache.run"));
       this.output = new File(type + (run == null ? "" : "-" + run) + ".csv");
     } else {
       super.setOutputFile(fileName);
