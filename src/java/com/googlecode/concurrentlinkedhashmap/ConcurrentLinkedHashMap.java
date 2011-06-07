@@ -1177,9 +1177,24 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       this.next = next;
     }
 
-    /** Retrieves the value held by the current {@link WeightedValue}. */
+    /** Retrieves the value held by the current <tt>WeightedValue</tt>. */
     V getValue() {
       return get().value;
+    }
+
+    /**
+     * Attempts to transition the node from the <tt>alive</tt> state to the
+     * <tt>retired</tt> state.
+     *
+     * @param expect the expected weighted value
+     * @return if successful
+     */
+    boolean tryToRetire(WeightedValue<V> expect) {
+      if (expect.isAlive()) {
+        WeightedValue<V> retired = new WeightedValue<V>(expect.value, -expect.weight);
+        return compareAndSet(expect, retired);
+      }
+      return false;
     }
 
     /**
@@ -1197,21 +1212,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
           return;
         }
       }
-    }
-
-    /**
-     * Attempts to transition the node from the <tt>alive</tt> state to the
-     * <tt>retired</tt> state.
-     *
-     * @param expect the expected weighted value
-     * @return if successful
-     */
-    boolean tryToRetire(WeightedValue<V> expect) {
-      if (expect.isAlive()) {
-        WeightedValue<V> retired = new WeightedValue<V>(expect.value, -expect.weight);
-        return compareAndSet(expect, retired);
-      }
-      return false;
     }
 
     /**
@@ -1534,7 +1534,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     Task task;
 
     AbstractTask() {
-      this.order = nextOrdering();
+      order = nextOrdering();
     }
 
     @Override

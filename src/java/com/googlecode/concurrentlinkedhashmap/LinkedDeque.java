@@ -94,14 +94,14 @@ final class LinkedDeque<E extends Linked<E>> extends AbstractCollection<E> imple
    * @param e the unlinked element
    */
   void linkLast(final E e) {
-    final E previousLast = last;
+    final E l = last;
     last = e;
 
-    if (previousLast == null) {
+    if (l == null) {
       first = e;
     } else {
-      previousLast.setNext(e);
-      e.setPrevious(previousLast);
+      l.setNext(e);
+      e.setPrevious(l);
     }
   }
 
