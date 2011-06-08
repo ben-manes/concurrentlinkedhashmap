@@ -234,8 +234,8 @@
 
   <!-- TestNG -->
   <path id="testng.compile.path">
-    <fileset dir="${external.dir}/testng/5.12">
-      <include name="testng-5.12.jar"/>
+    <fileset dir="${external.dir}/testng/6.01">
+      <include name="testng.jar"/>
     </fileset>
   </path>
   <path id="testng.deploy.path">
