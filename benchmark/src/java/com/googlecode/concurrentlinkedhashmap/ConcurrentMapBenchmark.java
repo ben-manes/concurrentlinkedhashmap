@@ -15,65 +15,71 @@
  */
 package com.googlecode.concurrentlinkedhashmap;
 
-import static com.google.common.base.Preconditions.checkArgument;
-
 import com.google.caliper.Param;
 import com.google.caliper.Runner;
+import com.google.caliper.SimpleBenchmark;
 
 import com.googlecode.concurrentlinkedhashmap.caches.Cache;
 import com.googlecode.concurrentlinkedhashmap.caches.CacheBuilder;
 
-import java.util.Map;
+import java.util.concurrent.ConcurrentMap;
 
 /**
- * A benchmark comparing the read/write performance at different ratios.
+ * A benchmark for the {@link java.util.concurrent.ConcurrentMap} interface.
+ * These benchmarks evaluate single-threaded performance.
  *
  * @author ben.manes@gmail.com (Ben Manes)
  */
-public class GetPutBenchmark extends ConcurrentBenchmark {
+public final class ConcurrentMapBenchmark extends SimpleBenchmark {
+  private static final int MASK = (2 << 10) - 1;
+  private static final Integer[] ints;
+
+  static {
+    ints = new Integer[MASK + 1];
+    for (int i = 0; i < ints.length; i++) {
+      ints[i] = i;
+    }
+  }
+
   @Param({
+    "MapMaker",
     "ConcurrentHashMap",
     "LinkedHashMap_Lru_Sync",
     "ConcurrentLinkedHashMap"})
-  Cache cache;
+  private Cache cacheType;
 
-  @Param int numberOfThreads;
-  @Param int initialCapacity;
-  @Param int maximumCapacity;
-  @Param int concurrencyLevel;
-  @Param int readRatio;
+  @Param({"5", "50", "500", "5000", "50000", "500000"})
+  private int maximumCapacity;
 
-  private Map<Integer, Integer> map;
+  @Param({"1", "4", "8", "16", "32", "64"})
+  private int concurrencyLevel;
 
-  // TODO(bmanes): Add read/write ratio, generate working set, etc.
+  private ConcurrentMap<Integer, Integer> map;
+  private int index;
 
   @Override
-  protected void benchmarkSetUp() {
-    checkArgument((readRatio >= 0) && (readRatio <= 100), "Read ratio must between zero and 100%");
+  protected void setUp() {
     map = new CacheBuilder()
         .concurrencyLevel(concurrencyLevel)
-        .initialCapacity(initialCapacity)
+        .initialCapacity(maximumCapacity)
         .maximumCapacity(maximumCapacity)
-        .makeCache(cache);
+        .makeCache(cacheType);
+
+    for (int i = 0; i < ints.length; i++) {
+      map.put(ints[i], ints[i]);
+    }
   }
 
-  public void timeReadWrite(final int reps) {
-    concurrent(new Runnable() {
-      @Override public void run() {
-        for (int i = 0; i < reps; i++) {
-          map.get(i);
-        }
-      }
-    });
-  }
-
-  @Override
-  protected int getNumberOfThreads() {
-    return numberOfThreads;
+  public int timeGet(final int reps) {
+    int dummy = 0;
+    for (int i = 0; i < reps; i++) {
+      dummy += (map.get(ints[index++ & MASK]) == null) ? 0 : 1;
+    }
+    return dummy;
   }
 
   /** Kick-start the benchmark. */
   public static void main(String[] args) {
-    Runner.main(GetPutBenchmark.class, args);
+    Runner.main(ConcurrentMapBenchmark.class, args);
   }
 }

@@ -51,6 +51,12 @@
       <scope>test</scope>
     </dependency>
     <dependency>
+      <groupId>com.github.stephenc.high-scale-lib</groupId>
+      <artifactId>high-scale-lib</artifactId>
+      <version>1.1.2</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
       <groupId>com.google.guava</groupId>
       <artifactId>guava</artifactId>
       <version>r08</version>
@@ -89,7 +95,7 @@
     <dependency>
       <groupId>org.testng</groupId>
       <artifactId>testng</artifactId>
-      <version>5.12.1</version>
+      <version>6.0.1</version>
       <scope>test</scope>
     </dependency>
   </dependencies>

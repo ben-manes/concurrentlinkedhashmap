@@ -1149,8 +1149,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     Node(K key, WeightedValue<V> weightedValue) {
       super(weightedValue);
       this.key = key;
-      this.prev = null;
-      this.next = null;
     }
 
     @Override

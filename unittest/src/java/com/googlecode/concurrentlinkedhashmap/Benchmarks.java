@@ -18,9 +18,7 @@ package com.googlecode.concurrentlinkedhashmap;
 import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Lists.newArrayListWithCapacity;
 
-import com.google.common.base.Supplier;
-
-import com.googlecode.concurrentlinkedhashmap.distribution.Distribution;
+import com.googlecode.concurrentlinkedhashmap.generator.Generator;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -39,15 +37,14 @@ public final class Benchmarks {
   /**
    * Creates a random working set based on the distribution.
    *
-   * @param distribution the distribution type to use
+   * @param generator the distribution generator
    * @param size the size of the working set
    * @return a random working set
    */
-  public static List<Long> createWorkingSet(Distribution distribution, int size) {
-    Supplier<Double> algorithm = distribution.getAlgorithm();
-    List<Long> workingSet = newArrayListWithCapacity(size);
+  public static List<String> createWorkingSet(Generator generator, int size) {
+    List<String> workingSet = newArrayListWithCapacity(size);
     for (int i = 0; i < size; i++) {
-      workingSet.add(Math.round(algorithm.get()));
+      workingSet.add(generator.nextString());
     }
     return workingSet;
   }
@@ -75,11 +72,11 @@ public final class Benchmarks {
    * @param workingSet the request working set
    * @return the hit rate
    */
-  public static int determineEfficiency(Map<Long, Long> cache, List<Long> workingSet) {
+  public static <T> int determineEfficiency(Map<T, T> cache, List<T> workingSet) {
     int hits = 0;
-    for (Long key : workingSet) {
+    for (T key : workingSet) {
       if (cache.get(key) == null) {
-        cache.put(key, 0L);
+        cache.put(key, key);
       } else {
         hits++;
       }

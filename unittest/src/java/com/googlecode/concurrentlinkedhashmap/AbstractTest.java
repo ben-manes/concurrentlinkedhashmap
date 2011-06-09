@@ -71,6 +71,10 @@ public abstract class AbstractTest {
 
   /* ---------------- Logging methods -------------- */
 
+  protected void info(String message) {
+    System.out.println(message);
+  }
+
   protected void info(String message, Object... args) {
     System.out.printf(message + "\n", args);
   }
@@ -78,6 +82,12 @@ public abstract class AbstractTest {
   protected void debug(String message, Object... args) {
     if (debug) {
       info(message, args);
+    }
+  }
+
+  protected void debug(String message) {
+    if (debug) {
+      info(message);
     }
   }
 

@@ -59,10 +59,9 @@ import java.util.concurrent.locks.ReentrantLock;
  * </ul>
  *
  * @author <a href="mailto:ben.manes@reardencommerce.com">Ben Manes</a>
- * @see http://code.google.com/p/concurrentlinkedhashmap/wiki/ProductionVersion
  */
-public final class ProductionMap<K, V> extends AbstractMap<K, V> implements ConcurrentMap<
-    K, V>, Serializable {
+public final class ProductionMap<K, V> extends AbstractMap<K, V>
+    implements ConcurrentMap<K, V>, Serializable {
   private static final EvictionListener<?, ?> nullListener =
       new EvictionListener<Object, Object>() {
         public void onEviction(Object key, Object value) {
@@ -762,7 +761,7 @@ public final class ProductionMap<K, V> extends AbstractMap<K, V> implements Conc
 
     @Override
     public boolean contains(Object obj) {
-      if (!(obj instanceof Entry)) {
+      if (!(obj instanceof Entry<?, ?>)) {
         return false;
       }
       Entry<?, ?> entry = (Entry<?, ?>) obj;
@@ -777,7 +776,7 @@ public final class ProductionMap<K, V> extends AbstractMap<K, V> implements Conc
 
     @Override
     public boolean remove(Object obj) {
-      if (!(obj instanceof Entry)) {
+      if (!(obj instanceof Entry<?, ?>)) {
         return false;
       }
       Entry<?, ?> entry = (Entry<?, ?>) obj;
@@ -867,7 +866,7 @@ public final class ProductionMap<K, V> extends AbstractMap<K, V> implements Conc
     public boolean equals(Object obj) {
       if (obj == this) {
         return true;
-      } else if (!(obj instanceof Entry)) {
+      } else if (!(obj instanceof Entry<?, ?>)) {
         return false;
       }
       Entry<?, ?> entry = (Entry<?, ?>) obj;
@@ -887,64 +886,6 @@ public final class ProductionMap<K, V> extends AbstractMap<K, V> implements Conc
     }
 
     private boolean eq(Object o1, Object o2) {
-      return (o1 == null) ? (o2 == null) : o1.equals(o2);
-    }
-  }
-
-  /**
-   * This duplicates {@link java.util.AbstractMap.SimpleEntry} until the class
-   * is made accessible (public in JDK-6).
-   */
-  private static class SimpleEntry<K, V> implements Entry<K, V> {
-    private final K key;
-    private V value;
-
-    public SimpleEntry(K key, V value) {
-      this.key = key;
-      this.value = value;
-    }
-
-    public SimpleEntry(Entry<K, V> e) {
-      this.key = e.getKey();
-      this.value = e.getValue();
-    }
-
-    public K getKey() {
-      return key;
-    }
-
-    public V getValue() {
-      return value;
-    }
-
-    public V setValue(V value) {
-      V oldValue = this.value;
-      this.value = value;
-      return oldValue;
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-      if (obj == this) {
-        return true;
-      } else if (!(obj instanceof Entry)) {
-        return false;
-      }
-      Entry<?, ?> entry = (Entry<?, ?>) obj;
-      return eq(key, entry.getKey()) && eq(value, entry.getValue());
-    }
-
-    @Override
-    public int hashCode() {
-      return ((key == null) ? 0 : key.hashCode()) ^ ((value == null) ? 0 : value.hashCode());
-    }
-
-    @Override
-    public String toString() {
-      return key + "=" + value;
-    }
-
-    private static boolean eq(Object o1, Object o2) {
       return (o1 == null) ? (o2 == null) : o1.equals(o2);
     }
   }
