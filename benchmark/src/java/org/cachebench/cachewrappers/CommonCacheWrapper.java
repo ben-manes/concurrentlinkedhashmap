@@ -16,6 +16,7 @@
 package org.cachebench.cachewrappers;
 
 import com.googlecode.concurrentlinkedhashmap.caches.Cache;
+import com.googlecode.concurrentlinkedhashmap.caches.Cache.Policy;
 import com.googlecode.concurrentlinkedhashmap.caches.CacheBuilder;
 
 import org.cachebench.CacheWrapper;
@@ -33,12 +34,12 @@ public final class CommonCacheWrapper implements CacheWrapper {
   private int initialCapacity;
   private int maximumCapacity;
   private int concurrencyLevel;
-  private Cache cacheType;
+  private Cache cache;
 
   @Override
   @SuppressWarnings("unchecked")
   public void init(Map parameters) throws Exception {
-    cacheType = Cache.valueOf(System.getProperty("cacheBenchFwk.cache.type"));
+    cache = Cache.valueOf(System.getProperty("cacheBenchFwk.cache.type"));
     initialCapacity = Integer.getInteger("cacheBenchFwk.cache.initialCapacity");
     maximumCapacity = Integer.getInteger("cacheBenchFwk.cache.maximumCapacity");
     concurrencyLevel = Integer.getInteger("cacheBenchFwk.cache.concurrencyLevel");
@@ -47,7 +48,7 @@ public final class CommonCacheWrapper implements CacheWrapper {
         .concurrencyLevel(concurrencyLevel)
         .initialCapacity(initialCapacity)
         .maximumCapacity(maximumCapacity)
-        .makeCache(cacheType);
+        .makeCache(cache);
   }
 
   @Override
@@ -75,7 +76,7 @@ public final class CommonCacheWrapper implements CacheWrapper {
 
   @Override
   public String getInfo() {
-    return cacheType.isBounded()
+    return (cache.policy() == Policy.UNBOUNDED)
          ? "size/capacity: " + map.size() + "/" + maximumCapacity
          : "size: " + map.size();
   }

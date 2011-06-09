@@ -39,7 +39,6 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  * @author ben.manes@gmail.com (Ben Manes)
  */
 public enum Cache {
-
   /** A concurrent linked hash map. */
   ConcurrentLinkedHashMap() {
     @Override public <K, V> ConcurrentMap<K, V> create(CacheBuilder builder) {
@@ -49,12 +48,18 @@ public enum Cache {
           .maximumWeightedCapacity(builder.maximumCapacity)
           .build();
     }
+    @Override public Policy policy() {
+      return Policy.LRU;
+    }
   },
 
   /** A concurrent map using a first-in, first-out eviction policy. */
   Concurrent_Fifo() {
     @Override public <K, V> ConcurrentMap<K, V> create(CacheBuilder builder) {
       return new ProductionMap<K, V>(EvictionPolicy.FIFO, builder);
+    }
+    @Override public Policy policy() {
+      return Policy.FIFO;
     }
   },
 
@@ -65,12 +70,18 @@ public enum Cache {
     @Override public <K, V> ConcurrentMap<K, V> create(CacheBuilder builder) {
       return new ProductionMap<K, V>(EvictionPolicy.SECOND_CHANCE,  builder);
     }
+    @Override public Policy policy() {
+      return Policy.SECOND_CHANCE;
+    }
   },
 
   /** A concurrent map using an eager lock-based LRU eviction policy. */
   Concurrent_Lru() {
     @Override public <K, V> ConcurrentMap<K, V> create(CacheBuilder builder) {
       return new ProductionMap<K, V>(EvictionPolicy.LRU, builder);
+    }
+    @Override public Policy policy() {
+      return Policy.LRU;
     }
   },
 
@@ -81,6 +92,9 @@ public enum Cache {
       Map<K, V> delegate = new BoundedLinkedHashMap<K, V>(AccessOrder.FIFO, builder);
       return new LockForwardingConcurrentMap<K, V>(lock.readLock(), lock.writeLock(), delegate);
     }
+    @Override public Policy policy() {
+      return Policy.FIFO;
+    }
   },
 
   /** LinkedHashMap in FIFO eviction, guarded by an exclusive lock. */
@@ -89,6 +103,9 @@ public enum Cache {
       Lock lock = new ReentrantLock();
       Map<K, V> delegate = new BoundedLinkedHashMap<K, V>(AccessOrder.FIFO, builder);
       return new LockForwardingConcurrentMap<K, V>(lock, lock, delegate);
+    }
+    @Override public Policy policy() {
+      return Policy.FIFO;
     }
   },
 
@@ -99,6 +116,9 @@ public enum Cache {
       Map<K, V> delegate = new BoundedLinkedHashMap<K, V>(AccessOrder.LRU, builder);
       return new LockForwardingConcurrentMap<K, V>(lock, lock, delegate);
     }
+    @Override public Policy policy() {
+      return Policy.LRU;
+    }
   },
 
   /** LinkedHashMap in FIFO eviction, guarded by synchronized monitor. */
@@ -106,6 +126,9 @@ public enum Cache {
     @Override public <K, V> ConcurrentMap<K, V> create(CacheBuilder builder) {
       Map<K, V> delegate = new BoundedLinkedHashMap<K, V>(AccessOrder.FIFO, builder);
       return new SynchronizedForwardingConcurrentMap<K, V>(delegate);
+    }
+    @Override public Policy policy() {
+      return Policy.FIFO;
     }
   },
 
@@ -115,6 +138,9 @@ public enum Cache {
       Map<K, V> delegate = new BoundedLinkedHashMap<K, V>(AccessOrder.LRU, builder);
       return new SynchronizedForwardingConcurrentMap<K, V>(delegate);
     }
+    @Override public Policy policy() {
+      return Policy.LRU;
+    }
   },
 
   /** ConcurrentHashMap (unbounded). */
@@ -122,13 +148,18 @@ public enum Cache {
     @Override public <K, V> ConcurrentMap<K, V> create(CacheBuilder builder) {
       return new ConcurrentHashMap<K, V>(builder.initialCapacity, 0.75f, builder.concurrencyLevel);
     }
-    @Override public boolean isBounded() { return false; }
+    @Override public Policy policy() {
+      return Policy.UNBOUNDED;
+    }
   },
 
   /** Ehcache, using FIFO eviction. */
   Ehcache_Fifo() {
     @Override public <K, V> ConcurrentMap<K, V> create(CacheBuilder builder) {
       return new EhcacheMap<K, V>(MemoryStoreEvictionPolicy.FIFO, builder);
+    }
+    @Override public Policy policy() {
+      return Policy.FIFO;
     }
   },
 
@@ -137,6 +168,9 @@ public enum Cache {
     @Override public <K, V> ConcurrentMap<K, V> create(CacheBuilder builder) {
       return new EhcacheMap<K, V>(MemoryStoreEvictionPolicy.LRU, builder);
     }
+    @Override public Policy policy() {
+      return Policy.LRU;
+    }
   },
 
   /** NonBlockingHashMap (unbounded). */
@@ -144,7 +178,9 @@ public enum Cache {
     @Override public <K, V> ConcurrentMap<K, V> create(CacheBuilder builder) {
       return new NonBlockingHashMap<K, V>(builder.initialCapacity);
     }
-    @Override public boolean isBounded() { return false; }
+    @Override public Policy policy() {
+      return Policy.UNBOUNDED;
+    }
   },
 
   /** MapMaker, with a maximum size. */
@@ -156,6 +192,9 @@ public enum Cache {
           .maximumSize(builder.maximumCapacity)
           .makeMap();
     }
+    @Override public Policy policy() {
+      return Policy.LRU_SEGMENTED;
+    }
   },
 
   /** A HashMap with LIRS eviction, guarded by synchronized monitor. */
@@ -164,12 +203,22 @@ public enum Cache {
       Map<K, V> delegate = new LirsMap<K, V>(builder.maximumCapacity);
       return new SynchronizedForwardingConcurrentMap<K, V>(delegate);
     }
+    @Override public Policy policy() {
+      return Policy.LIRS;
+    }
   };
+
+  public enum Policy {
+    UNBOUNDED,
+    FIFO,
+    SECOND_CHANCE,
+    LRU,
+    LRU_SEGMENTED,
+    LIRS;
+  }
 
   /** Creates the cache instance. */
   abstract <K, V> ConcurrentMap<K, V> create(CacheBuilder builder);
 
-  public boolean isBounded() {
-    return true;
-  }
+  public abstract Policy policy();
 }
