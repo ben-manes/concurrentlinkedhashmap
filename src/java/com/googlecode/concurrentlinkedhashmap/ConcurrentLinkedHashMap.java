@@ -22,8 +22,6 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableMap;
 import static java.util.Collections.unmodifiableSet;
 
-import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
-
 import java.io.InvalidObjectException;
 import java.io.ObjectInputStream;
 import java.io.Serializable;
@@ -820,12 +818,21 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     }
 
     final WeightedValue<V> weightedValue = node.get();
-    if (weightedValue.hasValue(value) && node.tryToRetire(weightedValue)
-        && data.remove(key, node)) {
-      afterCompletion(new RemovalTask(node));
-      return true;
+    for (;;) {
+      if (weightedValue.hasValue(value)) {
+        if (node.tryToRetire(weightedValue)) {
+          if (data.remove(key, node)) {
+            afterCompletion(new RemovalTask(node));
+            return true;
+          }
+        } else if (node.get().isAlive()) {
+          // retry as an intermediate update may have replaced the value with
+          // an equal instance that has a different reference identity
+          continue;
+        }
+      }
+      return false;
     }
-    return false;
   }
 
   @Override
@@ -969,12 +976,14 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     try {
       drainBuffers(AMORTIZED_DRAIN_THRESHOLD);
 
-      int size = Math.min(limit, evictionDeque.size());
-      Set<K> keys = new LinkedHashSet<K>(size);
+      int initialCapacity = (weigher == Weighers.singleton())
+          ? Math.min(limit, weightedSize())
+          : 16;
+      Set<K> keys = new LinkedHashSet<K>(initialCapacity);
       Iterator<Node> iterator = ascending
           ? evictionDeque.iterator()
           : evictionDeque.descendingIterator();
-      while (size > keys.size()) {
+      while (iterator.hasNext() && (limit > keys.size())) {
         keys.add(iterator.next().key);
       }
       return unmodifiableSet(keys);
@@ -1079,12 +1088,14 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     try {
       drainBuffers(AMORTIZED_DRAIN_THRESHOLD);
 
-      int size = Math.min(limit, evictionDeque.size());
-      Map<K, V> map = new LinkedHashMap<K, V>(size);
+      int initialCapacity = (weigher == Weighers.singleton())
+          ? Math.min(limit, weightedSize())
+          : 16;
+      Map<K, V> map = new LinkedHashMap<K, V>(initialCapacity);
       Iterator<Node> iterator = ascending
           ? evictionDeque.iterator()
           : evictionDeque.descendingIterator();
-      while (size > map.size()) {
+      while (iterator.hasNext() && (limit > map.size())) {
         Node node = iterator.next();
         map.put(node.key, node.getValue());
       }

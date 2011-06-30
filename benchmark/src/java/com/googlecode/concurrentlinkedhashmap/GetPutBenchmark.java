@@ -15,15 +15,17 @@
  */
 package com.googlecode.concurrentlinkedhashmap;
 
+import static com.googlecode.concurrentlinkedhashmap.Benchmarks.createWorkingSet;
+
 import com.google.caliper.Param;
 import com.google.caliper.Runner;
 import com.google.caliper.SimpleBenchmark;
 
 import com.googlecode.concurrentlinkedhashmap.caches.Cache;
 import com.googlecode.concurrentlinkedhashmap.caches.CacheBuilder;
-import com.googlecode.concurrentlinkedhashmap.generator.IntegerGenerator;
 import com.googlecode.concurrentlinkedhashmap.generator.ScrambledZipfianGenerator;
 
+import java.util.List;
 import java.util.concurrent.ConcurrentMap;
 
 /**
@@ -33,15 +35,9 @@ import java.util.concurrent.ConcurrentMap;
  */
 public final class GetPutBenchmark extends SimpleBenchmark {
   private static final int MASK = (2 << 10) - 1;
-  private static final Integer[] ints;
-
-  static {
-    IntegerGenerator generator = new ScrambledZipfianGenerator(MASK + 1);
-    ints = new Integer[MASK + 1];
-    for (int i = 0; i < ints.length; i++) {
-      ints[i] = generator.nextInt();
-    }
-  }
+  private static final List<Integer> ints =
+    createWorkingSet(new ScrambledZipfianGenerator(MASK + 1), MASK + 1);
+  private static final Integer DUMMY = 1;
 
   @Param({
     "MapMaker",
@@ -58,25 +54,21 @@ public final class GetPutBenchmark extends SimpleBenchmark {
     map = new CacheBuilder()
         .maximumCapacity(Integer.MAX_VALUE)
         .makeCache(cache);
-    for (int i = 0; i < ints.length; i++) {
-      map.put(ints[i], ints[i]);
+    for (int i = 0; i < ints.size(); i++) {
+      map.put(ints.get(i), DUMMY);
     }
   }
 
-  public int timeGet(final int reps) {
-    int dummy = 0;
+  public void timeGet(final int reps) {
     for (int i = 0; i < reps; i++) {
-      dummy += map.get(ints[index++ & MASK]);
+      map.get(ints.get(index++ & MASK));
     }
-    return dummy;
   }
 
-  public int timePut(final int reps) {
-    int dummy = 0;
+  public void timePut(final int reps) {
     for (int i = 0; i < reps; i++) {
-      dummy += map.put(ints[index++ & MASK], i);
+      map.put(ints.get(index++ & MASK), DUMMY);
     }
-    return dummy;
   }
 
   /** Kick-start the benchmark. */

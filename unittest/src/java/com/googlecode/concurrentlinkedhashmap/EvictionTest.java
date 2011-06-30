@@ -23,9 +23,9 @@ import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.MAX
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.MAXIMUM_CAPACITY;
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.bufferIndex;
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.DrainStatus.REQUIRED;
-import static com.googlecode.concurrentlinkedhashmap.EvictionTest.State.ALIVE;
-import static com.googlecode.concurrentlinkedhashmap.EvictionTest.State.DEAD;
-import static com.googlecode.concurrentlinkedhashmap.EvictionTest.State.RETIRED;
+import static com.googlecode.concurrentlinkedhashmap.EvictionTest.Status.ALIVE;
+import static com.googlecode.concurrentlinkedhashmap.EvictionTest.Status.DEAD;
+import static com.googlecode.concurrentlinkedhashmap.EvictionTest.Status.RETIRED;
 import static com.googlecode.concurrentlinkedhashmap.IsEmptyCollection.emptyCollection;
 import static com.googlecode.concurrentlinkedhashmap.IsEmptyMap.emptyMap;
 import static com.googlecode.concurrentlinkedhashmap.IsValidState.valid;
@@ -218,7 +218,7 @@ public final class EvictionTest extends AbstractTest {
     map.evictionLock.lock();
     try {
       ConcurrentLinkedHashMap<?, ?>.Node node = map.data.get(0);
-      checkState(node, ALIVE);
+      checkStatus(node, ALIVE);
       new Thread() {
         @Override public void run() {
           map.remove(0);
@@ -226,21 +226,21 @@ public final class EvictionTest extends AbstractTest {
         }
       }.start();
       assertThat(latch.await(1, SECONDS), is(true));
-      checkState(node, RETIRED);
+      checkStatus(node, RETIRED);
 
       map.capacity = 9;
       map.evict();
 
-      checkState(node, DEAD);
+      checkStatus(node, DEAD);
       verify(listener, never()).onEviction(anyInt(), anyInt());
     } finally {
       map.evictionLock.unlock();
     }
   }
 
-  enum State { ALIVE, RETIRED, DEAD }
+  enum Status { ALIVE, RETIRED, DEAD }
 
-  private static void checkState(ConcurrentLinkedHashMap<?, ?>.Node node, State expected) {
+  private static void checkStatus(ConcurrentLinkedHashMap<?, ?>.Node node, Status expected) {
     assertThat(node.get().isAlive(), is(expected == ALIVE));
     assertThat(node.get().isRetired(), is(expected == RETIRED));
     assertThat(node.get().isDead(), is(expected == DEAD));
@@ -466,6 +466,11 @@ public final class EvictionTest extends AbstractTest {
         map.ascendingKeySet();
       }
     });
+    checkDrainBlocks(map, new Runnable() {
+      @Override public void run() {
+        map.ascendingKeySetWithLimit(capacity());
+      }
+    });
   }
 
   @Test(dataProvider = "guardedMap")
@@ -474,6 +479,11 @@ public final class EvictionTest extends AbstractTest {
     checkDrainBlocks(map, new Runnable() {
       @Override public void run() {
         map.descendingKeySet();
+      }
+    });
+    checkDrainBlocks(map, new Runnable() {
+      @Override public void run() {
+        map.descendingKeySetWithLimit(capacity());
       }
     });
   }
@@ -486,6 +496,11 @@ public final class EvictionTest extends AbstractTest {
         map.ascendingMap();
       }
     });
+    checkDrainBlocks(map, new Runnable() {
+      @Override public void run() {
+        map.ascendingMapWithLimit(capacity());
+      }
+    });
   }
 
   @Test(dataProvider = "guardedMap")
@@ -494,6 +509,11 @@ public final class EvictionTest extends AbstractTest {
     checkDrainBlocks(map, new Runnable() {
       @Override public void run() {
         map.descendingMap();
+      }
+    });
+    checkDrainBlocks(map, new Runnable() {
+      @Override public void run() {
+        map.descendingMapWithLimit(capacity());
       }
     });
   }

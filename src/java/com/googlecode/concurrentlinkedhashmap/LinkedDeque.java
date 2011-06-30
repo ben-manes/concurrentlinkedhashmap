@@ -67,8 +67,6 @@ final class LinkedDeque<E extends Linked<E>> extends AbstractCollection<E> imple
    */
   E last;
 
-  int size;
-
   /**
    * Links the element to the front of the deque so that it becomes the first
    * element.
@@ -165,8 +163,18 @@ final class LinkedDeque<E extends Linked<E>> extends AbstractCollection<E> imple
     }
   }
 
+  /**
+   * {@inheritDoc}
+   * <p>
+   * Beware that, unlike in most collections, this method is <em>NOT</em> a
+   * constant-time operation.
+   */
   @Override
   public int size() {
+    int size = 0;
+    for (E e = first; e != null; e = e.getNext()) {
+      size++;
+    }
     return size;
   }
 
@@ -179,15 +187,15 @@ final class LinkedDeque<E extends Linked<E>> extends AbstractCollection<E> imple
       e = next;
     }
     first = last = null;
-    size = 0;
   }
 
   @Override
   public boolean contains(Object o) {
-    if (!(o instanceof Linked<?>)) {
-      return false;
-    }
-    Linked<?> e = (Linked<?>) o;
+    return (o instanceof Linked<?>) && contains((Linked<?>) o);
+  }
+
+  // A fast-path containment check
+  boolean contains(Linked<?> e) {
     return (e.getPrevious() != null)
         || (e.getNext() != null)
         || (e == first);
@@ -261,7 +269,6 @@ final class LinkedDeque<E extends Linked<E>> extends AbstractCollection<E> imple
     if (contains(e)) {
       return false;
     }
-    size++;
     linkFirst(e);
     return true;
   }
@@ -271,7 +278,6 @@ final class LinkedDeque<E extends Linked<E>> extends AbstractCollection<E> imple
     if (contains(e)) {
       return false;
     }
-    size++;
     linkLast(e);
     return true;
   }
@@ -306,7 +312,6 @@ final class LinkedDeque<E extends Linked<E>> extends AbstractCollection<E> imple
     if (isEmpty()) {
       return null;
     }
-    size--;
     return unlinkFirst();
   }
 
@@ -315,7 +320,6 @@ final class LinkedDeque<E extends Linked<E>> extends AbstractCollection<E> imple
     if (isEmpty()) {
       return null;
     }
-    size--;
     return unlinkLast();
   }
 
@@ -328,7 +332,6 @@ final class LinkedDeque<E extends Linked<E>> extends AbstractCollection<E> imple
   @SuppressWarnings("unchecked")
   public boolean remove(Object o) {
     if (contains(o)) {
-      size--;
       unlink((E) o);
       return true;
     }

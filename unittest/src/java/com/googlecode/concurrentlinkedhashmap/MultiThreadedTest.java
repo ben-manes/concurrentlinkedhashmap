@@ -398,7 +398,7 @@ public final class MultiThreadedTest extends AbstractTest {
 
   @SuppressWarnings("unchecked")
   static String nodeToString(Node node) {
-    return node.key + "=" + node.getValue();
+    return (node == null) ? "null" : String.format("%s=%s", node.key, node.getValue());
   }
 
   /** Finds the node in the map by walking the list. Returns null if not found. */

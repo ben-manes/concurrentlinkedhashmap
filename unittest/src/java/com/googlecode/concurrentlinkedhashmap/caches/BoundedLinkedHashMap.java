@@ -23,11 +23,11 @@ import java.util.Map;
  *
  * @author ben.manes@gmail.com (Ben Manes)
  */
-final class BoundedLinkedHashMap<K, V> extends LinkedHashMap<K, V> {
+public final class BoundedLinkedHashMap<K, V> extends LinkedHashMap<K, V> {
   private static final long serialVersionUID = 1L;
   private final int maximumCapacity;
 
-  enum AccessOrder {
+  public enum AccessOrder {
     FIFO(false), LRU(true);
 
     final boolean accessOrder;
@@ -40,8 +40,12 @@ final class BoundedLinkedHashMap<K, V> extends LinkedHashMap<K, V> {
   }
 
   public BoundedLinkedHashMap(AccessOrder accessOrder, CacheBuilder builder) {
-    super(builder.initialCapacity, 0.75f, accessOrder.get());
-    this.maximumCapacity = builder.maximumCapacity;
+    this(accessOrder, builder.initialCapacity, builder.maximumCapacity);
+  }
+
+  public BoundedLinkedHashMap(AccessOrder accessOrder, int initialCapacity, int maximumCapacity) {
+    super(initialCapacity, 0.75f, accessOrder.get());
+    this.maximumCapacity = maximumCapacity;
   }
 
   @Override

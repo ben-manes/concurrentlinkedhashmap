@@ -28,7 +28,7 @@ import java.util.concurrent.locks.Lock;
  *
  * @author ben.manes@gmail.com (Ben Manes)
  */
-final class LockForwardingConcurrentMap<K, V> implements ConcurrentMap<K, V> {
+public final class LockForwardingConcurrentMap<K, V> implements ConcurrentMap<K, V> {
   private final ConcurrentMap<K, V> delegate;
   private final Lock writeLock;
   private final Lock readLock;

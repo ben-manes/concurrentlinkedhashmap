@@ -19,7 +19,9 @@ import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Lists.newArrayListWithCapacity;
 
 import com.googlecode.concurrentlinkedhashmap.generator.Generator;
+import com.googlecode.concurrentlinkedhashmap.generator.IntegerGenerator;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -47,6 +49,21 @@ public final class Benchmarks {
       workingSet.add(generator.nextString());
     }
     return workingSet;
+  }
+
+  /**
+   * Creates a random working set based on the distribution.
+   *
+   * @param generator the distribution generator
+   * @param size the size of the working set
+   * @return a random working set
+   */
+  public static List<Integer> createWorkingSet(IntegerGenerator generator, int size) {
+    Integer[] ints = new Integer[size];
+    for (int i = 0; i < ints.length; i++) {
+      ints[i] = generator.nextInt();
+    }
+    return Arrays.asList(ints);
   }
 
   /**

@@ -98,7 +98,6 @@ public final class IsEmptyCollection extends TypeSafeDiagnosingMatcher<Collectio
   private void checkLinkedDeque(LinkedDeque<?> deque, DescriptionBuilder builder) {
     builder.expectEqual(deque.first, null);
     builder.expectEqual(deque.last, null);
-    builder.expectEqual(deque.size, 0);
   }
 
   @Factory

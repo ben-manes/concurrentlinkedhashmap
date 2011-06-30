@@ -27,7 +27,7 @@ import java.util.concurrent.ConcurrentMap;
  *
  * @author ben.manes@gmail.com (Ben Manes)
  */
-final class SynchronizedForwardingConcurrentMap<K, V> implements ConcurrentMap<K, V> {
+public final class SynchronizedForwardingConcurrentMap<K, V> implements ConcurrentMap<K, V> {
   private final ConcurrentMap<K, V> delegate;
   private final Object lock;
 
