@@ -372,15 +372,15 @@ public final class MultiThreadedTest extends AbstractTest {
     return dequeToString(map, false);
   }
 
-  @SuppressWarnings("unchecked")
+  @SuppressWarnings("rawtypes")
   private static String dequeToString(ConcurrentLinkedHashMap<?, ?> map, boolean ascending) {
     map.evictionLock.lock();
     try {
       StringBuilder buffer = new StringBuilder("\n");
       Set<Object> seen = Sets.newIdentityHashSet();
       Iterator<? extends Node> iterator = ascending
-          ? map.evictionDeque.iterator()
-          : map.evictionDeque.descendingIterator();
+          ? map.policy.iterator()
+          : map.policy.descendingIterator();
       while (iterator.hasNext()) {
         Node node = iterator.next();
         buffer.append(nodeToString(node)).append("\n");
@@ -396,18 +396,19 @@ public final class MultiThreadedTest extends AbstractTest {
     }
   }
 
-  @SuppressWarnings("unchecked")
+  @SuppressWarnings("rawtypes")
   static String nodeToString(Node node) {
     return (node == null) ? "null" : String.format("%s=%s", node.key, node.getValue());
   }
 
   /** Finds the node in the map by walking the list. Returns null if not found. */
-  @SuppressWarnings("unchecked")
+  @SuppressWarnings("rawtypes")
   static ConcurrentLinkedHashMap<?, ?>.Node findNode(
       Object key, ConcurrentLinkedHashMap<?, ?> map) {
     map.evictionLock.lock();
     try {
-      for (Node node : map.evictionDeque) {
+      for (Iterator<? extends Node> iter = map.policy.iterator(); iter.hasNext();) {
+        Node node = iter.next();
         if (node.key.equals(key)) {
           return node;
         }

@@ -63,8 +63,8 @@ public final class IsEmptyMap extends TypeSafeDiagnosingMatcher<Map<?, ?>> {
     builder.expectEqual(map.data.size(), 0, "Internal size != 0");
     builder.expectEqual(map.weightedSize(), 0, "Weighted size != 0");
     builder.expectEqual(map.weightedSize, 0, "Internal weighted size != 0");
-    builder.expectEqual(map.evictionDeque.peekFirst(), null, "first not null: " + map.evictionDeque);
-    builder.expectEqual(map.evictionDeque.peekLast(), null, "last not null");
+    builder.expect(!map.policy.iterator().hasNext(), "first not null");
+    builder.expect(!map.policy.descendingIterator().hasNext(), "last not null");
   }
 
   @Factory

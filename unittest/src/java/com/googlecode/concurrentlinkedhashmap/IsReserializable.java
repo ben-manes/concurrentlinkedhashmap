@@ -76,7 +76,8 @@ public final class IsReserializable<T> extends TypeSafeMatcher<T> {
         .append(original.listener.getClass(), copy.listener.getClass())
         .append(original.concurrencyLevel, copy.concurrencyLevel)
         .append(original.hashCode(), copy.hashCode())
-        .append(original.capacity, copy.capacity)
+        .append(original.policy.capacity, copy.policy.capacity)
+        .append(original.policy.getClass(), copy.policy.getClass())
         .append(original, data)
         .isEquals();
   }

@@ -19,6 +19,7 @@ import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.AMO
 
 import com.google.common.collect.Sets;
 
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.LruPolicy;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Node;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.WeightedValue;
 
@@ -49,7 +50,7 @@ public final class IsValidState extends TypeSafeDiagnosingMatcher<ConcurrentLink
 
     drain(map);
     checkMap(map, builder);
-    checkEvictionDeque(map, builder);
+    checkPolicy(map, builder);
     return builder.matches();
   }
 
@@ -75,8 +76,8 @@ public final class IsValidState extends TypeSafeDiagnosingMatcher<ConcurrentLink
     builder.expect(map.pendingNotifications.isEmpty(), "listenerQueue");
     builder.expectEqual(map.data.size(), map.size(), "Inconsistent size");
     builder.expectEqual(map.weightedSize(), map.weightedSize, "weightedSize");
-    builder.expectEqual(map.capacity(), map.capacity, "capacity");
-    builder.expect(map.capacity >= map.weightedSize(), "overflow");
+    builder.expectEqual(map.capacity(), map.policy.capacity, "capacity");
+    builder.expect(map.policy.capacity >= map.weightedSize(), "overflow");
     builder.expectNot(((ReentrantLock) map.evictionLock).isLocked());
 
     if (map.isEmpty()) {
@@ -84,20 +85,28 @@ public final class IsValidState extends TypeSafeDiagnosingMatcher<ConcurrentLink
     }
   }
 
-  private void checkEvictionDeque(ConcurrentLinkedHashMap<?, ?> map, DescriptionBuilder builder) {
-    LinkedDeque<?> deque = map.evictionDeque;
-
-    checkLinks(map, builder);
-    builder.expectEqual(deque.size(), map.size());
-    IsValidDeque.validDeque().matchesSafely(map.evictionDeque, builder.getDescription());
+  private void checkPolicy(ConcurrentLinkedHashMap<?, ?> map, DescriptionBuilder builder) {
+    if (map.policy instanceof LruPolicy) {
+      checkLruPolicy(map, builder);
+    }
   }
 
-  private void checkLinks(ConcurrentLinkedHashMap<?, ?> map, DescriptionBuilder builder) {
+  @SuppressWarnings("rawtypes")
+  private void checkLruPolicy(ConcurrentLinkedHashMap<?, ?> map, DescriptionBuilder builder) {
+    LinkedDeque<ConcurrentLinkedHashMap<?, ?>.Node> deque = ((LruPolicy) map.policy).evictionDeque;
+
+    checkLinks(map, deque, builder);
+    builder.expectEqual(deque.size(), map.size());
+    IsValidDeque.validDeque().matchesSafely(deque, builder.getDescription());
+  }
+
+  private void checkLinks(ConcurrentLinkedHashMap<?, ?> map,
+      LinkedDeque<ConcurrentLinkedHashMap<?, ?>.Node> evictionDeque, DescriptionBuilder builder) {
     int weightedSize = 0;
-    Set<Node> seen = Sets.newIdentityHashSet();
-    for (Node node : map.evictionDeque) {
+    Set<ConcurrentLinkedHashMap<?, ?>.Node> seen = Sets.newIdentityHashSet();
+    for (ConcurrentLinkedHashMap<?, ?>.Node node : evictionDeque) {
       builder.expect(seen.add(node), "Loop detected: %s, saw %s in %s", node, seen, map);
-      weightedSize += ((WeightedValue) node.get()).weight;
+      weightedSize += ((WeightedValue<?>) node.get()).weight;
       checkNode(map, node, builder);
     }
 
@@ -107,13 +116,14 @@ public final class IsValidState extends TypeSafeDiagnosingMatcher<ConcurrentLink
         + " {size: " + map.size() + " vs. " + seen.size() + "}");
   }
 
+  @SuppressWarnings("rawtypes")
   private void checkNode(ConcurrentLinkedHashMap<?, ?> map, Node node,
       DescriptionBuilder builder) {
     builder.expectNotEqual(node.key, null, "null key");
     builder.expectNotEqual(node.get(), null, "null weighted value");
     builder.expectNotEqual(node.getValue(), null, "null value");
-    builder.expectEqual(((WeightedValue) node.get()).weight,
-      ((Weigher) map.weigher).weightOf(node.getValue()), "weight");
+    builder.expectEqual(((WeightedValue<?>) node.get()).weight,
+        ((Weigher) map.weigher).weightOf(node.getValue()), "weight");
 
     builder.expect(map.containsKey(node.key), "inconsistent");
     builder.expect(map.containsValue(node.getValue()),

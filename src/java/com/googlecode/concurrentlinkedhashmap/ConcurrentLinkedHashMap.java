@@ -200,19 +200,14 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   final ConcurrentMap<K, Node> data;
   final int concurrencyLevel;
 
-  // These fields provide support to bound the map by a maximum capacity
-  @GuardedBy("evictionLock")
-  final LinkedDeque<Node> evictionDeque;
-
   @GuardedBy("evictionLock") // must write under lock
   volatile int weightedSize;
-  @GuardedBy("evictionLock") // must write under lock
-  volatile int capacity;
 
   volatile int nextOrder;
   @GuardedBy("evictionLock")
   int drainedOrder;
 
+  final Policy policy;
   final Lock evictionLock;
   final Queue<Task>[] buffers;
   final ExecutorService executor;
@@ -235,16 +230,15 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   private ConcurrentLinkedHashMap(Builder<K, V> builder) {
     // The data store and its maximum capacity
     concurrencyLevel = builder.concurrencyLevel;
-    capacity = Math.min(builder.capacity, MAXIMUM_CAPACITY);
     data = new ConcurrentHashMap<K, Node>(builder.initialCapacity, 0.75f, concurrencyLevel);
 
     // The eviction support
+    policy = new LruPolicy(builder.capacity);
     weigher = builder.weigher;
     executor = builder.executor;
     nextOrder = Integer.MIN_VALUE;
     drainedOrder = Integer.MIN_VALUE;
     evictionLock = new ReentrantLock();
-    evictionDeque = new LinkedDeque<Node>();
     drainStatus = new AtomicReference<DrainStatus>(IDLE);
 
     buffers = (Queue<Task>[]) new Queue[NUMBER_OF_BUFFERS];
@@ -275,7 +269,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * @return the maximum weighted capacity
    */
   public int capacity() {
-    return capacity;
+    return policy.capacity();
   }
 
   /**
@@ -292,7 +286,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
     evictionLock.lock();
     try {
-      this.capacity = Math.min(capacity, MAXIMUM_CAPACITY);
+      policy.setCapacity(capacity);
       drainBuffers(AMORTIZED_DRAIN_THRESHOLD);
       evict();
     } finally {
@@ -303,7 +297,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
   /** Determines whether the map has exceeded its capacity. */
   boolean hasOverflowed() {
-    return weightedSize > capacity;
+    return weightedSize > policy.capacity();
   }
 
   /**
@@ -319,7 +313,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     // that if an eviction is still required then a new victim will be chosen
     // for removal.
     while (hasOverflowed()) {
-      Node node = evictionDeque.poll();
+      Node node = policy.victim();
 
       // If weighted values are used, then the pending operations will adjust
       // the size to reflect the correct weight
@@ -578,13 +572,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     @Override
     @GuardedBy("evictionLock")
     public void run() {
-      // An entry may scheduled for reordering despite having been previously
-      // removed. This can occur when the entry was concurrently read while a
-      // writer was removing it. If the entry is no longer linked then it does
-      // not need to be processed.
-      if (evictionDeque.contains(node)) {
-        evictionDeque.moveToBack(node);
-      }
+      policy.recordHit(node);
     }
 
     @Override
@@ -610,7 +598,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
       // ignore out-of-order write operations
       if (node.get().isAlive()) {
-        evictionDeque.add(node);
+        policy.add(node);
         evict();
       }
     }
@@ -633,7 +621,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     @GuardedBy("evictionLock")
     public void run() {
       // add may not have been processed yet
-      evictionDeque.remove(node);
+      policy.remove(node);
       node.makeDead();
     }
 
@@ -694,7 +682,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     evictionLock.lock();
     try {
       Node node;
-      while ((node = evictionDeque.poll()) != null) {
+      while ((node = policy.victim()) != null) {
         data.remove(node.key, node);
         node.makeDead();
       }
@@ -981,8 +969,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
           : 16;
       Set<K> keys = new LinkedHashSet<K>(initialCapacity);
       Iterator<Node> iterator = ascending
-          ? evictionDeque.iterator()
-          : evictionDeque.descendingIterator();
+          ? policy.iterator()
+          : policy.descendingIterator();
       while (iterator.hasNext() && (limit > keys.size())) {
         keys.add(iterator.next().key);
       }
@@ -1093,8 +1081,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
           : 16;
       Map<K, V> map = new LinkedHashMap<K, V>(initialCapacity);
       Iterator<Node> iterator = ascending
-          ? evictionDeque.iterator()
-          : evictionDeque.descendingIterator();
+          ? policy.iterator()
+          : policy.descendingIterator();
       while (iterator.hasNext() && (limit > map.size())) {
         Node node = iterator.next();
         map.put(node.key, node.getValue());
@@ -1144,12 +1132,150 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     }
   }
 
+  abstract class Policy {
+    @GuardedBy("evictionLock") // must write under lock
+    volatile int currentSize;
+    @GuardedBy("evictionLock") // must write under lock
+    volatile int capacity;
+
+    Policy(int capacity) {
+      setCapacity(capacity);
+    }
+
+    /** Creates a new, unlinked data node. */
+    abstract Node newNode(K key, WeightedValue<V> weightedValue);
+
+    /** Determines the next victim entry to evict from the map. */
+    @GuardedBy("evictionLock")
+    abstract Node victim();
+
+    @GuardedBy("evictionLock")
+    abstract void setCapacity(int capacity);
+
+    final int capacity() {
+      return capacity;
+    }
+
+    /**
+     * Determines whether the map has exceeded its capacity.
+     *
+     * @return if the map has overflowed and an entry should be evicted
+     */
+    @GuardedBy("evictionLock")
+    boolean hasOverflowed() {
+      return currentSize > capacity;
+    }
+
+    /**
+     * Decrements the weighted size by the node's weight. This method should be
+     * called after the node has been removed from the data map, but it may be
+     * still referenced by concurrent operations.
+     *
+     * @param node the entry that was removed
+     */
+    @GuardedBy("evictionLock")
+    abstract void evict(Node node);
+
+    @GuardedBy("evictionLock")
+    abstract void add(Node node);
+
+    @GuardedBy("evictionLock")
+    abstract void remove(Node node);
+
+    @GuardedBy("evictionLock")
+    abstract void recordHit(Node node);
+
+    @GuardedBy("evictionLock")
+    abstract Iterator<Node> iterator();
+
+    @GuardedBy("evictionLock")
+    abstract Iterator<Node> descendingIterator();
+  }
+
+  final class LruPolicy extends Policy {
+    // These fields provide support to bound the map by a maximum capacity
+    @GuardedBy("evictionLock")
+    final LinkedDeque<Node> evictionDeque;
+
+    LruPolicy(int capacity) {
+      super(capacity);
+      evictionDeque = new LinkedDeque<Node>();
+    }
+
+    @Override
+    LruNode newNode(K key, WeightedValue<V> weightedValue) {
+      return new LruNode(key, weightedValue);
+    }
+
+    @Override
+    @GuardedBy("evictionLock")
+    void setCapacity(int capacity) {
+      this.capacity = Math.min(capacity, MAXIMUM_CAPACITY);
+    }
+
+    @Override
+    @GuardedBy("evictionLock")
+    void evict(Node node) {
+    }
+
+    @Override
+    @GuardedBy("evictionLock")
+    Node victim() {
+      return evictionDeque.poll();
+    }
+
+    @Override
+    @GuardedBy("evictionLock")
+    void add(Node node) {
+      evictionDeque.add(node);
+    }
+
+    @Override
+    @GuardedBy("evictionLock")
+    void remove(Node node) {
+      evictionDeque.remove(node);
+    }
+
+    @Override
+    @GuardedBy("evictionLock")
+    void recordHit(Node node) {
+      // An entry may scheduled for reordering despite having been previously
+      // removed. This can occur when the entry was concurrently read while a
+      // writer was removing it. If the entry is no longer linked then it does
+      // not need to be processed.
+      if (evictionDeque.contains(node)) {
+        evictionDeque.moveToBack(node);
+      }
+    }
+
+    @Override
+    @GuardedBy("evictionLock")
+    Iterator<Node> iterator() {
+      return evictionDeque.iterator();
+    }
+
+    @Override
+    @GuardedBy("evictionLock")
+    Iterator<Node> descendingIterator() {
+      return evictionDeque.descendingIterator();
+    }
+  }
+
+  @SuppressWarnings("serial")
+  final class LruNode extends Node {
+
+    /** Creates a new, unlinked node. */
+    LruNode(K key, WeightedValue<V> weightedValue) {
+      super(key, weightedValue);
+    }
+  }
+
   /**
    * A node contains the key, the weighted value, and the linkage pointers on
    * the page-replacement algorithm's data structures.
    */
   @SuppressWarnings("serial")
-  final class Node extends AtomicReference<WeightedValue<V>> implements Linked<Node> {
+  class Node extends AtomicReference<WeightedValue<V>> implements Linked<Node> {
     final K key;
     @GuardedBy("evictionLock")
     Node prev;
@@ -1590,8 +1716,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
     SerializationProxy(ConcurrentLinkedHashMap<K, V> map) {
       concurrencyLevel = map.concurrencyLevel;
+      capacity = map.policy.capacity();
       data = new HashMap<K, V>(map);
-      capacity = map.capacity;
       listener = map.listener;
       weigher = map.weigher;
     }

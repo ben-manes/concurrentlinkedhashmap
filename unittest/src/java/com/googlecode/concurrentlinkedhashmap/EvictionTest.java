@@ -61,6 +61,7 @@ import org.testng.annotations.Test;
 
 import java.lang.ref.WeakReference;
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -228,7 +229,7 @@ public final class EvictionTest extends AbstractTest {
       assertThat(latch.await(1, SECONDS), is(true));
       checkStatus(node, RETIRED);
 
-      map.capacity = 9;
+      map.policy.capacity = 9;
       map.evict();
 
       checkStatus(node, DEAD);
@@ -297,8 +298,10 @@ public final class EvictionTest extends AbstractTest {
       Integer... expect) {
     map.tryToDrainBuffers(AMORTIZED_DRAIN_THRESHOLD);
     List<Integer> evictionList = Lists.newArrayList();
-    for (ConcurrentLinkedHashMap<Integer, Integer>.Node node : map.evictionDeque) {
-      evictionList.add(node.key);
+
+    for (Iterator<ConcurrentLinkedHashMap<Integer, Integer>.Node> iter = map.policy.iterator();
+        iter.hasNext();) {
+      evictionList.add(iter.next().key);
     }
     assertThat(map.size(), is(equalTo(expect.length)));
     assertThat(map.keySet(), containsInAnyOrder(expect));
@@ -307,7 +310,7 @@ public final class EvictionTest extends AbstractTest {
 
   @Test(dataProvider = "warmedMap")
   public void updateRecency_onGet(final ConcurrentLinkedHashMap<Integer, Integer> map) {
-    final ConcurrentLinkedHashMap<Integer, Integer>.Node first = map.evictionDeque.peek();
+    final ConcurrentLinkedHashMap<Integer, Integer>.Node first = map.policy.iterator().next();
     updateRecency(map, new Runnable() {
       @Override public void run() {
         map.get(first.key);
@@ -317,7 +320,7 @@ public final class EvictionTest extends AbstractTest {
 
   @Test(dataProvider = "warmedMap")
   public void updateRecency_onPutIfAbsent(final ConcurrentLinkedHashMap<Integer, Integer> map) {
-    final ConcurrentLinkedHashMap<Integer, Integer>.Node first = map.evictionDeque.peek();
+    final ConcurrentLinkedHashMap<Integer, Integer>.Node first = map.policy.iterator().next();
     updateRecency(map, new Runnable() {
       @Override public void run() {
         map.putIfAbsent(first.key, first.key);
@@ -327,7 +330,7 @@ public final class EvictionTest extends AbstractTest {
 
   @Test(dataProvider = "warmedMap")
   public void updateRecency_onPut(final ConcurrentLinkedHashMap<Integer, Integer> map) {
-    final ConcurrentLinkedHashMap<Integer, Integer>.Node first = map.evictionDeque.peek();
+    final ConcurrentLinkedHashMap<Integer, Integer>.Node first = map.policy.iterator().next();
     updateRecency(map, new Runnable() {
       @Override public void run() {
         map.put(first.key, first.key);
@@ -337,7 +340,7 @@ public final class EvictionTest extends AbstractTest {
 
   @Test(dataProvider = "warmedMap")
   public void updateRecency_onReplace(final ConcurrentLinkedHashMap<Integer, Integer> map) {
-    final ConcurrentLinkedHashMap<Integer, Integer>.Node first = map.evictionDeque.peek();
+    final ConcurrentLinkedHashMap<Integer, Integer>.Node first = map.policy.iterator().next();
     updateRecency(map, new Runnable() {
       @Override public void run() {
         map.replace(first.key, first.key);
@@ -348,7 +351,7 @@ public final class EvictionTest extends AbstractTest {
   @Test(dataProvider = "warmedMap")
   public void updateRecency_onReplaceConditionally(
       final ConcurrentLinkedHashMap<Integer, Integer> map) {
-    final ConcurrentLinkedHashMap<Integer, Integer>.Node first = map.evictionDeque.peek();
+    final ConcurrentLinkedHashMap<Integer, Integer>.Node first = map.policy.iterator().next();
     updateRecency(map, new Runnable() {
       @Override public void run() {
         map.replace(first.key, first.key, first.key);
@@ -357,13 +360,13 @@ public final class EvictionTest extends AbstractTest {
   }
 
   private void updateRecency(ConcurrentLinkedHashMap<?, ?> map, Runnable operation) {
-    ConcurrentLinkedHashMap<?, ?>.Node first = map.evictionDeque.peek();
+    ConcurrentLinkedHashMap<?, ?>.Node first = map.policy.iterator().next();
 
     operation.run();
     map.drainBuffers(AMORTIZED_DRAIN_THRESHOLD);
 
-    assertThat(map.evictionDeque.peekFirst(), is(not(first)));
-    assertThat(map.evictionDeque.peekLast(), is(first));
+    assertThat(map.policy.iterator().next(), is(not(first)));
+    assertThat(map.policy.descendingIterator().next(), is(first));
     assertThat(map, is(valid()));
   }
 
