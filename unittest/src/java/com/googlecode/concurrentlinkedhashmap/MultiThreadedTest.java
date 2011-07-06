@@ -1,25 +1,52 @@
+/*
+ * Copyright 2011 Google Inc. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package com.googlecode.concurrentlinkedhashmap;
 
-import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
+import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.base.Preconditions.checkState;
+import static com.google.common.collect.Lists.newArrayList;
+import static com.googlecode.concurrentlinkedhashmap.Benchmarks.shuffle;
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentTestHarness.timeTasks;
+import static com.googlecode.concurrentlinkedhashmap.IsValidState.valid;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.is;
+import static org.testng.Assert.fail;
+
+import com.google.common.collect.Sets;
+
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Node;
 
 import org.apache.commons.lang.SerializationUtils;
-import org.testng.annotations.BeforeClass;
+import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
+import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map.Entry;
 import java.util.Queue;
 import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -30,170 +57,84 @@ import java.util.concurrent.atomic.AtomicInteger;
  *
  * @author ben.manes@gmail.com (Ben Manes)
  */
-public final class MultiThreadedTest extends BaseTest {
+@Test(groups = "development")
+public final class MultiThreadedTest extends AbstractTest {
   private Queue<String> failures;
   private List<Integer> keys;
-  private int timeout = 180;
+  private int iterations;
   private int nThreads;
+  private int timeout;
 
-  public MultiThreadedTest() {
-    super(intProperty("multiThreaded.maximumCapacity"));
+  @Override
+  protected int capacity() {
+    return intProperty("multiThreaded.maximumCapacity");
   }
 
-  @BeforeClass(alwaysRun = true)
+  @BeforeMethod(alwaysRun = true)
   public void beforeMultiThreaded() {
-    int iterations = intProperty("multiThreaded.iterations");
+    iterations = intProperty("multiThreaded.iterations");
     nThreads = intProperty("multiThreaded.nThreads");
     timeout = intProperty("multiThreaded.timeout");
     failures = new ConcurrentLinkedQueue<String>();
-    keys = new ArrayList<Integer>();
+  }
+
+  @Test(dataProvider = "builder")
+  public void concurrency(Builder<Integer, Integer> builder) {
+    keys = newArrayList();
     Random random = new Random();
     for (int i = 0; i < iterations; i++) {
       keys.add(random.nextInt(iterations / 100));
     }
-  }
-
-  /**
-   * Tests that the cache does not have a memory leak by not being able to
-   * drain the eviction queues fast enough.
-   */
-  @Test(groups = "load")
-  public void memoryLeak() throws InterruptedException {
-    final String WARNING = "WARNING: This test will run forever and must be manually stopped";
-    final int ITERATIONS = 100000;
-    final int NUM_THREADS = 1000;
-    info(WARNING);
-
-    class Listener implements EvictionListener<Integer, Integer> {
-      ConcurrentLinkedHashMap<?, ?> cache;
-      volatile int calls;
-
-      @Override
-      public void onEviction(Integer key, Integer value) {
-        calls++;
-
-        if ((calls % ITERATIONS) == 0) {
-          long reorders = 0;
-          for (Queue queue : cache.recencyQueue) {
-            reorders += queue.size();
-          }
-          debug("Evicted by thread #" + Thread.currentThread().getId());
-          debug("Write queue size = " + cache.writeQueue.size());
-          debug("Read queues size = " + reorders);
-          info(WARNING);
-        }
-      }
-    }
-    Listener listener = new Listener();
-
-    final ConcurrentLinkedHashMap<Integer, Integer> cache =
-        new Builder<Integer, Integer>()
-            .maximumWeightedCapacity(1000)
-            .concurrencyLevel(NUM_THREADS)
-            .initialCapacity(ITERATIONS)
-            .listener(listener)
-            .build();
-    listener.cache = cache;
-
-    timeTasks(1000, new Runnable() {
-      @Override
-      public void run() {
-        int current = (int) Math.random();
-        for (int i=1; ; i++) {
-          cache.put(current, current);
-          cache.get(current);
-          current++;
-          if ((i % ITERATIONS) == 0) {
-            debug("Write queue size = " + cache.writeQueue.size());
-            info(WARNING);
-          }
-        }
-      }
-    });
-  }
-
-  /**
-   * Tests that the cache is in the correct test after a read-write load.
-   */
-  @Test(enabled = false, groups = "development")
-  public void concurrent() throws InterruptedException {
-    debug(" * concurrent: START");
     final List<List<Integer>> sets = shuffle(nThreads, keys);
-    ThreadPoolExecutor es =
-        new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS,
-                               new LinkedBlockingQueue<Runnable>());
-    final ConcurrentLinkedHashMap<Integer, Integer> cache =
-        new Builder<Integer, Integer>()
-            .maximumWeightedCapacity(capacity)
-            .concurrencyLevel(nThreads)
-            .build();
-    Future<Long> future = es.submit(new Callable<Long>() {
-      @Override
-      public Long call() throws Exception {
-        return timeTasks(nThreads, new Thrasher(cache, sets));
+    final ConcurrentLinkedHashMap<Integer, Integer> map = builder
+        .maximumWeightedCapacity(capacity())
+        .concurrencyLevel(nThreads)
+        .build();
+    executeWithTimeOut(map, new Callable<Long>() {
+      @Override public Long call() throws Exception {
+        return timeTasks(nThreads, new Thrasher(map, sets));
       }
     });
-    try {
-      long timeNS = future.get(timeout, TimeUnit.SECONDS);
-      debug("\nExecuted in %d second(s)", TimeUnit.NANOSECONDS.toSeconds(timeNS));
-      validator.state(cache);
-    } catch (ExecutionException e) {
-      fail("Exception during test: " + e.toString(), e);
-    } catch (TimeoutException e) {
-      for (StackTraceElement[] trace : Thread.getAllStackTraces().values()) {
-        for (StackTraceElement element : trace) {
-          System.out.println("\tat " + element);
-        }
-        if (trace.length > 0) {
-          System.out.println("------");
-        }
-      }
-      es.shutdownNow();
-      while (es.getPoolSize() > 0) { /* spin until terminated */ }
+  }
 
-      // Print the state of the cache
-      debug("Cached Elements: %s", cache.toString());
-      debug("List Forward:\n%s", listForwardToString(cache));
-      debug("List Backward:\n%s", listBackwardsToString(cache));
-
-      // Print the recorded failures
-      for (String failure : failures) {
-        debug(failure);
-      }
-      fail("Spun forever", e);
+  @Test(dataProvider = "builder")
+  public void weightedConcurrency(Builder<Integer, List<Integer>> builder) {
+    final ConcurrentLinkedHashMap<Integer, List<Integer>> map = builder
+        .weigher(Weighers.<Integer>list())
+        .maximumWeightedCapacity(nThreads)
+        .concurrencyLevel(nThreads)
+        .build();
+    final Queue<List<Integer>> values = new ConcurrentLinkedQueue<List<Integer>>();
+    for (int i = 1; i <= nThreads; i++) {
+      Integer[] array = new Integer[i];
+      Arrays.fill(array, Integer.MIN_VALUE);
+      values.add(Arrays.asList(array));
     }
-    debug("concurrent: END");
+    executeWithTimeOut(map, new Callable<Long>() {
+      @Override public Long call() throws Exception {
+        return timeTasks(nThreads, new Runnable() {
+          @Override public void run() {
+            List<Integer> value = values.poll();
+            for (int i = 0; i < iterations; i++) {
+              map.put(i % 10, value);
+            }
+          }
+        });
+      }
+    });
   }
 
   /**
-   * Based on the passed in working set, creates N shuffled variants.
-   *
-   * @param samples the number of variants to create
-   * @param workingSet the base working set to build from
-   */
-  private <T> List<List<T>> shuffle(int samples, Collection<T> workingSet) {
-    List<List<T>> sets = new ArrayList<List<T>>(samples);
-    for (int i = 0; i < samples; i++) {
-      List<T> set = new ArrayList<T>(workingSet);
-      Collections.shuffle(set);
-      sets.add(set);
-    }
-    return sets;
-  }
-
-  /**
-   * Executes operations against the cache to simulate random load.
+   * Executes operations against the map to simulate random load.
    */
   private final class Thrasher implements Runnable {
-    private static final int OPERATIONS = 19;
-
-    private final ConcurrentLinkedHashMap<Integer, Integer> cache;
+    private final ConcurrentLinkedHashMap<Integer, Integer> map;
     private final List<List<Integer>> sets;
     private final AtomicInteger index;
 
-    public Thrasher(ConcurrentLinkedHashMap<Integer, Integer> cache, List<List<Integer>> sets) {
+    public Thrasher(ConcurrentLinkedHashMap<Integer, Integer> map, List<List<Integer>> sets) {
       this.index = new AtomicInteger();
-      this.cache = cache;
+      this.map = map;
       this.sets = sets;
     }
 
@@ -206,21 +147,20 @@ public final class MultiThreadedTest extends BaseTest {
       for (Integer key : sets.get(id)) {
         Operation operation = ops[random.nextInt(ops.length)];
         try {
-          operation.execute(cache, key);
+          operation.execute(map, key);
         } catch (RuntimeException e) {
           String error =
-              String.format("Failed: key %s on operation %s for node %s", key, operation,
-                            nodeToString(findNode(key, cache)));
+              String.format("Failed: key %s on operation %s for node %s",
+                  key, operation, nodeToString(findNode(key, map)));
           failures.add(error);
           throw e;
         } catch (Throwable thr) {
           String error =
-              String.format("Halted: key %s on operation %s for node %s", key, operation,
-                            nodeToString(findNode(key, cache)));
+              String.format("Halted: key %s on operation %s for node %s",
+                  key, operation, nodeToString(findNode(key, map)));
           failures.add(error);
         }
       }
-      debug("#%d: ENDING", id);
     }
   }
 
@@ -245,16 +185,12 @@ public final class MultiThreadedTest extends BaseTest {
     },
     SIZE() {
       @Override void execute(ConcurrentLinkedHashMap<Integer, Integer> cache, Integer key) {
-        if (cache.size() < 0) {
-          throw new IllegalStateException();
-        }
+        checkState(cache.size() >= 0);
       }
     },
     WEIGHTED_SIZE() {
       @Override void execute(ConcurrentLinkedHashMap<Integer, Integer> cache, Integer key) {
-        if (cache.weightedSize() < 0) {
-          throw new IllegalStateException();
-        }
+        checkState(cache.weightedSize() >= 0);
       }
     },
     CAPACITY() {
@@ -305,19 +241,35 @@ public final class MultiThreadedTest extends BaseTest {
     KEY_SET() {
       @Override void execute(ConcurrentLinkedHashMap<Integer, Integer> cache, Integer key) {
         for (Integer i : cache.keySet()) {
-          if (i == null) {
-            throw new IllegalArgumentException();
-          }
+          checkNotNull(i);
         }
         cache.keySet().toArray(new Integer[cache.size()]);
       }
     },
-    VALUE_SET() {
+   ASCENDING() {
+      @Override void execute(ConcurrentLinkedHashMap<Integer, Integer> cache, Integer key) {
+        for (Integer i : cache.ascendingKeySet()) {
+          checkNotNull(i);
+        }
+        for (Entry<Integer, Integer> entry : cache.ascendingMap().entrySet()) {
+          checkNotNull(entry);
+        }
+      }
+    },
+    DESCENDING() {
+      @Override void execute(ConcurrentLinkedHashMap<Integer, Integer> cache, Integer key) {
+        for (Integer i : cache.descendingKeySet()) {
+          checkNotNull(i);
+        }
+        for (Entry<Integer, Integer> entry : cache.descendingMap().entrySet()) {
+          checkNotNull(entry);
+        }
+      }
+    },
+    VALUES() {
       @Override void execute(ConcurrentLinkedHashMap<Integer, Integer> cache, Integer key) {
         for (Integer i : cache.values()) {
-          if (i == null) {
-            throw new IllegalArgumentException();
-          }
+          checkNotNull(i);
         }
         cache.values().toArray(new Integer[cache.size()]);
       }
@@ -325,9 +277,9 @@ public final class MultiThreadedTest extends BaseTest {
     ENTRY_SET() {
       @Override void execute(ConcurrentLinkedHashMap<Integer, Integer> cache, Integer key) {
         for (Entry<Integer, Integer> entry : cache.entrySet()) {
-          if ((entry == null) || (entry.getKey() == null) || (entry.getValue() == null)) {
-            throw new IllegalArgumentException(String.valueOf(entry));
-          }
+          checkNotNull(entry);
+          checkNotNull(entry.getKey());
+          checkNotNull(entry.getValue());
         }
         cache.entrySet().toArray(new Entry[cache.size()]);
       }
@@ -360,5 +312,109 @@ public final class MultiThreadedTest extends BaseTest {
      * @param key the key to perform the operation with
      */
     abstract void execute(ConcurrentLinkedHashMap<Integer, Integer> cache, Integer key);
+  }
+
+  /* ---------------- Utilities -------------- */
+
+  private void executeWithTimeOut(
+      ConcurrentLinkedHashMap<?, ?> map, Callable<Long> task) {
+    ExecutorService es = Executors.newSingleThreadExecutor();
+    Future<Long> future = es.submit(task);
+    try {
+      long timeNS = future.get(timeout, TimeUnit.SECONDS);
+      debug("\nExecuted in %d second(s)", TimeUnit.NANOSECONDS.toSeconds(timeNS));
+      assertThat(map, is(valid()));
+    } catch (ExecutionException e) {
+      fail("Exception during test: " + e.toString(), e);
+    } catch (TimeoutException e) {
+      handleTimout(map, es, e);
+    } catch (InterruptedException e) {
+      fail("", e);
+    }
+  }
+
+  private void handleTimout(
+      ConcurrentLinkedHashMap<?, ?> cache,
+      ExecutorService es,
+      TimeoutException e) {
+    for (StackTraceElement[] trace : Thread.getAllStackTraces().values()) {
+      for (StackTraceElement element : trace) {
+        info("\tat " + element);
+      }
+      if (trace.length > 0) {
+        info("------");
+      }
+    }
+    es.shutdownNow();
+    try {
+      es.awaitTermination(10, TimeUnit.SECONDS);
+    } catch (InterruptedException ex) {
+      fail("", ex);
+    }
+
+    // Print the state of the cache
+    debug("Cached Elements: %s", cache.toString());
+    debug("Deque Forward:\n%s", ascendingToString(cache));
+    debug("Deque Backward:\n%s", descendingToString(cache));
+
+    // Print the recorded failures
+    for (String failure : failures) {
+      debug(failure);
+    }
+    fail("Spun forever", e);
+  }
+
+  static String ascendingToString(ConcurrentLinkedHashMap<?, ?> map) {
+    return dequeToString(map, true);
+  }
+
+  static String descendingToString(ConcurrentLinkedHashMap<?, ?> map) {
+    return dequeToString(map, false);
+  }
+
+  @SuppressWarnings("unchecked")
+  private static String dequeToString(ConcurrentLinkedHashMap<?, ?> map, boolean ascending) {
+    map.evictionLock.lock();
+    try {
+      StringBuilder buffer = new StringBuilder("\n");
+      Set<Object> seen = Sets.newIdentityHashSet();
+      Iterator<? extends Node> iterator = ascending
+          ? map.evictionDeque.iterator()
+          : map.evictionDeque.descendingIterator();
+      while (iterator.hasNext()) {
+        Node node = iterator.next();
+        buffer.append(nodeToString(node)).append("\n");
+        boolean added = seen.add(node);
+        if (!added) {
+          buffer.append("Failure: Loop detected\n");
+          break;
+        }
+      }
+      return buffer.toString();
+    } finally {
+      map.evictionLock.unlock();
+    }
+  }
+
+  @SuppressWarnings("unchecked")
+  static String nodeToString(Node node) {
+    return (node == null) ? "null" : String.format("%s=%s", node.key, node.getValue());
+  }
+
+  /** Finds the node in the map by walking the list. Returns null if not found. */
+  @SuppressWarnings("unchecked")
+  static ConcurrentLinkedHashMap<?, ?>.Node findNode(
+      Object key, ConcurrentLinkedHashMap<?, ?> map) {
+    map.evictionLock.lock();
+    try {
+      for (Node node : map.evictionDeque) {
+        if (node.key.equals(key)) {
+          return node;
+        }
+      }
+      return null;
+    } finally {
+      map.evictionLock.unlock();
+    }
   }
 }

@@ -1,6 +1,22 @@
+/*
+ * Copyright 2011 Google Inc. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package com.googlecode.concurrentlinkedhashmap;
 
-import java.util.ArrayList;
+import static com.google.common.collect.Lists.newArrayListWithCapacity;
+
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
@@ -72,7 +88,6 @@ public final class ConcurrentTestHarness {
    * @return the result of each task and the full execution time, in
    *     nanoseconds
    */
-  @SuppressWarnings("deprecation")
   public static <T> TestResult<T> timeTasks(int nThreads, final Callable<T> task,
       final String baseThreadName)
       throws InterruptedException {
@@ -80,12 +95,11 @@ public final class ConcurrentTestHarness {
     final CountDownLatch endGate = new CountDownLatch(nThreads);
     final AtomicReferenceArray<T> results = new AtomicReferenceArray<T>(nThreads);
 
-    List<Thread> threads = new ArrayList<Thread>(nThreads);
+    List<Thread> threads = newArrayListWithCapacity(nThreads);
     for (int i = 0; i < nThreads; i++) {
       final int index = i;
       Thread thread = new Thread(baseThreadName + "-" + i) {
-        @Override
-        public void run() {
+        @Override public void run() {
           try {
             startGate.await();
             try {
@@ -98,22 +112,15 @@ public final class ConcurrentTestHarness {
           }
         }
       };
+      thread.setDaemon(true);
       thread.start();
       threads.add(thread);
     }
 
     long start = System.nanoTime();
     startGate.countDown();
-    try {
-      endGate.await();
-    } catch (InterruptedException e) {
-      for (Thread thread : threads) {
-        thread.stop();
-      }
-      throw e;
-    }
+    endGate.await();
     long end = System.nanoTime();
-
     return new TestResult<T>(end - start, toList(results));
   }
 
@@ -125,7 +132,7 @@ public final class ConcurrentTestHarness {
    * @return the per-thread results as a standard collection
    */
   private static <T> List<T> toList(AtomicReferenceArray<T> data) {
-    List<T> list = new ArrayList<T>(data.length());
+    List<T> list = newArrayListWithCapacity(data.length());
     for (int i = 0; i < data.length(); i++) {
       list.add(data.get(i));
     }

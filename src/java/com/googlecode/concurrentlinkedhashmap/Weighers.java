@@ -1,5 +1,5 @@
 /*
- * Copyright 2010 Benjamin Manes
+ * Copyright 2010 Google Inc. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,9 +24,9 @@ import java.util.Set;
  * A common set of {@link Weigher} implementations.
  *
  * @author ben.manes@gmail.com (Ben Manes)
- * @see <tt>http://code.google.com/p/concurrentlinkedhashmap/</tt>
+ * @see <a href="http://code.google.com/p/concurrentlinkedhashmap/">
+ *      http://code.google.com/p/concurrentlinkedhashmap/</a>
  */
-@SuppressWarnings("unchecked")
 public final class Weighers {
 
   private Weighers() {
@@ -40,6 +40,7 @@ public final class Weighers {
    *
    * @return A weigher where a value takes one unit of capacity.
    */
+  @SuppressWarnings({"cast", "unchecked"})
   public static <V> Weigher<V> singleton() {
     return (Weigher<V>) SingletonWeigher.INSTANCE;
   }
@@ -51,6 +52,11 @@ public final class Weighers {
    * This allows for restricting the capacity based on the memory-consumption
    * and is primarily for usage by dedicated caching servers that hold the
    * serialized data.
+   * <p>
+   * A value with a weight of <tt>0</tt> will be rejected by the map. If a value
+   * with this weight can occur then the caller should eagerly evaluate the
+   * value and treat it as a removal operation. Alternatively, a custom weigher
+   * may be specified on the map to assign an empty value a positive weight.
    *
    * @return A weigher where each byte takes one unit of capacity.
    */
@@ -64,12 +70,17 @@ public final class Weighers {
    * {@link #collection()} weigher cannot be, as evaluation takes O(n) time. A
    * map bounded with this weigher will evict when the total number of elements
    * exceeds the capacity rather than the number of key-value pairs in the map.
+   * <p>
+   * A value with a weight of <tt>0</tt> will be rejected by the map. If a value
+   * with this weight can occur then the caller should eagerly evaluate the
+   * value and treat it as a removal operation. Alternatively, a custom weigher
+   * may be specified on the map to assign an empty value a positive weight.
    *
    * @return A weigher where each element takes one unit of capacity.
    */
-  public static <E> Weigher<Iterable<E>> iterable() {
-    Weigher<?> weigher = IterableWeigher.INSTANCE;
-    return (Weigher<Iterable<E>>) weigher;
+  @SuppressWarnings({"cast", "unchecked"})
+  public static <E> Weigher<? super Iterable<E>> iterable() {
+    return (Weigher<Iterable<E>>) (Weigher<?>) IterableWeigher.INSTANCE;
   }
 
   /**
@@ -77,12 +88,17 @@ public final class Weighers {
    * number of elements. A map bounded with this weigher will evict when the
    * total number of elements exceeds the capacity rather than the number of
    * key-value pairs in the map.
+   * <p>
+   * A value with a weight of <tt>0</tt> will be rejected by the map. If a value
+   * with this weight can occur then the caller should eagerly evaluate the
+   * value and treat it as a removal operation. Alternatively, a custom weigher
+   * may be specified on the map to assign an empty value a positive weight.
    *
    * @return A weigher where each element takes one unit of capacity.
    */
-  public static <E> Weigher<Collection<E>> collection() {
-    Weigher<?> weigher = CollectionWeigher.INSTANCE;
-    return (Weigher<Collection<E>>) weigher;
+  @SuppressWarnings({"cast", "unchecked"})
+  public static <E> Weigher<? super Collection<E>> collection() {
+    return (Weigher<Collection<E>>) (Weigher<?>) CollectionWeigher.INSTANCE;
   }
 
   /**
@@ -90,12 +106,17 @@ public final class Weighers {
    * of elements. A map bounded with this weigher will evict when the total
    * number of elements exceeds the capacity rather than the number of
    * key-value pairs in the map.
+   * <p>
+   * A value with a weight of <tt>0</tt> will be rejected by the map. If a value
+   * with this weight can occur then the caller should eagerly evaluate the
+   * value and treat it as a removal operation. Alternatively, a custom weigher
+   * may be specified on the map to assign an empty value a positive weight.
    *
    * @return A weigher where each element takes one unit of capacity.
    */
-  public static <E> Weigher<List<E>> list() {
-    Weigher<?> weigher = ListWeigher.INSTANCE;
-    return (Weigher<List<E>>) weigher;
+  @SuppressWarnings({"cast", "unchecked"})
+  public static <E> Weigher<? super List<E>> list() {
+    return (Weigher<List<E>>) (Weigher<?>) ListWeigher.INSTANCE;
   }
 
   /**
@@ -103,12 +124,17 @@ public final class Weighers {
    * of elements. A map bounded with this weigher will evict when the total
    * number of elements exceeds the capacity rather than the number of
    * key-value pairs in the map.
+   * <p>
+   * A value with a weight of <tt>0</tt> will be rejected by the map. If a value
+   * with this weight can occur then the caller should eagerly evaluate the
+   * value and treat it as a removal operation. Alternatively, a custom weigher
+   * may be specified on the map to assign an empty value a positive weight.
    *
    * @return A weigher where each element takes one unit of capacity.
    */
-  public static <E> Weigher<Set<E>> set() {
-    Weigher<?> weigher = SetWeigher.INSTANCE;
-    return (Weigher<Set<E>>) weigher;
+  @SuppressWarnings({"cast", "unchecked"})
+  public static <E> Weigher<? super Set<E>> set() {
+    return (Weigher<Set<E>>) (Weigher<?>) SetWeigher.INSTANCE;
   }
 
   /**
@@ -116,15 +142,20 @@ public final class Weighers {
    * entries. A map bounded with this weigher will evict when the total number of
    * entries across all values exceeds the capacity rather than the number of
    * key-value pairs in the map.
+   * <p>
+   * A value with a weight of <tt>0</tt> will be rejected by the map. If a value
+   * with this weight can occur then the caller should eagerly evaluate the
+   * value and treat it as a removal operation. Alternatively, a custom weigher
+   * may be specified on the map to assign an empty value a positive weight.
    *
    * @return A weigher where each entry takes one unit of capacity.
    */
-  public static <A, B> Weigher<Map<A, B>> map() {
-    Weigher<?> weigher = MapWeigher.INSTANCE;
-    return (Weigher<Map<A, B>>) weigher;
+  @SuppressWarnings({"cast", "unchecked"})
+  public static <A, B> Weigher<? super Map<A, B>> map() {
+    return (Weigher<Map<A, B>>) (Weigher<?>) MapWeigher.INSTANCE;
   }
 
-  private enum SingletonWeigher implements Weigher {
+  private enum SingletonWeigher implements Weigher<Object> {
     INSTANCE;
 
     @Override
@@ -142,13 +173,13 @@ public final class Weighers {
     }
   }
 
-  private enum IterableWeigher implements Weigher<Iterable> {
+  private enum IterableWeigher implements Weigher<Iterable<?>> {
     INSTANCE;
 
     @Override
-    public int weightOf(Iterable values) {
-      if (values instanceof Collection) {
-        return ((Collection) values).size();
+    public int weightOf(Iterable<?> values) {
+      if (values instanceof Collection<?>) {
+        return ((Collection<?>) values).size();
       }
       int size = 0;
       for (Object value : values) {
@@ -158,38 +189,38 @@ public final class Weighers {
     }
   }
 
-  private enum CollectionWeigher implements Weigher<Collection> {
+  private enum CollectionWeigher implements Weigher<Collection<?>> {
     INSTANCE;
 
     @Override
-    public int weightOf(Collection values) {
+    public int weightOf(Collection<?> values) {
       return values.size();
     }
   }
 
-  private enum ListWeigher implements Weigher<List> {
+  private enum ListWeigher implements Weigher<List<?>> {
     INSTANCE;
 
     @Override
-    public int weightOf(List values) {
+    public int weightOf(List<?> values) {
       return values.size();
     }
   }
 
-  private enum SetWeigher implements Weigher<Set> {
+  private enum SetWeigher implements Weigher<Set<?>> {
     INSTANCE;
 
     @Override
-    public int weightOf(Set values) {
+    public int weightOf(Set<?> values) {
       return values.size();
     }
   }
 
-  private enum MapWeigher implements Weigher<Map> {
+  private enum MapWeigher implements Weigher<Map<?, ?>> {
     INSTANCE;
 
     @Override
-    public int weightOf(Map values) {
+    public int weightOf(Map<?, ?> values) {
       return values.size();
     }
   }

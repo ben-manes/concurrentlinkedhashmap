@@ -22,6 +22,16 @@
     </fileset>
   </path>
 
+  <!-- Caliper -->
+  <path id="caliper.compile.path">
+    <fileset dir="${external.dir}/caliper/0.0">
+      <include name="caliper.jar"/>
+    </fileset>
+  </path>
+  <path id="caliper.deploy.path">
+    <path refid="caliper.compile.path"/>
+  </path>
+
   <!-- Cobertura -->
   <path id="cobertura.compile.path">
     <fileset dir="${external.dir}/cobertura/1.9.4.1">
@@ -114,6 +124,36 @@
    classname="edu.umd.cs.findbugs.anttask.FindBugsTask"
    classpathref="findbugs.compile.path"
   />
+	
+  <!-- Guava -->
+  <path id="guava.compile.path">
+    <fileset dir="${external.dir}/guava/r09">
+      <include name="guava-r09.jar"/>
+    </fileset>
+  </path>
+  <path id="guava.deploy.path">
+    <path refid="guava.compile.path"/>
+  </path>
+	
+  <!-- Hamcrest -->
+  <path id="hamcrest.compile.path">
+    <fileset dir="${external.dir}/hamcrest/1.3.0rc1">
+      <include name="hamcrest-all.jar"/>
+    </fileset>
+  </path>
+  <path id="hamcrest.deploy.path">
+    <path refid="hamcrest.compile.path"/>
+  </path>
+
+    <!-- High Scalability Lib -->
+  <path id="high-scale-lib.compile.path">
+    <fileset dir="${external.dir}/high-scale-lib/1.1.2">
+      <include name="high-scale-lib.jar"/>
+    </fileset>
+  </path>
+  <path id="high-scale-lib.deploy.path">
+    <path refid="high-scale-lib.compile.path"/>
+  </path>
 
   <!-- JBoss Cache 2.1.0 -->
   <path id="jboss.cache-2.1.0.compile.path">
@@ -165,6 +205,16 @@
     </fileset>
   </path>
 
+  <!-- Mockito -->
+  <path id="mockito.compile.path">
+    <fileset dir="${external.dir}/mockito/1.8.5">
+      <include name="mockito-all-1.8.5.jar"/>
+    </fileset>
+  </path>
+  <path id="mockito.deploy.path">
+    <path refid="mockito.compile.path"/>
+  </path>
+
   <!-- PMD -->
   <path id="pmd.compile.path">
     <fileset dir="${external.dir}/pmd/4.2.5">
@@ -184,8 +234,8 @@
 
   <!-- TestNG -->
   <path id="testng.compile.path">
-    <fileset dir="${external.dir}/testng/5.12">
-      <include name="testng-5.12.jar"/>
+    <fileset dir="${external.dir}/testng/6.01">
+      <include name="testng.jar"/>
     </fileset>
   </path>
   <path id="testng.deploy.path">

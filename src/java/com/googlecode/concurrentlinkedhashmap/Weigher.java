@@ -1,5 +1,5 @@
 /*
- * Copyright 2010 Benjamin Manes
+ * Copyright 2010 Google Inc. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,7 +20,8 @@ package com.googlecode.concurrentlinkedhashmap;
  * is used to determine when an eviction is required.
  *
  * @author ben.manes@gmail.com (Ben Manes)
- * @see <tt>http://code.google.com/p/concurrentlinkedhashmap/</tt>
+ * @see <a href="http://code.google.com/p/concurrentlinkedhashmap/">
+ *      http://code.google.com/p/concurrentlinkedhashmap/</a>
  */
 @ThreadSafe
 public interface Weigher<V> {

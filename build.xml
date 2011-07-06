@@ -15,12 +15,17 @@
 
   <path id="deploy.path">
     <path refid="cache.benchmark.deploy.path"/>
+    <path refid="caliper.deploy.path"/>
     <path refid="colt.deploy.path"/>
     <path refid="commons.collections.deploy.path"/>
     <path refid="commons.lang.deploy.path"/>
     <path refid="commons.math.deploy.path"/>
     <path refid="ehcache.deploy.path"/>
-    <path refid="testng.deploy.path"/>
+    <path refid="guava.deploy.path" />
+    <path refid="hamcrest.deploy.path" />
+    <path refid="high-scale-lib.deploy.path" />
+    <path refid="mockito.deploy.path" />
+    <path refid="testng.deploy.path" />
   </path>
 
   <path id="empty.path"/>
@@ -29,6 +34,13 @@
     <path refid="deploy.path"/>
     <pathelement location="${api.build.dir}"/>
     <pathelement location="${test.build.dir}"/>
+  </path>
+  
+  <path id="benchmark.path">
+    <path refid="deploy.path"/>
+    <pathelement location="${api.build.dir}"/>
+    <pathelement location="${test.build.dir}"/>
+    <pathelement location="${benchmark.build.dir}"/>
   </path>
 
   <!--
@@ -85,6 +97,7 @@
 
     <compile.macro srcdir="${api.src.dir}" destdir="${api.build.dir}" pathref="empty.path"/>
     <compile.macro srcdir="${test.src.dir}" destdir="${test.build.dir}" pathref="test.path"/>
+    <compile.macro srcdir="${benchmark.src.dir}" destdir="${benchmark.build.dir}" pathref="benchmark.path"/>
   </target>
 
   <target
@@ -92,7 +105,9 @@
    depends="compile"
    description="Generates API documentation in HTML format."
   >
-    <javadoc sourcepath="${api.src.dir}" destdir="${javadoc.build.dir}"/>
+    <javadoc sourcepath="${api.src.dir}" destdir="${javadoc.build.dir}">
+      <link offline="false" href="http://download.oracle.com/javase/6/docs/api/" /> 
+    </javadoc>
   </target>
 
   <target
@@ -196,7 +211,7 @@
       >
         <classfileset dir="${test.build.dir}"/>
         <jvmarg value="-Xms64m"/>
-        <jvmarg value="-Xmx512m"/>
+        <jvmarg value="-Xmx1024m"/>
         <jvmarg value="-Xss1m"/>
 
         <!-- All tests -->
@@ -214,9 +229,6 @@
         <sysproperty key="efficiency.distribution.gaussian.sigma" value="${efficiency.distribution.gaussian.sigma}"/>
         <sysproperty key="efficiency.distribution.poisson.mean" value="${efficiency.distribution.poisson.mean}"/>
         <sysproperty key="efficiency.distribution.zipfian.skew" value="${efficiency.distribution.zipfian.skew}"/>
-
-        <!-- Single-threaded tests -->
-        <sysproperty key="singleThreaded.maximumCapacity" value="${singleThreaded.maximumCapacity}"/>
 
         <!-- Multi-threaded tests -->
         <sysproperty key="multiThreaded.maximumCapacity" value="${multiThreaded.maximumCapacity}"/>
@@ -272,50 +284,95 @@
   </target>
 
   <target
+    name="run-caliper"
+    depends="compile"
+    description="Runs Caliper micro-benchmarks over the build artifacts."
+  >  
+    <java
+     classname="com.googlecode.concurrentlinkedhashmap.${caliper.scenario}Benchmark"
+     classpathref="benchmark.path"
+     fork="true"
+     maxmemory="${caliper.heap}"
+    >
+      <arg value="--warmupMillis"/>
+      <arg value="${caliper.warmupMillis}"/>
+      
+      <arg value="--runMillis"/>
+      <arg value="${caliper.runMillis}"/>
+      
+      <arg value="--timeUnit"/>
+      <arg value="${caliper.timeUnit}"/>
+    </java>
+  </target>
+	
+  <target
+    name="run-perf"
+    depends="compile"
+    description="Runs Cliff Click's micro-benchmark over the build artifacts."
+  >  
+    <java
+     classname="com.googlecode.concurrentlinkedhashmap.perf_hash_test"
+     classpathref="benchmark.path"
+     fork="true"
+     maxmemory="${perf.heap}"
+    >
+      <arg value="${perf.readRatio}"/>
+    	<arg value="${perf.thread.min}"/>
+    	<arg value="${perf.thread.max}"/>
+    	<arg value="${perf.thread.increment}"/>
+    	<arg value="${perf.hashtable.size}"/>
+    	<arg value="${perf.hashtable.impl}"/>
+    	<arg value="${perf.hashtable.maxSize}"/>
+    </java>
+  </target>
+  
+  <target
    name="run-benchmarks"
    depends="compile"
-   description="Runs micro-benchmarks over the build artifacts."
+   description="Runs JBoss Cache micro-benchmarks over the build artifacts."
   >
-    <mkdir dir="${benchmark.report.dir}"/>
+    <mkdir dir="${cacheBenchFwk.report.dir}"/>
 
     <java
      classname="org.cachebench.CacheBenchmarkRunner"
-     classpathref="test.path"
+     classpathref="benchmark.path"
      fork="true"
-     maxmemory="${benchmark.test.heap}"
-     dir="${benchmark.report.dir}"
+     maxmemory="${cacheBenchFwk.heap}"
+     dir="${cacheBenchFwk.report.dir}"
     >
       <classpath>
-        <path refid="${benchmark.test.path}"/>
-        <pathelement location="${benchmark.config.dir}"/>
+        <path refid="${cacheBenchFwk.path}"/>
+        <pathelement location="${cacheBenchFwk.config.dir}"/>
       </classpath>
 
-      <jvmarg value="-Xms${benchmark.test.heap}"/>
-
-      <sysproperty key="cacheBenchFwk.cacheConfigFile" value="${benchmark.test.config}"/>
-      <sysproperty key="cacheBenchFwk.cacheProductName" value="${benchmark.test.product}"/>
-      <sysproperty key="cacheBenchFwk.cacheWrapperClassName" value="${benchmark.test.wrapper}"/>
-      <sysproperty key="cacheBenchFwk.fwkCfgFile" value="${benchmark.config.file}"/>
+      <jvmarg value="-Xms${cacheBenchFwk.heap}"/>
+      <sysproperty key="cacheBenchFwk.cacheWrapperClassName" value="${cacheBenchFwk.wrapper}"/>
+      <sysproperty key="cacheBenchFwk.fwkCfgFile" value="${cacheBenchFwk.config.file}"/>
       <sysproperty key="localOnly" value="true"/>
+
+      <sysproperty key="cacheBenchFwk.cache.type" value="${cacheBenchFwk.cache.type}"/>
+      <sysproperty key="cacheBenchFwk.cache.run" value="${cacheBenchFwk.cache.run}"/>
+      <sysproperty key="cacheBenchFwk.cache.initialCapacity" value="${cacheBenchFwk.cache.initialCapacity}"/>
+      <sysproperty key="cacheBenchFwk.cache.maximumCapacity" value="${cacheBenchFwk.cache.maximumCapacity}"/>
+      <sysproperty key="cacheBenchFwk.cache.concurrencyLevel" value="${cacheBenchFwk.cache.concurrencyLevel}"/>
     </java>
   </target>
 
   <target
    name="run-reports"
-   description="Runs the report generator for micro-benchmark visualization."
+   description="Runs the report generator for JBoss Cache micro-benchmark visualization."
   >
     <java
      classname="org.cachebench.reportgenerators.ChartGenerator"
-     classpathref="test.path"
+     classpathref="benchmark.path"
      fork="true"
-     dir="${benchmark.report.dir}"
+     dir="${cacheBenchFwk.report.dir}"
     >
       <classpath>
-        <pathelement location="${benchmark.config.dir}"/>
+        <pathelement location="${cacheBenchFwk.config.dir}"/>
       </classpath>
 
-      <arg line="-chartType ${benchmark.report.chart}"/>
-      <arg line="-o ${benchmark.report.file}"/>
+      <arg line="-chartType ${cacheBenchFwk.report.chart}"/>
       <arg line="-reportDir ."/>
     </java>
   </target>

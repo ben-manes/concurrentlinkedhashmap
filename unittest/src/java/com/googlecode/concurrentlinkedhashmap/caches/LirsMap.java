@@ -1,3 +1,18 @@
+/*
+ * Copyright 2010 Google Inc. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package com.googlecode.concurrentlinkedhashmap.caches;
 
 import java.util.AbstractMap;
@@ -41,9 +56,10 @@ import java.util.concurrent.ConcurrentMap;
  * that these evicted blocks may also have been recently accessed, i.e. each
  * has a small recency."
  * </blockquote>
-
+ *
  * @author fry@google.com (Charles Fry)
  */
+@SuppressWarnings("unused")
 public class LirsMap<K, V> extends AbstractMap<K, V> {
 
   /**
@@ -250,7 +266,7 @@ public class LirsMap<K, V> extends AbstractMap<K, V> {
   /**
    * Returns a string representation of the stack. Useful for debugging.
    */
-  private String printStack() {
+  public String printStack() {
     StringBuilder result = new StringBuilder();
     result.append("[");
     LirsEntry e = stackTop();
@@ -267,7 +283,7 @@ public class LirsMap<K, V> extends AbstractMap<K, V> {
   /**
    * Returns a string representation of the stack. Useful for debugging.
    */
-  private String printQueue() {
+  public String printQueue() {
     StringBuilder result = new StringBuilder();
     result.append("[");
     LirsEntry e = queueFront();
@@ -286,7 +302,7 @@ public class LirsMap<K, V> extends AbstractMap<K, V> {
    */
   private class LirsEntry {
     // The underlying entry key and value.
-    private K key;
+    private final K key;
     private V value;
 
     /**
@@ -682,6 +698,7 @@ public class LirsMap<K, V> extends AbstractMap<K, V> {
       return result;
     }
 
+    @Override
     public String toString() {
       return key + "=" + value + " [" + status + "]";
     }

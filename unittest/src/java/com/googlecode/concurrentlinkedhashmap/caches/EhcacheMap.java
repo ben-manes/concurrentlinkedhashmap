@@ -1,8 +1,26 @@
+/*
+ * Copyright 2011 Google Inc. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package com.googlecode.concurrentlinkedhashmap.caches;
+
+import static net.sf.ehcache.Cache.DEFAULT_CACHE_NAME;
 
 import net.sf.ehcache.Cache;
 import net.sf.ehcache.Ehcache;
 import net.sf.ehcache.Element;
+import net.sf.ehcache.config.CacheConfiguration;
 import net.sf.ehcache.store.MemoryStoreEvictionPolicy;
 
 import java.util.AbstractMap;
@@ -10,75 +28,52 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
-import java.util.ListIterator;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentMap;
 
 /**
- * Exposes <tt>ehcache</tt> as a {@link Map}.
+ * Exposes <tt>ehcache</tt> as a {@link ConcurrentMap}.
  *
  * @author ben.manes@gmail.com (Ben Manes)
  */
-@SuppressWarnings("unchecked")
-final class EhcacheMap<K, V> extends AbstractMap<K, V> {
-  private final Ehcache cache;
+final class EhcacheMap<K, V> extends AbstractMap<K, V> implements ConcurrentMap<K, V> {
+  private final Ehcache map;
 
-  /**
-   * @param accessOrder The eviction policy: true=LRU, false=FIFO.
-   * @param capacity    The maximum capacity of the map.
-   */
-  public EhcacheMap(boolean accessOrder, int capacity) {
-    MemoryStoreEvictionPolicy policy =
-        (accessOrder ? MemoryStoreEvictionPolicy.LRU : MemoryStoreEvictionPolicy.FIFO);
-    cache = new Cache(Cache.DEFAULT_CACHE_NAME, capacity, policy, false, null, false, 0, 0,
-        false, 0, null, null, 0, 0);
-    cache.initialise();
+  public EhcacheMap(MemoryStoreEvictionPolicy evictionPolicy, CacheBuilder builder) {
+    CacheConfiguration config = new CacheConfiguration(DEFAULT_CACHE_NAME, builder.maximumCapacity);
+    config.setMemoryStoreEvictionPolicyFromObject(evictionPolicy);
+    map = new Cache(config);
+    map.initialise();
   }
 
-  /**
-   * {@inheritDoc}
-   */
   @Override
   public void clear() {
-    cache.removeAll();
+    map.removeAll();
   }
 
-  /**
-   * {@inheritDoc}
-   */
   @Override
   public int size() {
     return keySet().size();
   }
 
-  /**
-   * {@inheritDoc}
-   */
   @Override
   public boolean containsKey(Object key) {
-    return cache.isKeyInCache(key);
+    return map.isKeyInCache(key);
   }
 
-  /**
-   * {@inheritDoc}
-   */
   @Override
   public boolean containsValue(Object value) {
-    return cache.isValueInCache(value);
+    return map.isValueInCache(value);
   }
 
-  /**
-   * {@inheritDoc}
-   */
   @Override
+  @SuppressWarnings("unchecked")
   public V get(Object key) {
-    Element element = cache.get(key);
+    Element element = map.get(key);
     return (element == null) ? null : (V) element.getObjectValue();
   }
 
-  /**
-   * {@inheritDoc}
-   */
   public Map<K, V> getAll(Collection<? extends K> keys) {
     Map<K, V> results = new HashMap<K, V>(keys.size());
     for (K key : keys) {
@@ -90,92 +85,64 @@ final class EhcacheMap<K, V> extends AbstractMap<K, V> {
     return results;
   }
 
-  /**
-   * {@inheritDoc}
-   */
   @Override
   public V put(K key, V value) {
     V old = get(key);
-    cache.put(new Element(key, value));
+    map.put(new Element(key, value));
     return old;
   }
 
-  /**
-   * {@inheritDoc}
-   */
+  @Override
   public V putIfAbsent(K key, V value) {
     V old = get(key);
     if (old == null) {
-      cache.put(new Element(key, value));
+      map.put(new Element(key, value));
     }
     return old;
   }
 
-  /**
-   * {@inheritDoc}
-   */
   @Override
   public V remove(Object key) {
     V old = get(key);
     if (old != null) {
-      cache.remove(key);
+      map.remove(key);
     }
     return old;
   }
 
-  /**
-   * {@inheritDoc}
-   */
+  @Override
   public boolean remove(Object key, Object value) {
     if (value.equals(get(key))) {
-      cache.remove(key);
+      map.remove(key);
       return true;
     }
     return false;
   }
 
-  /**
-   * {@inheritDoc}
-   */
-  public void removeAll(Collection<? extends K> keys) {
-    for (K key : keys) {
-      remove(key);
-    }
-  }
-
-  /**
-   * {@inheritDoc}
-   */
+  @Override
   public V replace(K key, V value) {
     V old = get(key);
     if (old != null) {
-      cache.put(new Element(key, value));
+      map.put(new Element(key, value));
     }
     return old;
   }
 
-  /**
-   * {@inheritDoc}
-   */
+  @Override
   public boolean replace(K key, V oldValue, V newValue) {
     if (oldValue.equals(get(key))) {
-      cache.put(new Element(key, newValue));
+      map.put(new Element(key, newValue));
       return true;
     }
     return false;
   }
 
-  /**
-   * {@inheritDoc}
-   */
   @Override
+  @SuppressWarnings("unchecked")
   public Set<K> keySet() {
-    return new KeySetAdapter<K>(cache.getKeys());
+    return new KeySetAdapter<K>(map.getKeys());
   }
 
-  /**
-   * {@inheritDoc}
-   */
   @Override
   public Set<Entry<K, V>> entrySet() {
     return getAll(keySet()).entrySet();
@@ -186,112 +153,54 @@ final class EhcacheMap<K, V> extends AbstractMap<K, V> {
    * {@link Ehcache#getKeys()}'s contract.
    */
   private static final class KeySetAdapter<K> implements Set<K> {
-
     private final List<K> keys;
 
     public KeySetAdapter(List<K> keys) {
       this.keys = keys;
     }
-
-    public void add(int index, K element) {
-      keys.add(index, element);
-    }
-
-    public boolean add(K o) {
+    @Override public boolean add(K o) {
       return keys.add(o);
     }
-
-    public boolean addAll(Collection<? extends K> c) {
+    @Override public boolean addAll(Collection<? extends K> c) {
       return keys.addAll(c);
     }
-
-    public boolean addAll(int index, Collection<? extends K> c) {
-      return keys.addAll(index, c);
-    }
-
-    public void clear() {
+    @Override public void clear() {
       keys.clear();
     }
-
-    public boolean contains(Object o) {
+    @Override public boolean contains(Object o) {
       return keys.contains(o);
     }
-
-    public boolean containsAll(Collection<?> c) {
+    @Override public boolean containsAll(Collection<?> c) {
       return keys.containsAll(c);
     }
-
-    @Override
-    public boolean equals(Object o) {
-      return keys.equals(o);
-    }
-
-    public K get(int index) {
-      return keys.get(index);
-    }
-
-    @Override
-    public int hashCode() {
-      return keys.hashCode();
-    }
-
-    public int indexOf(Object o) {
-      return keys.indexOf(o);
-    }
-
-    public boolean isEmpty() {
+    @Override public boolean isEmpty() {
       return keys.isEmpty();
     }
-
-    public Iterator<K> iterator() {
+    @Override public Iterator<K> iterator() {
       return keys.iterator();
     }
-
-    public int lastIndexOf(Object o) {
-      return keys.lastIndexOf(o);
-    }
-
-    public ListIterator<K> listIterator() {
-      return keys.listIterator();
-    }
-
-    public ListIterator<K> listIterator(int index) {
-      return keys.listIterator(index);
-    }
-
-    public K remove(int index) {
-      return keys.remove(index);
-    }
-
-    public boolean remove(Object o) {
+    @Override public boolean remove(Object o) {
       return keys.remove(o);
     }
-
-    public boolean removeAll(Collection<?> c) {
+    @Override public boolean removeAll(Collection<?> c) {
       return keys.removeAll(c);
     }
-
-    public boolean retainAll(Collection<?> c) {
+    @Override public boolean retainAll(Collection<?> c) {
       return keys.retainAll(c);
     }
-
-    public K set(int index, K element) {
-      return keys.set(index, element);
-    }
-
-    public int size() {
+    @Override public int size() {
       return keys.size();
     }
-
-    public List<K> subList(int fromIndex, int toIndex) {
-      return keys.subList(fromIndex, toIndex);
+    @Override public boolean equals(Object o) {
+      return keys.equals(o);
     }
-
-    public Object[] toArray() {
+    @Override public int hashCode() {
+      return keys.hashCode();
+    }
+    @Override public Object[] toArray() {
       return keys.toArray();
     }
-
-    public <T> T[] toArray(T[] a) {
+    @Override public <T> T[] toArray(T[] a) {
       return keys.toArray(a);
     }
   }

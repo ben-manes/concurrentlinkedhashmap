@@ -1,24 +1,51 @@
+/*
+ * Copyright 2011 Google Inc. All Rights Reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package com.googlecode.concurrentlinkedhashmap;
 
-import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
-import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Node;
+import static com.google.common.collect.Maps.immutableEntry;
+import static com.google.common.collect.Maps.newHashMap;
+import static com.googlecode.concurrentlinkedhashmap.IsEmptyCollection.emptyCollection;
+import static com.googlecode.concurrentlinkedhashmap.IsEmptyMap.emptyMap;
+import static com.googlecode.concurrentlinkedhashmap.IsReserializable.reserializable;
+import static java.util.Arrays.asList;
+import static java.util.Collections.singletonList;
+import static org.apache.commons.lang.StringUtils.countMatches;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
-import org.apache.commons.lang.SerializationUtils;
+import com.google.common.collect.ImmutableMap;
+
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
+
 import org.testng.annotations.Test;
 
-import static java.lang.String.format;
-import java.util.ArrayList;
-import java.util.Arrays;
-import static java.util.Arrays.asList;
 import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.NoSuchElementException;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 /**
  * A unit-test for {@link java.util.concurrent.ConcurrentMap} interface and its
@@ -26,341 +53,657 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * @author ben.manes@gmail.com (Ben Manes)
  */
-@SuppressWarnings("unchecked")
-public final class ConcurrentMapTest extends BaseTest {
+@Test(groups = "development")
+public final class ConcurrentMapTest extends AbstractTest {
 
-  @Test(groups = "development")
-  public void empty() {
-    debug(" * empty: START");
-    ConcurrentLinkedHashMap<Integer, Integer> cache = createGuarded();
-    validator.state(cache);
-    validator.empty(cache);
+  @Override
+  protected int capacity() {
+    return 100;
   }
 
-  @Test(groups = "development")
-  public void putAll() {
-    debug(" * putAll: START");
-    ConcurrentLinkedHashMap<Integer, Integer> expected = createWarmedMap();
-    ConcurrentLinkedHashMap<Integer, Integer> cache = createGuarded();
-    cache.putAll(expected);
-
-    validator.state(cache);
-    assertEquals(cache, expected);
+  @Test(dataProvider = "guardedMap")
+  public void clear_whenEmpty(Map<Integer, Integer> map) {
+    map.clear();
+    assertThat(map, is(emptyMap()));
   }
 
-  @Test(groups = "development")
-  public void put() {
-    debug(" * put: START");
-    ConcurrentLinkedHashMap<Integer, Integer> cache = create(capacity);
-    cache.put(0, 0);
-    int old = cache.put(0, 1);
-    int current = cache.get(0);
-
-    assertEquals(old, 0);
-    assertEquals(current, 1);
-
-    validator.state(cache);
+  @Test(dataProvider = "warmedMap")
+  public void clear_whenPopulated(Map<Integer, Integer> map) {
+    map.clear();
+    assertThat(map, is(emptyMap()));
   }
 
-  @Test(groups = "development")
-  public void putIfAbsent() {
-    debug(" * putIfAbsent: START");
-    ConcurrentLinkedHashMap<Integer, Integer> cache = createGuarded();
-    for (Integer i = 0; i < capacity; i++) {
-      assertNull(cache.putIfAbsent(i, i));
-      assertEquals(cache.putIfAbsent(i, -1), i);
-      assertEquals(cache.data.get(i).weightedValue.value, i);
-    }
-    assertEquals(cache.size(), capacity, "Not warmed to max size");
-    validator.state(cache);
-    assertEquals(cache, createWarmedMap());
+  @Test(dataProvider = "guardedMap")
+  public void size_whenEmpty(Map<Integer, Integer> map) {
+    assertThat(map.size(), is(0));
   }
 
-  @Test(groups = "development")
-  public void retrieval() {
-    debug(" * retrieval: START");
-    ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap(guard);
-    for (Integer i = -capacity; i < 0; i++) {
-      assertNull(cache.get(i));
-      assertFalse(cache.containsKey(i));
-      assertFalse(cache.containsValue(i));
-    }
-    for (Integer i = 0; i < capacity; i++) {
-      assertEquals(cache.get(i), i);
-      assertTrue(cache.containsKey(i));
-      assertTrue(cache.containsValue(i));
-    }
-    for (Integer i = capacity; i < capacity * 2; i++) {
-      assertNull(cache.get(i));
-      assertFalse(cache.containsKey(i));
-      assertFalse(cache.containsValue(i));
-    }
-    validator.state(cache);
+  @Test(dataProvider = "warmedMap")
+  public void size_whenPopulated(Map<Integer, Integer> map) {
+    assertThat(map.size(), is(equalTo(capacity())));
   }
 
-  @Test(groups = "development")
-  public void remove() {
-    debug(" * remove: START");
-    EvictionMonitor guard = EvictionMonitor.newGuard();
-
-    // Map#remove()
-    ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap(guard);
-    for (Integer i = 0; i < capacity; i++) {
-      assertEquals(cache.remove(i), i, format("Failure on index #%d", i));
-      assertNull(cache.remove(i), "Not fully removed");
-      assertFalse(cache.containsKey(i));
-    }
-    validator.state(cache);
-    validator.empty(cache);
-
-    // ConcurrentMap#remove()
-    cache = createWarmedMap(guard);
-    for (Integer i = 0; i < capacity; i++) {
-      assertFalse(cache.remove(i, -1));
-      assertTrue(cache.remove(i, i));
-      assertFalse(cache.remove(i, -1));
-      assertFalse(cache.containsKey(i));
-    }
-    validator.state(cache);
-    validator.empty(cache);
+  @Test(dataProvider = "guardedMap")
+  public void isEmpty_whenEmpty(Map<Integer, Integer> map) {
+    assertThat(map, is(emptyMap()));
   }
 
-  @Test(groups = "development")
-  public void replace() {
-    debug(" * replace: START");
-    Integer dummy = -1;
-    ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap();
-    for (Integer i = 0; i < capacity; i++) {
-      assertNotNull(cache.replace(i, dummy));
-      assertFalse(cache.replace(i, i, i));
-      assertEquals(cache.data.get(i).weightedValue.value, dummy);
-      assertTrue(cache.replace(i, dummy, i));
-      assertEquals(cache.remove(i), i);
-      assertNull(cache.replace(i, i));
-    }
-    validator.state(cache);
-    validator.empty(cache);
+  @Test(dataProvider = "warmedMap")
+  public void isEmpty_whenPopulated(Map<Integer, Integer> map) {
+    assertThat(map.isEmpty(), is(false));
   }
 
-  @Test(groups = "development")
-  public void clear() {
-    debug(" * clear: START");
-    EvictionMonitor guard = EvictionMonitor.newGuard();
-    ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap(guard);
-    cache.clear();
-    validator.state(cache);
-    validator.empty(cache);
+  @Test(dataProvider = "warmedMap")
+  public void equals_withNull(Map<Integer, Integer> map) {
+    assertThat(map, is(not(equalTo(null))));
   }
 
-  @Test(groups = "development")
-  public void keySet() {
-    debug(" * keySet: START");
-    ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap();
-    Set<Integer> keys = cache.keySet();
-    Integer key = keys.iterator().next();
-    int initialSize = cache.size();
-
-    // key set reflects map
-    assertEquals(keys, cache.data.keySet());
-    try {
-      assertFalse(keys.add(key));
-      fail("Not supported by maps");
-    } catch (UnsupportedOperationException e) {
-      // expected
-    }
-
-    assertTrue(keys.contains(key));
-    assertTrue(keys.remove(key));
-    assertFalse(keys.remove(key));
-    assertFalse(keys.contains(key));
-    assertEquals(keys.size(), initialSize - 1);
-    assertEquals(cache.size(), initialSize - 1);
-
-    // key iterator
-    Iterator<Integer> iterator = keys.iterator();
-    for (Node node : cache.data.values()) {
-      assertEquals(iterator.next(), node.key);
-    }
-    assertFalse(iterator.hasNext());
-
-    Iterator<Integer> iter = keys.iterator();
-    Integer i = iter.next();
-    iter.remove();
-    assertFalse(keys.contains(i));
-    assertFalse(cache.containsKey(i));
-    assertEquals(keys.size(), initialSize - 2);
-    assertEquals(cache.size(), initialSize - 2);
-
-    // toArray
-    assertTrue(Arrays.equals(keys.toArray(), cache.data.keySet().toArray()));
-    assertTrue(Arrays.equals(keys.toArray(new Integer[cache.size()]),
-                             cache.data.keySet().toArray(new Integer[cache.size()])));
-
-    // other
-    cache.setCapacity(capacity / 2);
-    assertEquals(keys.size(), capacity / 2);
-
-    keys.clear();
-    validator.empty(cache);
-    assertTrue(keys.isEmpty());
+  @Test(dataProvider = "warmedMap")
+  public void equals_withSelf(Map<Integer, Integer> map) {
+    assertThat(map, is(equalTo(map)));
   }
 
-  @Test(groups = "development")
-  public void values() {
-    debug(" * values: START");
-    ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap();
-    Collection<Integer> values = cache.values();
-    Integer value = values.iterator().next();
-    int initialSize = cache.size();
-
-    // value collection reflects map
-    try {
-      assertFalse(values.add(value));
-      fail("Not supported by maps");
-    } catch (UnsupportedOperationException e) {
-      // expected
-    }
-
-    assertTrue(values.contains(value));
-    assertTrue(values.remove(value));
-    assertFalse(values.remove(value));
-    assertFalse(values.contains(value));
-    assertEquals(values.size(), initialSize - 1);
-    assertEquals(cache.size(), initialSize - 1);
-
-    // values iterator
-    Iterator<Integer> iterator = values.iterator();
-    for (Node node : cache.data.values()) {
-      assertEquals(iterator.next(), node.weightedValue.value);
-    }
-    assertFalse(iterator.hasNext());
-
-    Iterator<Integer> iter = values.iterator();
-    Integer i = iter.next();
-    iter.remove();
-    assertFalse(values.contains(i));
-    assertFalse(cache.containsValue(i));
-    assertEquals(values.size(), initialSize - 2);
-    assertEquals(cache.size(), initialSize - 2);
-
-    // toArray
-    List<Integer> list = new ArrayList<Integer>();
-    for (Node node : cache.data.values()) {
-      list.add((Integer) node.weightedValue.value);
-    }
-    assertTrue(Arrays.equals(values.toArray(), list.toArray()));
-    assertTrue(Arrays.equals(values.toArray(new Integer[cache.size()]),
-                             list.toArray(new Integer[cache.size()])));
-
-    // other
-    cache.setCapacity(capacity / 2);
-    assertEquals(values.size(), capacity / 2);
-
-    values.clear();
-    validator.empty(cache);
-    assertTrue(values.isEmpty());
+  @Test(dataProvider = "guardedMap")
+  public void equals_whenEmpty(Map<Object, Object> map) {
+    Map<Object, Object> empty = ImmutableMap.of();
+    assertThat(map, is(equalTo(empty)));
+    assertThat(empty, is(equalTo(map)));
   }
 
-  @Test(groups = "development")
-  public void entrySet() {
-    debug(" * entrySet: START");
-    ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap();
-    Set<Entry<Integer, Integer>> entries = cache.entrySet();
-    Entry<Integer, Integer> entry = entries.iterator().next();
-    int initialSize = cache.size();
-
-    // Entry updates reflect map
-    Integer oldValue = entry.getValue();
-    assertEquals(entry.setValue(Integer.MIN_VALUE), oldValue);
-    assertTrue(entry.getValue().equals(Integer.MIN_VALUE));
-    assertTrue(cache.containsValue(Integer.MIN_VALUE));
-
-    // entryset reflects map
-    assertEquals(entries.size(), initialSize);
-    assertTrue(entries.contains(entry));
-    assertFalse(entries.add(entry));
-    assertTrue(entries.remove(entry));
-    assertFalse(entries.remove(entry));
-    assertFalse(cache.containsKey(entry.getKey()));
-    assertFalse(cache.containsValue(entry.getValue()));
-    assertEquals(entries.size(), initialSize - 1);
-    assertEquals(cache.size(), initialSize - 1);
-    assertTrue(entries.add(entry));
-    assertEquals(entries.size(), initialSize);
-
-    // entry iterator
-    Map<Integer, Integer> map = new HashMap<Integer, Integer>();
-    for (Entry<Integer, Integer> e : entries) {
-      map.put(e.getKey(), e.getValue());
-    }
-    assertEquals(cache, map);
-
-    Iterator<Entry<Integer, Integer>> iter = entries.iterator();
-    Entry<Integer, Integer> e = iter.next();
-    iter.remove();
-    assertFalse(entries.contains(e));
-    assertFalse(cache.containsKey(e.getKey()));
-    assertEquals(entries.size(), initialSize - 1);
-    assertEquals(cache.size(), initialSize - 1);
-
-    // toArray
-    List<Entry<Integer, Integer>> list =
-        asList(entries.toArray((Entry<Integer, Integer>[]) new Entry[initialSize - 1]));
-    assertTrue(new HashSet<Entry<Integer, Integer>>(list).equals(entries));
-    assertTrue(new HashSet(asList(entries.toArray())).equals(entries));
-
-    // other
-    cache.setCapacity(capacity / 2);
-    assertEquals(entries.size(), capacity / 2);
-
-    entries.clear();
-    validator.empty(cache);
-    assertTrue(entries.isEmpty());
+  @Test(dataProvider = "warmedMap")
+  public void equals_whenPopulated(Map<Integer, Integer> map) {
+    Map<Integer, Integer> expected = ImmutableMap.copyOf(newWarmedMap());
+    assertThat(map, is(equalTo(expected)));
+    assertThat(expected, is(equalTo(map)));
   }
 
-  @Test(groups = "development")
-  public void object() {
-    debug(" * object: START");
-    ConcurrentLinkedHashMap<Integer, Integer> cache = createWarmedMap(guard);
-    Map<Integer, Integer> expected = new ConcurrentHashMap<Integer, Integer>(capacity);
-    for (Integer i = 0; i < capacity; i++) {
-      expected.put(i, i);
-    }
-    assertEquals(cache, expected);
-    assertEquals(cache.hashCode(), expected.hashCode());
+  @Test(dataProvider = "warmedMap")
+  public void hashCode_withSelf(Map<Integer, Integer> map) {
+    assertThat(map.hashCode(), is(equalTo(map.hashCode())));
   }
 
-  /**
-   * Tests serialization.
-   */
-  @Test(groups="development")
-  public void serialize() {
-    debug(" * serialize: START");
+  @Test(dataProvider = "guardedMap")
+  public void hashCode_withEmpty(Map<Integer, Integer> map) {
+    assertThat(map.hashCode(), is(equalTo(ImmutableMap.of().hashCode())));
+  }
 
-    // default listener & weigher, custom concurrencyLevel
-    ConcurrentLinkedHashMap<Integer, Integer> expected = new Builder<Integer, Integer>()
-        .maximumWeightedCapacity(capacity)
-        .concurrencyLevel(32)
-        .build();
-    warm(expected, capacity);
+  @Test(dataProvider = "warmedMap")
+  public void hashCode_whenPopulated(Map<Integer, Integer> map) {
+    Map<Integer, Integer> other = newHashMap();
+    warmUp(other, 0, capacity());
+    assertThat(map.hashCode(), is(equalTo(other.hashCode())));
+  }
 
-    ConcurrentLinkedHashMap actual = (ConcurrentLinkedHashMap) SerializationUtils.clone(expected);
-    assertEquals(actual, expected);
-    assertEquals(actual.concurrencyLevel, 32);
-    assertEquals(actual.maximumWeightedSize, expected.maximumWeightedSize);
-    assertEquals(actual.listener, expected.listener);
-    assertEquals(actual.weigher, expected.weigher);
-    validator.state((ConcurrentLinkedHashMap<Integer, Integer>) actual);
+  @Test
+  public void equalsAndHashCodeFails() {
+    Map<Integer, Integer> empty = ImmutableMap.of();
+    Map<Integer, Integer> data1 = newHashMap();
+    Map<Integer, Integer> data2 = newHashMap();
+    warmUp(data1, 0, 50);
+    warmUp(data2, 50, 100);
 
-    // custom listener & weigher
-    ConcurrentLinkedHashMap<Integer, Collection<Integer>> expected2 =
-        new Builder<Integer, Collection<Integer>>()
-            .listener(EvictionMonitor.<Integer, Collection<Integer>>newGuard())
-            .weigher(Weighers.<Integer>collection())
-            .maximumWeightedCapacity(capacity)
-            .build();
-    actual = (ConcurrentLinkedHashMap) SerializationUtils.clone(expected2);
-    assertEquals(actual.listener.getClass(), expected2.listener.getClass());
-    assertEquals(actual.weigher, expected2.weigher);
+    checkEqualsAndHashCodeNotEqual(empty, data2, "empty CLHM, populated other");
+    checkEqualsAndHashCodeNotEqual(data1, empty, "populated CLHM, empty other");
+    checkEqualsAndHashCodeNotEqual(data1, data2, "both populated");
+  }
+
+  private void checkEqualsAndHashCodeNotEqual(
+      Map<Integer, Integer> first, Map<Integer, Integer> second, String errorMsg) {
+    Map<Integer, Integer> map = newGuarded();
+    Map<Integer, Integer> other = newHashMap();
+    map.putAll(first);
+    other.putAll(second);
+
+    assertThat(errorMsg, map, is(not(equalTo(other))));
+    assertThat(errorMsg, other, is(not(equalTo(map))));
+    assertThat(errorMsg, map.hashCode(), is(not(equalTo(other.hashCode()))));
+  }
+
+  @Test(dataProvider = "guardedMap", expectedExceptions = NullPointerException.class)
+  public void containsKey_withNull(Map<Integer, Integer> map) {
+    map.containsKey(null);
+  }
+
+  @Test(dataProvider = "warmedMap")
+  public void containsKey_whenFound(Map<Integer, Integer> map) {
+    assertThat(map.containsKey(1), is(true));
+  }
+
+  @Test(dataProvider = "warmedMap")
+  public void containsKey_whenNotFound(Map<Integer, Integer> map) {
+    assertThat(map.containsKey(-1), is(false));
+  }
+
+  @Test(dataProvider = "guardedMap", expectedExceptions = NullPointerException.class)
+  public void containsValue_withNull(Map<Integer, Integer> map) {
+    map.containsValue(null);
+  }
+
+  @Test(dataProvider = "warmedMap")
+  public void containsValue_whenFound(Map<Integer, Integer> map) {
+    assertThat(map.containsValue(-1), is(true));
+  }
+
+  @Test(dataProvider = "warmedMap")
+  public void containsValue_whenNotFound(Map<Integer, Integer> map) {
+    assertThat(map.containsValue(1), is(false));
+  }
+
+  @Test(dataProvider = "guardedMap", expectedExceptions = NullPointerException.class)
+  public void get_withNull(Map<Integer, Integer> map) {
+    map.get(null);
+  }
+
+  @Test(dataProvider = "warmedMap")
+  public void get_whenFound(Map<Integer, Integer> map) {
+    assertThat(map.get(1), is(-1));
+  }
+
+  @Test(dataProvider = "warmedMap")
+  public void get_whenNotFound(Map<Integer, Integer> map) {
+    assertThat(map.get(-1), is(nullValue()));
+  }
+
+  @Test(dataProvider = "guardedMap", expectedExceptions = NullPointerException.class)
+  public void put_withNullKey(Map<Integer, Integer> map) {
+    map.put(null, 2);
+  }
+
+  @Test(dataProvider = "guardedMap", expectedExceptions = NullPointerException.class)
+  public void put_withNullValue(Map<Integer, Integer> map) {
+    map.put(1, null);
+  }
+
+  @Test(dataProvider = "guardedMap", expectedExceptions = NullPointerException.class)
+  public void put_withNullEntry(Map<Integer, Integer> map) {
+    map.put(null, null);
+  }
+
+  @Test(dataProvider = "guardedMap")
+  public void put(Map<Integer, Integer> map) {
+    assertThat(map.put(1, 2), is(nullValue()));
+    assertThat(map.put(1, 3), is(2));
+    assertThat(map.get(1), is(3));
+    assertThat(map.size(), is(1));
+  }
+
+  @Test(dataProvider = "guardedMap", expectedExceptions = NullPointerException.class)
+  public void putAll_withNull(Map<Integer, Integer> map) {
+    map.putAll(null);
+  }
+
+  @Test(dataProvider = "guardedMap")
+  public void putAll_withEmpty(Map<Integer, Integer> map) {
+    map.putAll(ImmutableMap.<Integer, Integer>of());
+    assertThat(map, is(emptyMap()));
+  }
+
+  @Test(dataProvider = "guardedMap")
+  public void putAll_whenPopulated(Map<Integer, Integer> map) {
+    Map<Integer, Integer> data = newHashMap();
+    warmUp(data, 0, 50);
+    map.putAll(data);
+    assertThat(map, is(equalTo(data)));
+  }
+
+  @Test(dataProvider = "guardedMap", expectedExceptions = NullPointerException.class)
+  public void putIfAbsent_withNullKey(ConcurrentMap<Integer, Integer> map) {
+    map.putIfAbsent(1, null);
+  }
+
+  @Test(dataProvider = "guardedMap", expectedExceptions = NullPointerException.class)
+  public void putIfAbsent_withNullValue(ConcurrentMap<Integer, Integer> map) {
+    map.putIfAbsent(null, 2);
+  }
+
+  @Test(dataProvider = "guardedMap", expectedExceptions = NullPointerException.class)
+  public void putIfAbsent_withNullEntry(ConcurrentMap<Integer, Integer> map) {
+    map.putIfAbsent(null, null);
+  }
+
+  @Test(dataProvider = "guardedMap")
+  public void putIfAbsent(ConcurrentMap<Integer, Integer> map) {
+    for (Integer i = 0; i < capacity(); i++) {
+      assertThat(map.putIfAbsent(i, i), is(nullValue()));
+      assertThat(map.putIfAbsent(i, 1), is(i));
+      assertThat(map.get(i), is(i));
+    }
+    assertThat(map.size(), is(equalTo(capacity())));
+  }
+
+  @Test(dataProvider = "guardedMap", expectedExceptions = NullPointerException.class)
+  public void remove_withNullKey(Map<Integer, Integer> map) {
+    map.remove(null);
+  }
+
+  @Test(dataProvider = "guardedMap")
+  public void remove_whenEmpty(Map<Integer, Integer> map) {
+    assertThat(map.remove(1), is(nullValue()));
+  }
+
+  @Test(dataProvider = "guardedMap")
+  public void remove(Map<Integer, Integer> map) {
+    map.put(1, 2);
+    assertThat(map.remove(1), is(2));
+    assertThat(map.remove(1), is(nullValue()));
+    assertThat(map.get(1), is(nullValue()));
+    assertThat(map.containsKey(1), is(false));
+    assertThat(map.containsValue(2), is(false));
+    assertThat(map, is(emptyMap()));
+  }
+
+  @Test(dataProvider = "guardedMap", expectedExceptions = NullPointerException.class)
+  public void removeConditionally_withNullKey(ConcurrentMap<Integer, Integer> map) {
+    map.remove(null, 2);
+  }
+
+  @Test(dataProvider = "warmedMap")
+  public void removeConditionally_withNullValue(ConcurrentMap<Integer, Integer> map) {
+    assertThat(map.remove(1, null), is(false)); // matches CHM
+  }
+
+  @Test(dataProvider = "guardedMap", expectedExceptions = NullPointerException.class)
+  public void removeConditionally_withNullEntry(ConcurrentMap<Integer, Integer> map) {
+    map.remove(null, null);
+  }
+
+  @Test(dataProvider = "guardedMap")
+  public void removeConditionally_whenEmpty(ConcurrentMap<Integer, Integer> map) {
+    assertThat(map.remove(1, 2), is(false));
+  }
+
+  @Test(dataProvider = "guardedMap")
+  public void removeConditionally(ConcurrentMap<Integer, Integer> map) {
+    map.put(1, 2);
+    assertThat(map.remove(1, -2), is(false));
+    assertThat(map.remove(1, 2), is(true));
+    assertThat(map.get(1), is(nullValue()));
+    assertThat(map.containsKey(1), is(false));
+    assertThat(map.containsValue(2), is(false));
+    assertThat(map, is(emptyMap()));
+  }
+
+  @Test(dataProvider = "guardedMap", expectedExceptions = NullPointerException.class)
+  public void replace_withNullKey(ConcurrentMap<Integer, Integer> map) {
+    map.replace(null, 2);
+  }
+
+  @Test(dataProvider = "guardedMap", expectedExceptions = NullPointerException.class)
+  public void replace_withNullValue(ConcurrentMap<Integer, Integer> map) {
+    map.replace(1, null);
+  }
+
+  @Test(dataProvider = "guardedMap", expectedExceptions = NullPointerException.class)
+  public void replace_withNullEntry(ConcurrentMap<Integer, Integer> map) {
+    map.replace(null, null);
+  }
+
+  @Test(dataProvider = "guardedMap")
+  public void replace_whenEmpty(ConcurrentMap<Integer, Integer> map) {
+    assertThat(map.replace(1, 2), is(nullValue()));
+  }
+
+  @Test(dataProvider = "guardedMap")
+  public void replace_whenPopulated(ConcurrentMap<Integer, Integer> map) {
+    map.put(1, 2);
+    assertThat(map.replace(1, 3), is(2));
+    assertThat(map.get(1), is(3));
+    assertThat(map.size(), is(1));
+  }
+
+  @Test(dataProvider = "guardedMap", expectedExceptions = NullPointerException.class)
+  public void replaceConditionally_withNullKey(ConcurrentMap<Integer, Integer> map) {
+    map.replace(null, 2, 3);
+  }
+
+  @Test(dataProvider = "guardedMap", expectedExceptions = NullPointerException.class)
+  public void replaceConditionally_withNullOldValue(ConcurrentMap<Integer, Integer> map) {
+    map.replace(1, null, 3);
+  }
+
+  @Test(dataProvider = "guardedMap", expectedExceptions = NullPointerException.class)
+  public void replaceConditionally_withNullNewValue(ConcurrentMap<Integer, Integer> map) {
+    map.replace(1, 2, null);
+  }
+
+  @Test(dataProvider = "guardedMap", expectedExceptions = NullPointerException.class)
+  public void replaceConditionally_withNullKeyAndOldValue(ConcurrentMap<Integer, Integer> map) {
+    map.replace(null, null, 3);
+  }
+
+  @Test(dataProvider = "guardedMap", expectedExceptions = NullPointerException.class)
+  public void replaceConditionally_withNullKeyAndNewValue(ConcurrentMap<Integer, Integer> map) {
+    map.replace(null, 2, null);
+  }
+
+  @Test(dataProvider = "guardedMap", expectedExceptions = NullPointerException.class)
+  public void replaceConditionally_withNullOldAndNewValue(ConcurrentMap<Integer, Integer> map) {
+    map.replace(1, null, null);
+  }
+
+  @Test(dataProvider = "guardedMap", expectedExceptions = NullPointerException.class)
+  public void replaceConditionally_withNullKeyAndValues(ConcurrentMap<Integer, Integer> map) {
+    map.replace(null, null, null);
+  }
+
+  @Test(dataProvider = "guardedMap")
+  public void replaceConditionally_whenEmpty(ConcurrentMap<Integer, Integer> map) {
+    assertThat(map.replace(1, 2, 3), is(false));
+  }
+
+  @Test(dataProvider = "guardedMap")
+  public void replaceConditionally_whenPopulated(ConcurrentMap<Integer, Integer> map) {
+    map.put(1, 2);
+    assertThat(map.replace(1, 3, 4), is(false));
+    assertThat(map.replace(1, 2, 3), is(true));
+    assertThat(map.get(1), is(3));
+    assertThat(map.size(), is(1));
+  }
+
+  @Test(dataProvider = "guardedMap")
+  public void toString_whenEmpty(Map<Integer, Integer> map) {
+    assertThat(map, hasToString(ImmutableMap.of().toString()));
+  }
+
+  @Test(dataProvider = "guardedMap")
+  public void toString_whenPopulated(Map<Integer, Integer> map) {
+    warmUp(map, 0, 10);
+    String toString = map.toString();
+    for (Entry<Integer, Integer> entry : map.entrySet()) {
+      assertThat(countMatches(toString, entry.toString()), is(equalTo(1)));
+    }
+  }
+
+  @Test(dataProvider = "guardedMap")
+  public void serialization_whenEmpty(Map<Integer, Integer> map) {
+    assertThat(map, is(reserializable()));
+  }
+
+  @Test(dataProvider = "warmedMap")
+  public void serialization_whenPopulated(Map<Integer, Integer> map) {
+    assertThat(map, is(reserializable()));
+  }
+
+  @Test(dataProvider = "guardingListener")
+  public void serialize_withCustomSettings(
+      EvictionListener<Integer, Collection<Integer>> listener) {
+    Map<Integer, Collection<Integer>> map =
+      new Builder<Integer, Collection<Integer>>()
+          .weigher(Weighers.<Integer>collection())
+          .maximumWeightedCapacity(500)
+          .initialCapacity(100)
+          .concurrencyLevel(32)
+          .listener(listener)
+          .build();
+    map.put(1, singletonList(2));
+    assertThat(map, is(reserializable()));
+  }
+
+  /* ---------------- Key Set -------------- */
+
+  @Test(dataProvider = "guardedMap", expectedExceptions = NullPointerException.class)
+  public void keySetToArray_withNull(Map<Integer, Integer> map) {
+    map.keySet().toArray(null);
+  }
+
+  @Test(dataProvider = "guardedMap")
+  public void keySetToArray_whenEmpty(Map<Integer, Integer> map) {
+    assertThat(map.keySet().toArray(new Integer[0]).length, is(equalTo(0)));
+    assertThat(map.keySet().toArray().length, is(equalTo(0)));
+  }
+
+  @Test(dataProvider = "warmedMap")
+  public void keySetToArray_whenPopulated(Map<Integer, Integer> map) {
+    Set<Integer> keys = map.keySet();
+    Object[] array1 = keys.toArray();
+    Object[] array2 = keys.toArray(new Integer[map.size()]);
+    Object[] expected = newHashMap(map).keySet().toArray();
+    for (Object[] array : asList(array1, array2)) {
+      assertThat(array.length, is(equalTo(keys.size())));
+      assertThat(asList(array), containsInAnyOrder(expected));
+    }
+  }
+
+  @Test(dataProvider = "guardedMap")
+  public void keySet_whenEmpty(Map<Integer, Integer> map) {
+    assertThat(map.keySet(), is(emptyCollection()));
+  }
+
+  @Test(dataProvider = "guardedMap", expectedExceptions = UnsupportedOperationException.class)
+  public void keySet_addNotSupported(Map<Integer, Integer> map) {
+    map.keySet().add(1);
+  }
+
+  @Test(dataProvider = "warmedMap")
+  public void keySet_withClear(Map<Integer, Integer> map) {
+    map.keySet().clear();
+    assertThat(map, is(emptyMap()));
+  }
+
+  @Test(dataProvider = "warmedMap")
+  public void keySet_whenPopulated(Map<Integer, Integer> map) {
+    Set<Integer> keys = map.keySet();
+    assertThat(keys.contains(new Object()), is(false));
+    assertThat(keys.remove(new Object()), is(false));
+    assertThat(keys, hasSize(capacity()));
+    for (int i = 0; i < capacity(); i++) {
+      assertThat(keys.contains(i), is(true));
+      assertThat(keys.remove(i), is(true));
+      assertThat(keys.remove(i), is(false));
+      assertThat(keys.contains(i), is(false));
+    }
+    assertThat(map, is(emptyMap()));
+  }
+
+  @Test(dataProvider = "warmedMap")
+  public void keySet_iterator(Map<Integer, Integer> map) {
+    int iterations = 0;
+    Set<Integer> keys = map.keySet();
+    for (Iterator<Integer> i = map.keySet().iterator(); i.hasNext();) {
+      assertThat(map.containsKey(i.next()), is(true));
+      iterations++;
+      i.remove();
+    }
+    assertThat(iterations, is(equalTo(capacity())));
+    assertThat(map, is(emptyMap()));
+  }
+
+  @Test(dataProvider = "guardedMap", expectedExceptions = IllegalStateException.class)
+  public void keyIterator_noElement(Map<Integer, Integer> map) {
+    map.keySet().iterator().remove();
+  }
+
+  @Test(dataProvider = "guardedMap", expectedExceptions = NoSuchElementException.class)
+  public void keyIterator_noMoreElements(Map<Integer, Integer> map) {
+    map.keySet().iterator().next();
+  }
+
+  /* ---------------- Values -------------- */
+
+  @Test(dataProvider = "guardedMap", expectedExceptions = NullPointerException.class)
+  public void valuesToArray_withNull(Map<Integer, Integer> map) {
+    map.values().toArray(null);
+  }
+
+  @Test(dataProvider = "guardedMap")
+  public void valuesToArray_whenEmpty(Map<Integer, Integer> map) {
+    assertThat(map.values().toArray(new Integer[0]).length, is(equalTo(0)));
+    assertThat(map.values().toArray().length, is(equalTo(0)));
+  }
+
+  @Test(dataProvider = "warmedMap")
+  public void valuesToArray_whenPopulated(Map<Integer, Integer> map) {
+    Collection<Integer> values = map.values();
+    Object[] array1 = values.toArray();
+    Object[] array2 = values.toArray(new Integer[map.size()]);
+    Object[] expected = newHashMap(map).values().toArray();
+    for (Object[] array : asList(array1, array2)) {
+      assertThat(array.length, is(equalTo(values.size())));
+      assertThat(asList(array), containsInAnyOrder(expected));
+    }
+  }
+
+  @Test(dataProvider = "guardedMap")
+  public void values_whenEmpty(Map<Integer, Integer> map) {
+    assertThat(map.values(), is(emptyCollection()));
+  }
+
+  @Test(dataProvider = "guardedMap", expectedExceptions = UnsupportedOperationException.class)
+  public void values_addNotSupported(Map<Integer, Integer> map) {
+    map.values().add(1);
+  }
+
+  @Test(dataProvider = "warmedMap")
+  public void values_withClear(Map<Integer, Integer> map) {
+    map.values().clear();
+    assertThat(map, is(emptyMap()));
+  }
+
+  @Test(dataProvider = "warmedMap")
+  public void values_whenPopulated(Map<Integer, Integer> map) {
+    Collection<Integer> values = map.values();
+    assertThat(values.contains(new Object()), is(false));
+    assertThat(values.remove(new Object()), is(false));
+    assertThat(values, hasSize(capacity()));
+    for (int i = 0; i < capacity(); i++) {
+      assertThat(values.contains(-i), is(true));
+      assertThat(values.remove(-i), is(true));
+      assertThat(values.remove(-i), is(false));
+      assertThat(values.contains(-i), is(false));
+    }
+    assertThat(map, is(emptyMap()));
+  }
+
+  @Test(dataProvider = "warmedMap")
+  public void valueIterator(Map<Integer, Integer> map) {
+    int iterations = 0;
+    Collection<Integer> values = map.values();
+    for (Iterator<Integer> i = map.values().iterator(); i.hasNext();) {
+      assertThat(map.containsValue(i.next()), is(true));
+      iterations++;
+      i.remove();
+    }
+    assertThat(iterations, is(equalTo(capacity())));
+    assertThat(map, is(emptyMap()));
+  }
+
+  @Test(dataProvider = "guardedMap", expectedExceptions = IllegalStateException.class)
+  public void valueIterator_noElement(Map<Integer, Integer> map) {
+    map.values().iterator().remove();
+  }
+
+  @Test(dataProvider = "guardedMap", expectedExceptions = NoSuchElementException.class)
+  public void valueIterator_noMoreElements(Map<Integer, Integer> map) {
+    map.values().iterator().next();
+  }
+
+  /* ---------------- Entry Set -------------- */
+
+  @Test(dataProvider = "guardedMap", expectedExceptions = NullPointerException.class)
+  public void entrySetToArray_withNull(Map<Integer, Integer> map) {
+    map.entrySet().toArray(null);
+  }
+
+  @Test(dataProvider = "guardedMap")
+  public void entrySetToArray_whenEmpty(Map<Integer, Integer> map) {
+    assertThat(map.entrySet().toArray(new Integer[0]).length, is(equalTo(0)));
+    assertThat(map.entrySet().toArray().length, is(equalTo(0)));
+  }
+
+  @Test(dataProvider = "warmedMap")
+  public void entrySetToArray_whenPopulated(Map<Integer, Integer> map) {
+    Set<Entry<Integer, Integer>> entries = map.entrySet();
+    Object[] array1 = entries.toArray();
+    Object[] array2 = entries.toArray(new Entry[map.size()]);
+    Object[] expected = newHashMap(map).entrySet().toArray();
+    for (Object[] array : asList(array1, array2)) {
+      assertThat(array.length, is(equalTo(entries.size())));
+      assertThat(asList(array), containsInAnyOrder(expected));
+    }
+  }
+
+  @Test(dataProvider = "guardedMap")
+  public void entrySet_whenEmpty(Map<Integer, Integer> map) {
+    assertThat(map.entrySet(), is(emptyCollection()));
+  }
+
+  @Test(dataProvider = "guardedMap")
+  public void entrySet_addIsSupported(Map<Integer, Integer> map) {
+    assertThat(map.entrySet().add(immutableEntry(1, 2)), is(true));
+    assertThat(map.entrySet().add(immutableEntry(1, 2)), is(false));
+    assertThat(map.entrySet().size(), is(1));
+    assertThat(map.size(), is(1));
+  }
+
+  @Test(dataProvider = "warmedMap")
+  public void entrySet_withClear(Map<Integer, Integer> map) {
+    map.entrySet().clear();
+    assertThat(map, is(emptyMap()));
+  }
+
+  @Test(dataProvider = "warmedMap")
+  public void entrySet_whenPopulated(Map<Integer, Integer> map) {
+    Set<Entry<Integer, Integer>> entries = map.entrySet();
+    Entry<Integer, Integer> entry = map.entrySet().iterator().next();
+    assertThat(entries.contains(immutableEntry(entry.getKey(), entry.getValue() + 1)), is(false));
+    assertThat(entries.contains(new Object()), is(false));
+    assertThat(entries.remove(new Object()), is(false));
+    assertThat(entries, hasSize(capacity()));
+    for (int i = 0; i < capacity(); i++) {
+      Entry<Integer, Integer> newEntry = immutableEntry(i, -i);
+      assertThat(entries.contains(newEntry), is(true));
+      assertThat(entries.remove(newEntry), is(true));
+      assertThat(entries.remove(newEntry), is(false));
+      assertThat(entries.contains(newEntry), is(false));
+    }
+    assertThat(map, is(emptyMap()));
+  }
+
+  @Test(dataProvider = "warmedMap")
+  public void entryIterator(Map<Integer, Integer> map) {
+    int iterations = 0;
+    Set<Entry<Integer, Integer>> entries = map.entrySet();
+    for (Iterator<Entry<Integer, Integer>> i = map.entrySet().iterator(); i.hasNext();) {
+      Entry<Integer, Integer> entry = i.next();
+      assertThat(map, hasEntry(entry.getKey(), entry.getValue()));
+      iterations++;
+      i.remove();
+    }
+    assertThat(iterations, is(equalTo(capacity())));
+    assertThat(map, is(emptyMap()));
+  }
+
+  @Test(dataProvider = "guardedMap", expectedExceptions = IllegalStateException.class)
+  public void entryIterator_noElement(Map<Integer, Integer> map) {
+    map.entrySet().iterator().remove();
+  }
+
+  @Test(dataProvider = "guardedMap", expectedExceptions = NoSuchElementException.class)
+  public void entryIterator_noMoreElements(Map<Integer, Integer> map) {
+    map.entrySet().iterator().next();
+  }
+
+  @Test(dataProvider = "guardedMap")
+  public void writeThroughEntry(Map<Integer, Integer> map) {
+    map.put(1, 2);
+    Entry<Integer, Integer> entry = map.entrySet().iterator().next();
+
+    map.remove(1);
+    assertThat(map, is(emptyMap()));
+
+    entry.setValue(3);
+    assertThat(map.size(), is(1));
+    assertThat(map.get(1), is(3));
+  }
+
+  @Test(dataProvider = "warmedMap", expectedExceptions = NullPointerException.class)
+  public void writeThroughEntry_withNull(Map<Integer, Integer> map) {
+    map.entrySet().iterator().next().setValue(null);
+  }
+
+  @Test(dataProvider = "warmedMap")
+  public void writeThroughEntry_serialize(Map<Integer, Integer> map) {
+    Entry<Integer, Integer> entry = map.entrySet().iterator().next();
+    assertThat(entry, is(reserializable()));
   }
 }
