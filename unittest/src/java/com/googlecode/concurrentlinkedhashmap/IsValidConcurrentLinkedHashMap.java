@@ -16,6 +16,7 @@
 package com.googlecode.concurrentlinkedhashmap;
 
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.AMORTIZED_DRAIN_THRESHOLD;
+import static com.googlecode.concurrentlinkedhashmap.IsValidLinkedDeque.validLinkedDeque;
 
 import com.google.common.collect.Sets;
 
@@ -90,7 +91,7 @@ public final class IsValidConcurrentLinkedHashMap
 
     checkLinks(map, builder);
     builder.expectEqual(deque.size(), map.size());
-    IsValidLinkedDeque.validLinkedDeque().matchesSafely(map.evictionDeque, builder.getDescription());
+    validLinkedDeque().matchesSafely(map.evictionDeque, builder.getDescription());
   }
 
   @SuppressWarnings("rawtypes")
