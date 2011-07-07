@@ -60,11 +60,12 @@ import java.util.concurrent.locks.ReentrantLock;
  *
  * @author <a href="mailto:ben.manes@reardencommerce.com">Ben Manes</a>
  */
+@SuppressWarnings("rawtypes")
 public final class ProductionMap<K, V> extends AbstractMap<K, V>
     implements ConcurrentMap<K, V>, Serializable {
   private static final EvictionListener<?, ?> nullListener =
       new EvictionListener<Object, Object>() {
-        public void onEviction(Object key, Object value) {
+        @Override public void onEviction(Object key, Object value) {
         }
       };
   private static final long serialVersionUID = 8350170357874293408L;
@@ -208,6 +209,7 @@ public final class ProductionMap<K, V> extends AbstractMap<K, V>
   /**
    * {@inheritDoc}
    */
+  @Override
   public V putIfAbsent(K key, V value) {
     if (value == null) {
       throw new IllegalArgumentException();
@@ -251,6 +253,7 @@ public final class ProductionMap<K, V> extends AbstractMap<K, V>
   /**
    * {@inheritDoc}
    */
+  @Override
   public boolean remove(Object key, Object value) {
     Node<K, V> node = data.get(key);
     if ((node != null) && node.value.equals(value) && data.remove(key, new Identity(node))) {
@@ -264,6 +267,7 @@ public final class ProductionMap<K, V> extends AbstractMap<K, V>
   /**
    * {@inheritDoc}
    */
+  @Override
   public V replace(K key, V value) {
     if (value == null) {
       throw new IllegalArgumentException();
@@ -275,6 +279,7 @@ public final class ProductionMap<K, V> extends AbstractMap<K, V>
   /**
    * {@inheritDoc}
    */
+  @Override
   public boolean replace(K key, V oldValue, V newValue) {
     if (newValue == null) {
       throw new IllegalArgumentException();
@@ -660,14 +665,17 @@ public final class ProductionMap<K, V> extends AbstractMap<K, V>
     private final EntryIterator iterator =
         new EntryIterator(ProductionMap.this.data.values().iterator());
 
+    @Override
     public boolean hasNext() {
       return iterator.hasNext();
     }
 
+    @Override
     public K next() {
       return iterator.next().getKey();
     }
 
+    @Override
     public void remove() {
       iterator.remove();
     }
@@ -725,14 +733,17 @@ public final class ProductionMap<K, V> extends AbstractMap<K, V>
     private final EntryIterator iterator =
         new EntryIterator(ProductionMap.this.data.values().iterator());
 
+    @Override
     public boolean hasNext() {
       return iterator.hasNext();
     }
 
+    @Override
     public V next() {
       return iterator.next().getValue();
     }
 
+    @Override
     public void remove() {
       iterator.remove();
     }
@@ -814,15 +825,18 @@ public final class ProductionMap<K, V> extends AbstractMap<K, V>
       this.iterator = iterator;
     }
 
+    @Override
     public boolean hasNext() {
       return iterator.hasNext();
     }
 
+    @Override
     public Entry<K, V> next() {
       current = new NodeEntry(iterator.next());
       return current;
     }
 
+    @Override
     public void remove() {
       if (current == null) {
         throw new IllegalStateException();
@@ -844,10 +858,12 @@ public final class ProductionMap<K, V> extends AbstractMap<K, V>
       this.node = node;
     }
 
+    @Override
     public K getKey() {
       return node.getKey();
     }
 
+    @Override
     public V getValue() {
       if (node.isUnlinked()) {
         V value = map.get(getKey());
@@ -858,6 +874,7 @@ public final class ProductionMap<K, V> extends AbstractMap<K, V>
       return node.getValue();
     }
 
+    @Override
     public V setValue(V value) {
       return map.replace(getKey(), value);
     }
