@@ -20,7 +20,9 @@ import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.collect.Lists.newArrayList;
 import static com.googlecode.concurrentlinkedhashmap.Benchmarks.shuffle;
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentTestHarness.timeTasks;
-import static com.googlecode.concurrentlinkedhashmap.IsValidState.valid;
+import static com.googlecode.concurrentlinkedhashmap.IsValidConcurrentLinkedHashMap.valid;
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
+import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.testng.Assert.fail;
@@ -47,7 +49,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -61,23 +62,15 @@ import java.util.concurrent.atomic.AtomicInteger;
 public final class MultiThreadedTest extends AbstractTest {
   private final Queue<String> failures;
   private final int iterations;
-  private final int nThreads;
-  private final int capacity;
-  private final int timeout;
+  private final int timeOut;
+  private final int threads;
 
-  @Parameters({"multiThreaded.maximumCapacity", "multiThreaded.iterations",
-      "multiThreaded.nThreads", "multiThreaded.timeout"})
-  public MultiThreadedTest(int capacity, int iterations, int nThreads, int timeout) {
-    failures = new ConcurrentLinkedQueue<String>();
+  @Parameters({"iterations", "threads", "timeOut"})
+  public MultiThreadedTest(int iterations, int threads, int timeOut) {
+    this.failures = new ConcurrentLinkedQueue<String>();
     this.iterations = iterations;
-    this.capacity = capacity;
-    this.nThreads = nThreads;
-    this.timeout = timeout;
-  }
-
-  @Override
-  protected int capacity() {
-    return capacity;
+    this.timeOut = timeOut;
+    this.threads = threads;
   }
 
   @Test(dataProvider = "builder")
@@ -87,14 +80,14 @@ public final class MultiThreadedTest extends AbstractTest {
     for (int i = 0; i < iterations; i++) {
       keys.add(random.nextInt(iterations / 100));
     }
-    final List<List<Integer>> sets = shuffle(nThreads, keys);
+    final List<List<Integer>> sets = shuffle(threads, keys);
     final ConcurrentLinkedHashMap<Integer, Integer> map = builder
         .maximumWeightedCapacity(capacity())
-        .concurrencyLevel(nThreads)
+        .concurrencyLevel(threads)
         .build();
     executeWithTimeOut(map, new Callable<Long>() {
       @Override public Long call() throws Exception {
-        return timeTasks(nThreads, new Thrasher(map, sets));
+        return timeTasks(threads, new Thrasher(map, sets));
       }
     });
   }
@@ -103,18 +96,18 @@ public final class MultiThreadedTest extends AbstractTest {
   public void weightedConcurrency(Builder<Integer, List<Integer>> builder) {
     final ConcurrentLinkedHashMap<Integer, List<Integer>> map = builder
         .weigher(Weighers.<Integer>list())
-        .maximumWeightedCapacity(nThreads)
-        .concurrencyLevel(nThreads)
+        .maximumWeightedCapacity(threads)
+        .concurrencyLevel(threads)
         .build();
     final Queue<List<Integer>> values = new ConcurrentLinkedQueue<List<Integer>>();
-    for (int i = 1; i <= nThreads; i++) {
+    for (int i = 1; i <= threads; i++) {
       Integer[] array = new Integer[i];
       Arrays.fill(array, Integer.MIN_VALUE);
       values.add(Arrays.asList(array));
     }
     executeWithTimeOut(map, new Callable<Long>() {
       @Override public Long call() throws Exception {
-        return timeTasks(nThreads, new Runnable() {
+        return timeTasks(threads, new Runnable() {
           @Override public void run() {
             List<Integer> value = values.poll();
             for (int i = 0; i < iterations; i++) {
@@ -323,8 +316,8 @@ public final class MultiThreadedTest extends AbstractTest {
     ExecutorService es = Executors.newSingleThreadExecutor();
     Future<Long> future = es.submit(task);
     try {
-      long timeNS = future.get(timeout, TimeUnit.SECONDS);
-      debug("\nExecuted in %d second(s)", TimeUnit.NANOSECONDS.toSeconds(timeNS));
+      long timeNS = future.get(timeOut, SECONDS);
+      debug("\nExecuted in %d second(s)", NANOSECONDS.toSeconds(timeNS));
       assertThat(map, is(valid()));
     } catch (ExecutionException e) {
       fail("Exception during test: " + e.toString(), e);
@@ -349,7 +342,7 @@ public final class MultiThreadedTest extends AbstractTest {
     }
     es.shutdownNow();
     try {
-      es.awaitTermination(10, TimeUnit.SECONDS);
+      es.awaitTermination(10, SECONDS);
     } catch (InterruptedException ex) {
       fail("", ex);
     }

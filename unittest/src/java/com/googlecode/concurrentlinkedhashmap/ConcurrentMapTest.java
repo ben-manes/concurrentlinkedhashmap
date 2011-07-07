@@ -56,11 +56,6 @@ import java.util.concurrent.ConcurrentMap;
 @Test(groups = "development")
 public final class ConcurrentMapTest extends AbstractTest {
 
-  @Override
-  protected int capacity() {
-    return 100;
-  }
-
   @Test(dataProvider = "guardedMap")
   public void clear_whenEmpty(Map<Integer, Integer> map) {
     map.clear();

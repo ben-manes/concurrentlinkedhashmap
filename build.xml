@@ -209,33 +209,10 @@
        haltonskipped="${testng.haltonskipped}"
        outputdir="@{outputdir}"
       >
-        <classfileset dir="${test.build.dir}"/>
+      	<xmlfileset dir="${basedir}" includes="testng.yaml"/>
         <jvmarg value="-Xms64m"/>
         <jvmarg value="-Xmx1024m"/>
         <jvmarg value="-Xss1m"/>
-
-        <!-- All tests -->
-        <sysproperty key="test.debugMode" value="${test.debugMode}"/>
-        <sysproperty key="test.exhaustive" value="${test.exhaustive}"/>
-
-        <!-- Efficiency tests -->
-        <sysproperty key="efficiency.maximumCapacity" value="${efficiency.maximumCapacity}"/>
-        <sysproperty key="efficiency.workingSetSize" value="${efficiency.workingSetSize}"/>
-        <sysproperty key="efficiency.distribution" value="${efficiency.distribution}"/>
-        <sysproperty key="efficiency.distribution.uniform.lower" value="${efficiency.distribution.uniform.lower}"/>
-        <sysproperty key="efficiency.distribution.uniform.upper" value="${efficiency.distribution.uniform.upper}"/>
-        <sysproperty key="efficiency.distribution.exponential.mean" value="${efficiency.distribution.exponential.mean}"/>
-        <sysproperty key="efficiency.distribution.gaussian.mean" value="${efficiency.distribution.gaussian.mean}"/>
-        <sysproperty key="efficiency.distribution.gaussian.sigma" value="${efficiency.distribution.gaussian.sigma}"/>
-        <sysproperty key="efficiency.distribution.poisson.mean" value="${efficiency.distribution.poisson.mean}"/>
-        <sysproperty key="efficiency.distribution.zipfian.skew" value="${efficiency.distribution.zipfian.skew}"/>
-
-        <!-- Multi-threaded tests -->
-        <sysproperty key="multiThreaded.maximumCapacity" value="${multiThreaded.maximumCapacity}"/>
-        <sysproperty key="multiThreaded.nThreads" value="${multiThreaded.nThreads}"/>
-        <sysproperty key="multiThreaded.iterations" value="${multiThreaded.iterations}"/>
-        <sysproperty key="multiThreaded.timeout" value="${multiThreaded.timeout}"/>
-        <args/>
       </testng>
     </sequential>
   </macrodef>

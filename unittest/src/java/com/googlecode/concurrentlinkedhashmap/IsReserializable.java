@@ -17,7 +17,7 @@ package com.googlecode.concurrentlinkedhashmap;
 
 import static com.google.common.collect.Maps.newHashMap;
 import static com.googlecode.concurrentlinkedhashmap.IsEmptyMap.emptyMap;
-import static com.googlecode.concurrentlinkedhashmap.IsValidState.valid;
+import static com.googlecode.concurrentlinkedhashmap.IsValidConcurrentLinkedHashMap.valid;
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.BoundedWeigher;
 

@@ -394,7 +394,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   boolean shouldDrainBuffers(boolean delayable) {
     if (executor.isShutdown()) {
       DrainStatus status = drainStatus.get();
-      return (status != PROCESSING) && (!delayable || (status == REQUIRED));
+      return (status != PROCESSING) & (!delayable | (status == REQUIRED));
     }
     return false;
   }

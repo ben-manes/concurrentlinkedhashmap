@@ -15,11 +15,12 @@
  */
 package com.googlecode.concurrentlinkedhashmap;
 
-import static com.googlecode.concurrentlinkedhashmap.IsValidDeque.validDeque;
-import static com.googlecode.concurrentlinkedhashmap.IsValidState.valid;
+import static com.googlecode.concurrentlinkedhashmap.IsValidConcurrentLinkedHashMap.valid;
+import static com.googlecode.concurrentlinkedhashmap.IsValidLinkedDeque.validLinkedDeque;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.MockitoAnnotations.initMocks;
 import static org.testng.Assert.fail;
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
@@ -27,16 +28,15 @@ import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
 import org.testng.ITestResult;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.BeforeMethod;
+import org.testng.annotations.BeforeSuite;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Parameters;
 
 import java.io.Serializable;
-import java.util.Deque;
 import java.util.Map;
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -46,7 +46,8 @@ import java.util.concurrent.ScheduledExecutorService;
  * @author ben.manes@gmail.com (Ben Manes)
  */
 public abstract class AbstractTest {
-  private boolean debug;
+  private static boolean debug;
+  private int capacity;
 
   @Mock protected EvictionListener<Integer, Integer> listener;
   @Captor protected ArgumentCaptor<Runnable> catchUpTask;
@@ -54,11 +55,13 @@ public abstract class AbstractTest {
   @Mock protected Weigher<Integer> weigher;
 
   /** Retrieves the maximum weighted capacity to build maps with. */
-  protected abstract int capacity();
+  protected final int capacity() {
+    return capacity;
+  }
 
   /* ---------------- Logging methods -------------- */
 
-  protected void info(String message, Object... args) {
+  protected static void info(String message, Object... args) {
     if (args.length == 0) {
       System.out.println(message);
     } else {
@@ -66,7 +69,7 @@ public abstract class AbstractTest {
     }
   }
 
-  protected void debug(String message, Object... args) {
+  protected static void debug(String message, Object... args) {
     if (debug) {
       info(message, args);
     }
@@ -74,16 +77,22 @@ public abstract class AbstractTest {
 
   /* ---------------- Testing aspects -------------- */
 
-  @Parameters("test.debugMode")
+  @Parameters("debug")
+  @BeforeSuite(alwaysRun = true)
+  static void initSuite(boolean debugMode) {
+    debug = debugMode;
+  }
+
+  @Parameters("capacity")
   @BeforeClass(alwaysRun = true)
-  void initClass(boolean debug) {
-    this.debug = debug;
+  void initClass(int capacity) {
     info("\nRunning %s...\n", getClass().getSimpleName());
+    this.capacity = capacity;
   }
 
   @BeforeMethod(alwaysRun = true)
-  void initMocks() {
-    MockitoAnnotations.initMocks(this);
+  void initMethod() {
+    initMocks(this);
   }
 
   @AfterMethod(alwaysRun = true)
@@ -105,13 +114,12 @@ public abstract class AbstractTest {
   }
 
   /** Validates the state of the injected parameter. */
-  @SuppressWarnings("unchecked")
   private static void validate(Object param) {
     if (param instanceof ConcurrentLinkedHashMap<?, ?>) {
       assertThat((ConcurrentLinkedHashMap<?, ?>) param, is(valid()));
     }
-    if (param instanceof Deque<?>) {
-      assertThat((Deque<? extends Linked<?>>) param, is(validDeque()));
+    if (param instanceof LinkedDeque<?>) {
+      assertThat((LinkedDeque<?>) param, is(validLinkedDeque()));
     }
   }
 

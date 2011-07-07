@@ -47,11 +47,6 @@ import java.util.concurrent.RejectedExecutionException;
 @Test(groups = "development")
 public final class BuilderTest extends AbstractTest {
 
-  @Override
-  protected int capacity() {
-    return 100;
-  }
-
   @Test(expectedExceptions = IllegalStateException.class)
   public void unconfigured() {
     new Builder<Object, Object>().build();

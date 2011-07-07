@@ -127,35 +127,10 @@
         <artifactId>maven-surefire-plugin</artifactId>
         <version>2.5</version>
         <configuration>
-          <includes>
-            <include>**/*Test.java</include>
-          </includes>
+          <suiteXmlFiles>
+            <suiteXmlFile>testng.yaml</suiteXmlFile>
+          </suiteXmlFiles>
           <groups>${testng.groups}</groups>
-          <systemPropertyVariables>
-            <!-- All tests -->
-            <test.debugMode>${test.debugMode}</test.debugMode>
-            <test.exhaustive>${test.exhaustive}</test.exhaustive>
-
-            <!-- Efficiency tests -->
-            <efficiency.maximumCapacity>${efficiency.maximumCapacity}</efficiency.maximumCapacity>
-            <efficiency.workingSetSize>${efficiency.workingSetSize}</efficiency.workingSetSize>
-            <efficiency.distribution>${efficiency.distribution}</efficiency.distribution>
-            <efficiency.distribution.uniform.lower>${efficiency.distribution.uniform.lower}</efficiency.distribution.uniform.lower>
-            <efficiency.distribution.uniform.upper>${efficiency.distribution.uniform.upper}</efficiency.distribution.uniform.upper>
-            <efficiency.distribution.exponential.mean>${efficiency.distribution.exponential.mean}</efficiency.distribution.exponential.mean>
-            <efficiency.distribution.gaussian.mean>${efficiency.distribution.gaussian.mean}</efficiency.distribution.gaussian.mean>
-            <efficiency.distribution.gaussian.sigma>${efficiency.distribution.gaussian.sigma}</efficiency.distribution.gaussian.sigma>
-            <efficiency.distribution.gaussian.sigma>${efficiency.distribution.gaussian.sigma}</efficiency.distribution.gaussian.sigma>
-            <efficiency.distribution.gaussian.sigma>${efficiency.distribution.gaussian.sigma}</efficiency.distribution.gaussian.sigma>
-            <efficiency.distribution.poisson.mean>${efficiency.distribution.poisson.mean}</efficiency.distribution.poisson.mean>
-            <efficiency.distribution.zipfian.skew>${efficiency.distribution.zipfian.skew}</efficiency.distribution.zipfian.skew>
-
-            <!-- Multi-threaded tests -->
-            <multiThreaded.maximumCapacity>${multiThreaded.maximumCapacity}</multiThreaded.maximumCapacity>
-            <multiThreaded.nThreads>${multiThreaded.nThreads}</multiThreaded.nThreads>
-            <multiThreaded.iterations>${multiThreaded.iterations}</multiThreaded.iterations>
-            <multiThreaded.timeout>${multiThreaded.timeout}</multiThreaded.timeout>
-          </systemPropertyVariables>
         </configuration>
       </plugin>
       <plugin>
@@ -199,13 +174,4 @@
       <url>http://forumarchivebuilder.googlecode.com/svn/repository</url>
     </repository>
   </repositories>
-  <!--
-  <distributionManagement>
-    <repository>
-      <uniqueVersion>false</uniqueVersion>
-      <id>googlecode</id>
-      <url>svn:https://concurrentlinkedhashmap.googlecode.com/svn/repo</url>
-    </repository>
-  </distributionManagement>
-  -->
 </project>

@@ -16,6 +16,7 @@
 package com.googlecode.concurrentlinkedhashmap;
 
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.AMORTIZED_DRAIN_THRESHOLD;
+import static com.googlecode.concurrentlinkedhashmap.IsValidLinkedDeque.validLinkedDeque;
 
 import com.google.common.collect.Sets;
 
@@ -37,7 +38,8 @@ import java.util.concurrent.locks.ReentrantLock;
  * @author ben.manes@gmail.com (Ben Manes)
  */
 @SuppressWarnings("unchecked")
-public final class IsValidState extends TypeSafeDiagnosingMatcher<ConcurrentLinkedHashMap<?, ?>> {
+public final class IsValidConcurrentLinkedHashMap
+  extends TypeSafeDiagnosingMatcher<ConcurrentLinkedHashMap<?, ?>> {
 
   @Override
   public void describeTo(Description description) {
@@ -97,7 +99,7 @@ public final class IsValidState extends TypeSafeDiagnosingMatcher<ConcurrentLink
 
     checkLinks(map, deque, builder);
     builder.expectEqual(deque.size(), map.size());
-    IsValidDeque.validDeque().matchesSafely(deque, builder.getDescription());
+    validLinkedDeque().matchesSafely(deque, builder.getDescription());
   }
 
   private void checkLinks(ConcurrentLinkedHashMap<?, ?> map,
@@ -132,7 +134,7 @@ public final class IsValidState extends TypeSafeDiagnosingMatcher<ConcurrentLink
   }
 
   @Factory
-  public static IsValidState valid() {
-    return new IsValidState();
+  public static IsValidConcurrentLinkedHashMap valid() {
+    return new IsValidConcurrentLinkedHashMap();
   }
 }

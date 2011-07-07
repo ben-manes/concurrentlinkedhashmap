@@ -16,6 +16,8 @@
 package com.googlecode.concurrentlinkedhashmap;
 
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentTestHarness.timeTasks;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.concurrent.TimeUnit.SECONDS;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
@@ -24,13 +26,13 @@ import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 import org.apache.commons.lang.time.DurationFormatUtils;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
+import org.testng.annotations.Parameters;
 import org.testng.annotations.Test;
 
 import java.text.NumberFormat;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.TimeUnit;
 
 /**
  * A unit-test to assert that the cache does not have a memory leak by not being
@@ -40,16 +42,17 @@ import java.util.concurrent.TimeUnit;
  */
 @Test(groups = "memoryLeak")
 public final class MemoryLeakTest {
-  private static final long DAY = 86400000;
-  private static final long SECONDS = 1000;
-
-  private static final long TIME_OUT = 1 * DAY;
-  private static final long STATUS_INTERVAL = 5 * SECONDS;
-
-  private static final int THREADS = 250;
+  private final long statusInterval;
+  private final int threads;
 
   private ConcurrentLinkedHashMap<Long, Long> map;
   private ScheduledExecutorService statusExecutor;
+
+  @Parameters({"threads", "statusInterval"})
+  public MemoryLeakTest(int threads, long statusInterval) {
+    this.statusInterval = SECONDS.toMillis(statusInterval);
+    this.threads = threads;
+  }
 
   @BeforeMethod
   public void beforeMemoryLeakTest() {
@@ -59,9 +62,9 @@ public final class MemoryLeakTest {
         .build();
     statusExecutor = Executors.newSingleThreadScheduledExecutor(threadFactory);
     statusExecutor.scheduleAtFixedRate(newStatusTask(),
-        STATUS_INTERVAL, STATUS_INTERVAL, TimeUnit.MILLISECONDS);
+      statusInterval, statusInterval, MILLISECONDS);
     map = new Builder<Long, Long>()
-        .maximumWeightedCapacity(THREADS)
+        .maximumWeightedCapacity(threads)
         .build();
   }
 
@@ -70,9 +73,9 @@ public final class MemoryLeakTest {
     statusExecutor.shutdownNow();
   }
 
-  @Test(timeOut = TIME_OUT)
+  @Test
   public void memoryLeak() throws InterruptedException {
-    timeTasks(THREADS, new Runnable() {
+    timeTasks(threads, new Runnable() {
       @Override public void run() {
         Long id = Thread.currentThread().getId();
         map.put(id, id);
@@ -86,14 +89,14 @@ public final class MemoryLeakTest {
 
   private Runnable newStatusTask() {
     return new Runnable() {
-      int runningTime;
+      long runningTime;
 
       @Override public void run() {
         long pending = 0;
         for (int i = 0; i < map.buffers.length; i++) {
           pending += map.bufferLengths.get(i);
         }
-        runningTime += STATUS_INTERVAL;
+        runningTime += statusInterval;
         String elapsedTime = DurationFormatUtils.formatDuration(runningTime, "H:mm:ss");
         String pendingReads = NumberFormat.getInstance().format(pending);
         System.out.printf("---------- %s ----------\n", elapsedTime);
