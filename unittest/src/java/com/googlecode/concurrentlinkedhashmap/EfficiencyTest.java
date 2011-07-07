@@ -29,7 +29,6 @@ import com.googlecode.concurrentlinkedhashmap.caches.CacheBuilder;
 import com.googlecode.concurrentlinkedhashmap.generator.Generator;
 import com.googlecode.concurrentlinkedhashmap.generator.ScrambledZipfianGenerator;
 
-import org.testng.annotations.Parameters;
 import org.testng.annotations.Test;
 
 import java.text.NumberFormat;
@@ -45,17 +44,6 @@ import java.util.Set;
  * @author ben.manes@gmail.com (Ben Manes)
  */
 public final class EfficiencyTest extends AbstractTest {
-  private final int capacity;
-
-  @Parameters("efficiency.maximumCapacity")
-  public EfficiencyTest(int capacity) {
-    this.capacity = capacity;
-  }
-
-  @Override
-  protected int capacity() {
-    return capacity;
-  }
 
   @Test(groups = "development", dataProvider = "builder")
   public void efficiency_lru(Builder<String, String> builder) {

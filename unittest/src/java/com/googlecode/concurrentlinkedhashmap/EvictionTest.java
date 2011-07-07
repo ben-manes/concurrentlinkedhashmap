@@ -78,11 +78,6 @@ import java.util.concurrent.locks.ReentrantLock;
 @Test(groups = "development")
 public final class EvictionTest extends AbstractTest {
 
-  @Override
-  protected int capacity() {
-    return 100;
-  }
-
   /* ---------------- Capacity -------------- */
 
   @Test(dataProvider = "warmedMap")

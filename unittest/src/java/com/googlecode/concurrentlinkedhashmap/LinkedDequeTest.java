@@ -44,11 +44,6 @@ import java.util.NoSuchElementException;
 @Test(groups = "development")
 public final class LinkedDequeTest extends AbstractTest {
 
-  @Override
-  protected int capacity() {
-    return 100;
-  }
-
   @Test(dataProvider = "emptyDeque")
   public void clear_whenEmpty(Deque<?> deque) {
     deque.clear();

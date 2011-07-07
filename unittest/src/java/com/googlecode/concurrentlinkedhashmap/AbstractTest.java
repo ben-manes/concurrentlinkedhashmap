@@ -36,7 +36,6 @@ import org.testng.annotations.DataProvider;
 import org.testng.annotations.Parameters;
 
 import java.io.Serializable;
-import java.util.Deque;
 import java.util.Map;
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -47,6 +46,7 @@ import java.util.concurrent.ScheduledExecutorService;
  */
 public abstract class AbstractTest {
   private boolean debug;
+  private int capacity;
 
   @Mock protected EvictionListener<Integer, Integer> listener;
   @Captor protected ArgumentCaptor<Runnable> catchUpTask;
@@ -54,7 +54,9 @@ public abstract class AbstractTest {
   @Mock protected Weigher<Integer> weigher;
 
   /** Retrieves the maximum weighted capacity to build maps with. */
-  protected abstract int capacity();
+  protected final int capacity() {
+    return capacity;
+  }
 
   /* ---------------- Logging methods -------------- */
 
@@ -74,11 +76,12 @@ public abstract class AbstractTest {
 
   /* ---------------- Testing aspects -------------- */
 
-  @Parameters("test.debugMode")
   @BeforeClass(alwaysRun = true)
-  void initClass(boolean debug) {
-    this.debug = debug;
+  @Parameters({"capacity", "debug"})
+  void initClass(int capacity, boolean debug) {
     info("\nRunning %s...\n", getClass().getSimpleName());
+    this.capacity = capacity;
+    this.debug = debug;
   }
 
   @BeforeMethod(alwaysRun = true)
@@ -110,8 +113,8 @@ public abstract class AbstractTest {
     if (param instanceof ConcurrentLinkedHashMap<?, ?>) {
       assertThat((ConcurrentLinkedHashMap<?, ?>) param, is(valid()));
     }
-    if (param instanceof Deque<?>) {
-      assertThat((Deque<? extends Linked<?>>) param, is(validDeque()));
+    if (param instanceof LinkedDeque<?>) {
+      assertThat((LinkedDeque<?>) param, is(validDeque()));
     }
   }
 

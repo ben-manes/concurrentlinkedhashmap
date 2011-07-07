@@ -55,11 +55,6 @@ import java.util.Set;
 public final class WeigherTest extends AbstractTest {
   @Mock Iterable<Integer> iterable;
 
-  @Override
-  protected int capacity() {
-    return 100;
-  }
-
   @Test(expectedExceptions = AssertionError.class)
   public void constructor() throws Throwable {
     try {

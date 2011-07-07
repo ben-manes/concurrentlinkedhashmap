@@ -1,0 +1,39 @@
+name: ConcurrentLinkedHashMap
+parameters:
+  debug: false
+
+# Global time out, e.g. for load tests
+timeOut: 86400000 # 1 day in millis
+
+tests:
+  - name: Standard
+    parameters:
+      capacity: 100
+    packages:
+      - name: com.googlecode.concurrentlinkedhashmap
+        exclude:
+          - EfficiencyTest
+          - MemoryLeakTest
+          - MultiThreadedTest
+
+  - name: Efficiency
+    parameters:
+      capacity: 5000
+    classes:
+      - com.googlecode.concurrentlinkedhashmap.EfficiencyTest
+
+  - name: Load
+    parameters:
+      threads: 250
+      statusInterval: 5 # in seconds
+    classes:
+      - com.googlecode.concurrentlinkedhashmap.MemoryLeakTest
+
+  - name: Stress
+    parameters:
+      iterations: 40000
+      capacity: 50000
+      threads: 20
+      timeOut: 30 # in seconds
+    classes:
+      - com.googlecode.concurrentlinkedhashmap.MultiThreadedTest
