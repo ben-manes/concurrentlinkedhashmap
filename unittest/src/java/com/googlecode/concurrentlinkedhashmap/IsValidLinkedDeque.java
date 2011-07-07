@@ -26,12 +26,13 @@ import java.util.Iterator;
 import java.util.Set;
 
 /**
- * A matcher that evaluates a {@link Deque} to determine if it is in a valid
- * state.
+ * A matcher that evaluates a {@link LinkedDeque} to determine if it is in a
+ * valid state.
  *
  * @author ben.manes@gmail.com (Ben Manes)
  */
-public final class IsValidDeque extends TypeSafeDiagnosingMatcher<Deque<? extends Linked<?>>> {
+public final class IsValidLinkedDeque
+    extends TypeSafeDiagnosingMatcher<LinkedDeque<?>> {
 
   @Override
   public void describeTo(Description description) {
@@ -39,7 +40,7 @@ public final class IsValidDeque extends TypeSafeDiagnosingMatcher<Deque<? extend
   }
 
   @Override
-  protected boolean matchesSafely(Deque<? extends Linked<?>> deque, Description description) {
+  protected boolean matchesSafely(LinkedDeque<?> deque, Description description) {
     DescriptionBuilder builder = new DescriptionBuilder(description);
 
     if (deque.isEmpty()) {
@@ -69,7 +70,8 @@ public final class IsValidDeque extends TypeSafeDiagnosingMatcher<Deque<? extend
     builder.expectEqual(deque.size(), seen.size());
   }
 
-  void checkElement(Deque<? extends Linked<?>> deque, Linked<?> element, DescriptionBuilder builder) {
+  void checkElement(Deque<? extends Linked<?>> deque, Linked<?> element,
+      DescriptionBuilder builder) {
     Linked<?> first = deque.peekFirst();
     Linked<?> last = deque.peekLast();
     if (element == first) {
@@ -85,7 +87,7 @@ public final class IsValidDeque extends TypeSafeDiagnosingMatcher<Deque<? extend
   }
 
   @Factory
-  public static IsValidDeque validDeque() {
-    return new IsValidDeque();
+  public static IsValidLinkedDeque validLinkedDeque() {
+    return new IsValidLinkedDeque();
   }
 }

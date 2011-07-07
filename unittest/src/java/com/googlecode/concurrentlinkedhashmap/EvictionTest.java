@@ -28,7 +28,7 @@ import static com.googlecode.concurrentlinkedhashmap.EvictionTest.Status.DEAD;
 import static com.googlecode.concurrentlinkedhashmap.EvictionTest.Status.RETIRED;
 import static com.googlecode.concurrentlinkedhashmap.IsEmptyCollection.emptyCollection;
 import static com.googlecode.concurrentlinkedhashmap.IsEmptyMap.emptyMap;
-import static com.googlecode.concurrentlinkedhashmap.IsValidState.valid;
+import static com.googlecode.concurrentlinkedhashmap.IsValidConcurrentLinkedHashMap.valid;
 import static java.util.Arrays.asList;
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.SECONDS;

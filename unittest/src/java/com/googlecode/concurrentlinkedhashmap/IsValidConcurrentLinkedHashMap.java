@@ -36,7 +36,8 @@ import java.util.concurrent.locks.ReentrantLock;
  * @author ben.manes@gmail.com (Ben Manes)
  */
 @SuppressWarnings("unchecked")
-public final class IsValidState extends TypeSafeDiagnosingMatcher<ConcurrentLinkedHashMap<?, ?>> {
+public final class IsValidConcurrentLinkedHashMap
+    extends TypeSafeDiagnosingMatcher<ConcurrentLinkedHashMap<?, ?>> {
 
   @Override
   public void describeTo(Description description) {
@@ -89,7 +90,7 @@ public final class IsValidState extends TypeSafeDiagnosingMatcher<ConcurrentLink
 
     checkLinks(map, builder);
     builder.expectEqual(deque.size(), map.size());
-    IsValidDeque.validDeque().matchesSafely(map.evictionDeque, builder.getDescription());
+    IsValidLinkedDeque.validLinkedDeque().matchesSafely(map.evictionDeque, builder.getDescription());
   }
 
   @SuppressWarnings("rawtypes")
@@ -124,7 +125,7 @@ public final class IsValidState extends TypeSafeDiagnosingMatcher<ConcurrentLink
   }
 
   @Factory
-  public static IsValidState valid() {
-    return new IsValidState();
+  public static IsValidConcurrentLinkedHashMap valid() {
+    return new IsValidConcurrentLinkedHashMap();
   }
 }
