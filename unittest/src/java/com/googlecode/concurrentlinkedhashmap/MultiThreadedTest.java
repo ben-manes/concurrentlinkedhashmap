@@ -31,7 +31,7 @@ import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Node;
 
 import org.apache.commons.lang.SerializationUtils;
-import org.testng.annotations.BeforeMethod;
+import org.testng.annotations.Parameters;
 import org.testng.annotations.Test;
 
 import java.util.Arrays;
@@ -59,28 +59,30 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 @Test(groups = "development")
 public final class MultiThreadedTest extends AbstractTest {
-  private Queue<String> failures;
-  private List<Integer> keys;
-  private int iterations;
-  private int nThreads;
-  private int timeout;
+  private final Queue<String> failures;
+  private final int iterations;
+  private final int nThreads;
+  private final int capacity;
+  private final int timeout;
+
+  @Parameters({"multiThreaded.maximumCapacity", "multiThreaded.iterations",
+      "multiThreaded.nThreads", "multiThreaded.timeout"})
+  public MultiThreadedTest(int capacity, int iterations, int nThreads, int timeout) {
+    failures = new ConcurrentLinkedQueue<String>();
+    this.iterations = iterations;
+    this.capacity = capacity;
+    this.nThreads = nThreads;
+    this.timeout = timeout;
+  }
 
   @Override
   protected int capacity() {
-    return intProperty("multiThreaded.maximumCapacity");
-  }
-
-  @BeforeMethod(alwaysRun = true)
-  public void beforeMultiThreaded() {
-    iterations = intProperty("multiThreaded.iterations");
-    nThreads = intProperty("multiThreaded.nThreads");
-    timeout = intProperty("multiThreaded.timeout");
-    failures = new ConcurrentLinkedQueue<String>();
+    return capacity;
   }
 
   @Test(dataProvider = "builder")
   public void concurrency(Builder<Integer, Integer> builder) {
-    keys = newArrayList();
+    List<Integer> keys = newArrayList();
     Random random = new Random();
     for (int i = 0; i < iterations; i++) {
       keys.add(random.nextInt(iterations / 100));
