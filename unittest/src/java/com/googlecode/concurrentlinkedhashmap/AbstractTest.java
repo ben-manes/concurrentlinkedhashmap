@@ -33,6 +33,7 @@ import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.DataProvider;
+import org.testng.annotations.Parameters;
 
 import java.io.Serializable;
 import java.util.Deque;
@@ -55,28 +56,14 @@ public abstract class AbstractTest {
   /** Retrieves the maximum weighted capacity to build maps with. */
   protected abstract int capacity();
 
-  /* ---------------- Properties methods ----------- */
-
-  protected static int intProperty(String property) {
-    return Integer.getInteger(property);
-  }
-
-  protected static boolean booleanProperty(String property) {
-    return Boolean.getBoolean(property);
-  }
-
-  protected static <E extends Enum<E>> E enumProperty(String property, Class<E> clazz) {
-    return Enum.valueOf(clazz, System.getProperty(property));
-  }
-
   /* ---------------- Logging methods -------------- */
 
-  protected void info(String message) {
-    System.out.println(message);
-  }
-
   protected void info(String message, Object... args) {
-    System.out.printf(message + "\n", args);
+    if (args.length == 0) {
+      System.out.println(message);
+    } else {
+      System.out.printf(message + "\n", args);
+    }
   }
 
   protected void debug(String message, Object... args) {
@@ -85,27 +72,22 @@ public abstract class AbstractTest {
     }
   }
 
-  protected void debug(String message) {
-    if (debug) {
-      info(message);
-    }
-  }
-
   /* ---------------- Testing aspects -------------- */
 
+  @Parameters("test.debugMode")
   @BeforeClass(alwaysRun = true)
-  public void initClass() {
-    debug = booleanProperty("test.debugMode");
+  void initClass(boolean debug) {
+    this.debug = debug;
     info("\nRunning %s...\n", getClass().getSimpleName());
   }
 
   @BeforeMethod(alwaysRun = true)
-  public void initMocks() {
+  void initMocks() {
     MockitoAnnotations.initMocks(this);
   }
 
   @AfterMethod(alwaysRun = true)
-  public void validateIfSuccessful(ITestResult result) {
+  void validateIfSuccessful(ITestResult result) {
     try {
       if (result.isSuccess()) {
         for (Object provided : result.getParameters()) {
