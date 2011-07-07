@@ -805,7 +805,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       return false;
     }
 
-    final WeightedValue<V> weightedValue = node.get();
+    WeightedValue<V> weightedValue = node.get();
     for (;;) {
       if (weightedValue.hasValue(value)) {
         if (node.tryToRetire(weightedValue)) {
@@ -813,10 +813,13 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
             afterCompletion(new RemovalTask(node));
             return true;
           }
-        } else if (node.get().isAlive()) {
-          // retry as an intermediate update may have replaced the value with
-          // an equal instance that has a different reference identity
-          continue;
+        } else {
+          weightedValue = node.get();
+          if (weightedValue.isAlive()) {
+            // retry as an intermediate update may have replaced the value with
+            // an equal instance that has a different reference identity
+            continue;
+          }
         }
       }
       return false;
