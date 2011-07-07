@@ -92,6 +92,7 @@ public final class IsValidState extends TypeSafeDiagnosingMatcher<ConcurrentLink
     IsValidDeque.validDeque().matchesSafely(map.evictionDeque, builder.getDescription());
   }
 
+  @SuppressWarnings("rawtypes")
   private void checkLinks(ConcurrentLinkedHashMap<?, ?> map, DescriptionBuilder builder) {
     int weightedSize = 0;
     Set<Node> seen = Sets.newIdentityHashSet();
@@ -107,6 +108,7 @@ public final class IsValidState extends TypeSafeDiagnosingMatcher<ConcurrentLink
         + " {size: " + map.size() + " vs. " + seen.size() + "}");
   }
 
+  @SuppressWarnings("rawtypes")
   private void checkNode(ConcurrentLinkedHashMap<?, ?> map, Node node,
       DescriptionBuilder builder) {
     builder.expectNotEqual(node.key, null, "null key");

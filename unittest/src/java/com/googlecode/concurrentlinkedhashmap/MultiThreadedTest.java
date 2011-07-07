@@ -374,7 +374,7 @@ public final class MultiThreadedTest extends AbstractTest {
     return dequeToString(map, false);
   }
 
-  @SuppressWarnings("unchecked")
+  @SuppressWarnings("rawtypes")
   private static String dequeToString(ConcurrentLinkedHashMap<?, ?> map, boolean ascending) {
     map.evictionLock.lock();
     try {
@@ -398,13 +398,13 @@ public final class MultiThreadedTest extends AbstractTest {
     }
   }
 
-  @SuppressWarnings("unchecked")
+  @SuppressWarnings("rawtypes")
   static String nodeToString(Node node) {
     return (node == null) ? "null" : String.format("%s=%s", node.key, node.getValue());
   }
 
   /** Finds the node in the map by walking the list. Returns null if not found. */
-  @SuppressWarnings("unchecked")
+  @SuppressWarnings("rawtypes")
   static ConcurrentLinkedHashMap<?, ?>.Node findNode(
       Object key, ConcurrentLinkedHashMap<?, ?> map) {
     map.evictionLock.lock();
