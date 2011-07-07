@@ -114,7 +114,6 @@ public abstract class AbstractTest {
   }
 
   /** Validates the state of the injected parameter. */
-  @SuppressWarnings("unchecked")
   private static void validate(Object param) {
     if (param instanceof ConcurrentLinkedHashMap<?, ?>) {
       assertThat((ConcurrentLinkedHashMap<?, ?>) param, is(valid()));

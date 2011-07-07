@@ -2,7 +2,7 @@ name: ConcurrentLinkedHashMap
 parameters:
   debug: false
 
-# Global time out, e.g. for load tests
+# Global time out for load tests
 timeOut: 86400000 # 1 day in millis
 
 tests:
