@@ -117,8 +117,7 @@ public abstract class AbstractTest {
   private static void validate(Object param) {
     if (param instanceof ConcurrentLinkedHashMap<?, ?>) {
       assertThat((ConcurrentLinkedHashMap<?, ?>) param, is(valid()));
-    }
-    if (param instanceof LinkedDeque<?>) {
+    } else if (param instanceof LinkedDeque<?>) {
       assertThat((LinkedDeque<?>) param, is(validLinkedDeque()));
     }
   }
@@ -247,7 +246,7 @@ public abstract class AbstractTest {
    * Populates the map with the half-closed interval [start, end) where the
    * value is the negation of the key.
    */
-  protected void warmUp(Map<Integer, Integer> map, int start, int end) {
+  protected static void warmUp(Map<Integer, Integer> map, int start, int end) {
     for (Integer i = start; i < end; i++) {
       assertThat(map.put(i, -i), is(nullValue()));
     }

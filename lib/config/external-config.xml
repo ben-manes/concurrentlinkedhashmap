@@ -49,29 +49,6 @@
    classpathref="cobertura.compile.path"
   />
 
-  <!-- Colt -->
-  <path id="colt.compile.path">
-    <fileset dir="${external.dir}/colt/1.2.0">
-      <include name="colt.jar"/>
-    </fileset>
-  </path>
-  <path id="colt.deploy.path">
-    <path refid="colt.compile.path"/>
-    <fileset dir="${external.dir}/colt/1.2.0">
-      <include name="concurrent.jar"/>
-    </fileset>
-  </path>
-
-  <!-- Commons Collections -->
-  <path id="commons.collections.compile.path">
-    <fileset dir="${external.dir}/commons-collections/3.2.1">
-      <include name="commons-collections-3.2.1.jar"/>
-    </fileset>
-  </path>
-  <path id="commons.collections.deploy.path">
-    <path refid="commons.collections.compile.path"/>
-  </path>
-
   <!-- Commons Lang -->
   <path id="commons.lang.compile.path">
     <fileset dir="${external.dir}/commons-lang/2.5">
@@ -80,16 +57,6 @@
   </path>
   <path id="commons.lang.deploy.path">
     <path refid="commons.lang.compile.path"/>
-  </path>
-
-  <!-- Commons Math -->
-  <path id="commons.math.compile.path">
-    <fileset dir="${external.dir}/commons-math/2.1">
-      <include name="commons-math-2.1.jar"/>
-    </fileset>
-  </path>
-  <path id="commons.math.deploy.path">
-    <path refid="commons.math.compile.path"/>
   </path>
 
   <!-- Ehcache -->
@@ -153,56 +120,6 @@
   </path>
   <path id="high-scale-lib.deploy.path">
     <path refid="high-scale-lib.compile.path"/>
-  </path>
-
-  <!-- JBoss Cache 2.1.0 -->
-  <path id="jboss.cache-2.1.0.compile.path">
-    <fileset dir="${external.dir}/jboss-cache/2.1.0">
-      <include name="jbosscache-core.jar"/>
-    </fileset>
-  </path>
-  <path id="jboss.cache-2.1.0.deploy.path">
-    <path refid="jboss.cache-2.1.0.compile.path"/>
-    <fileset dir="${external.dir}/jboss-cache/2.1.0">
-      <include name="jboss-common-core.jar"/>
-      <include name="jboss-javaee.jar"/>
-      <include name="jcip-annotations.jar"/>
-      <include name="jgroups.jar"/>
-    </fileset>
-  </path>
-
-  <!-- JBoss Cache 2.2.0 -->
-  <path id="jboss.cache-2.2.0.compile.path">
-    <fileset dir="${external.dir}/jboss-cache/2.2.0">
-      <include name="jbosscache-core.jar"/>
-    </fileset>
-  </path>
-  <path id="jboss.cache-2.2.0.deploy.path">
-    <path refid="jboss.cache-2.2.0.compile.path"/>
-    <fileset dir="${external.dir}/jboss-cache/2.2.0">
-      <include name="jboss-common-core.jar"/>
-      <include name="jboss-javaee-5.0.0.Beta3.jar"/>
-      <include name="jcip-annotations-1.0.jar"/>
-      <include name="jgroups-2.6.2.jar"/>
-    </fileset>
-  </path>
-
-  <!-- JBoss Cache 3.0.3 -->
-  <path id="jboss.cache-3.0.3.compile.path">
-    <fileset dir="${external.dir}/jboss-cache/3.0.3">
-      <include name="jbosscache-core.jar"/>
-    </fileset>
-  </path>
-  <path id="jboss.cache-3.0.3.deploy.path">
-    <path refid="jboss.cache-3.0.3.compile.path"/>
-    <fileset dir="${external.dir}/jboss-cache/3.0.3">
-      <include name="commons-codec.jar"/>
-      <include name="jboss-common-core.jar"/>
-      <include name="jboss-logging-spi.jar"/>
-      <include name="jcip-annotations.jar"/>
-      <include name="jgroups.jar"/>
-      <include name="jta.jar"/>
-    </fileset>
   </path>
 
   <!-- Mockito -->

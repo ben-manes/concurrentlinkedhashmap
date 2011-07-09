@@ -16,10 +16,7 @@
   <path id="deploy.path">
     <path refid="cache.benchmark.deploy.path"/>
     <path refid="caliper.deploy.path"/>
-    <path refid="colt.deploy.path"/>
-    <path refid="commons.collections.deploy.path"/>
     <path refid="commons.lang.deploy.path"/>
-    <path refid="commons.math.deploy.path"/>
     <path refid="ehcache.deploy.path"/>
     <path refid="guava.deploy.path" />
     <path refid="hamcrest.deploy.path" />

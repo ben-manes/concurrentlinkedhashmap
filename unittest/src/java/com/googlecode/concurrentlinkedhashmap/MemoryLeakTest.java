@@ -16,14 +16,13 @@
 package com.googlecode.concurrentlinkedhashmap;
 
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentTestHarness.timeTasks;
-import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.apache.commons.lang.time.DurationFormatUtils.formatDuration;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 
-import org.apache.commons.lang.time.DurationFormatUtils;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Parameters;
@@ -50,7 +49,7 @@ public final class MemoryLeakTest {
 
   @Parameters({"threads", "statusInterval"})
   public MemoryLeakTest(int threads, long statusInterval) {
-    this.statusInterval = SECONDS.toMillis(statusInterval);
+    this.statusInterval = statusInterval;
     this.threads = threads;
   }
 
@@ -62,7 +61,7 @@ public final class MemoryLeakTest {
         .build();
     statusExecutor = Executors.newSingleThreadScheduledExecutor(threadFactory);
     statusExecutor.scheduleAtFixedRate(newStatusTask(),
-      statusInterval, statusInterval, MILLISECONDS);
+        statusInterval, statusInterval, SECONDS);
     map = new Builder<Long, Long>()
         .maximumWeightedCapacity(threads)
         .build();
@@ -96,8 +95,8 @@ public final class MemoryLeakTest {
         for (int i = 0; i < map.buffers.length; i++) {
           pending += map.bufferLengths.get(i);
         }
-        runningTime += statusInterval;
-        String elapsedTime = DurationFormatUtils.formatDuration(runningTime, "H:mm:ss");
+        runningTime += SECONDS.toMillis(statusInterval);
+        String elapsedTime = formatDuration(runningTime, "H:mm:ss");
         String pendingReads = NumberFormat.getInstance().format(pending);
         System.out.printf("---------- %s ----------\n", elapsedTime);
         System.out.printf("Pending tasks = %s\n", pendingReads);
