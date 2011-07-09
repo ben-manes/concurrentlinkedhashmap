@@ -14,6 +14,7 @@
   <import file="${external.import}"/>
 
   <path id="deploy.path">
+    <path refid="awaitility.deploy.path"/>
     <path refid="cache.benchmark.deploy.path"/>
     <path refid="caliper.deploy.path"/>
     <path refid="commons.lang.deploy.path"/>

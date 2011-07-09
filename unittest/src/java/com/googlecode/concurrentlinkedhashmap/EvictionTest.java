@@ -29,9 +29,10 @@ import static com.googlecode.concurrentlinkedhashmap.EvictionTest.Status.RETIRED
 import static com.googlecode.concurrentlinkedhashmap.IsEmptyCollection.emptyCollection;
 import static com.googlecode.concurrentlinkedhashmap.IsEmptyMap.emptyMap;
 import static com.googlecode.concurrentlinkedhashmap.IsValidConcurrentLinkedHashMap.valid;
+import static com.jayway.awaitility.Awaitility.await;
+import static com.jayway.awaitility.Awaitility.to;
 import static java.util.Arrays.asList;
 import static java.util.concurrent.TimeUnit.MINUTES;
-import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -64,10 +65,9 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CancellationException;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
@@ -202,14 +202,12 @@ public final class EvictionTest extends AbstractTest {
   }
 
   @Test
-  public void evict_alreadyRemoved() throws InterruptedException {
+  public void evict_alreadyRemoved() throws Exception {
     final ConcurrentLinkedHashMap<Integer, Integer> map = new Builder<Integer, Integer>()
-        .maximumWeightedCapacity(10)
+        .maximumWeightedCapacity(capacity())
         .listener(listener)
         .build();
-    warmUp(map, 0, 10);
-
-    final CountDownLatch latch = new CountDownLatch(1);
+    warmUp(map, 0, capacity());
     map.evictionLock.lock();
     try {
       ConcurrentLinkedHashMap<?, ?>.Node node = map.data.get(0);
@@ -217,14 +215,11 @@ public final class EvictionTest extends AbstractTest {
       new Thread() {
         @Override public void run() {
           map.remove(0);
-          latch.countDown();
         }
       }.start();
-      assertThat(latch.await(1, SECONDS), is(true));
+      await().untilCall(to((Map<?, ?>) map).containsKey(0), is(false));
       checkStatus(node, RETIRED);
-
-      map.capacity = 9;
-      map.evict();
+      map.drainBuffers(AMORTIZED_DRAIN_THRESHOLD);
 
       checkStatus(node, DEAD);
       verify(listener, never()).onEviction(anyInt(), anyInt());
@@ -364,15 +359,16 @@ public final class EvictionTest extends AbstractTest {
 
   @Test(dataProvider = "guardedMap")
   public void applyInRecencyOrder(final ConcurrentLinkedHashMap<Integer, Integer> map) {
-    final AtomicInteger expected = new AtomicInteger(map.nextOrder);
+    final int[] expected = { map.nextOrder };
+    int maxTasks = 2 * BUFFER_THRESHOLD;
 
-    for (int i = 0; i < 2 * BUFFER_THRESHOLD; i++) {
+    for (int i = 0; i < maxTasks; i++) {
       final int id = map.nextOrdering();
       Task task = mock(Task.class);
       when(task.getOrder()).thenReturn(id);
       doAnswer(new Answer<Void>() {
         @Override public Void answer(InvocationOnMock invocation) {
-          assertThat(id, is(expected.getAndIncrement()));
+          assertThat(id, is(expected[0]++));
           return null;
         }
       }).when(task).run();
@@ -382,9 +378,8 @@ public final class EvictionTest extends AbstractTest {
       map.bufferLengths.getAndIncrement(index);
     }
 
-    map.drainBuffers(AMORTIZED_DRAIN_THRESHOLD);
+    map.drainBuffers(maxTasks);
     assertThat(map.buffers[bufferIndex()].size(), is(0));
-    map.bufferLengths.set(bufferIndex(), 0);
   }
 
   @Test(dataProvider = "guardedMap")
@@ -425,19 +420,23 @@ public final class EvictionTest extends AbstractTest {
 
   @Test(dataProvider = "guardedMap")
   public void drain_nonblocking(final ConcurrentLinkedHashMap<Integer, Integer> map)
-      throws InterruptedException {
-    final CountDownLatch latch = new CountDownLatch(1);
+      throws Exception {
+    final AtomicBoolean done = new AtomicBoolean();
     Thread thread = new Thread() {
       @Override public void run() {
         map.drainStatus.set(REQUIRED);
         map.tryToDrainBuffers(AMORTIZED_DRAIN_THRESHOLD);
-        latch.countDown();
+        done.set(true);
       }
     };
     map.evictionLock.lock();
     try {
       thread.start();
-      assertThat(latch.await(1, TimeUnit.SECONDS), is(true));
+      await().until(new Callable<Boolean>() {
+        @Override public Boolean call() {
+          return done.get();
+        }
+      });
     } finally {
       map.evictionLock.unlock();
     }
@@ -445,7 +444,7 @@ public final class EvictionTest extends AbstractTest {
 
   @Test(dataProvider = "guardedMap")
   public void drain_blocksClear(final ConcurrentLinkedHashMap<Integer, Integer> map)
-      throws InterruptedException {
+      throws Exception {
     checkDrainBlocks(map, new Runnable() {
       @Override public void run() {
         map.clear();
@@ -455,7 +454,7 @@ public final class EvictionTest extends AbstractTest {
 
   @Test(dataProvider = "guardedMap")
   public void drain_blocksAscendingKeySet(final ConcurrentLinkedHashMap<Integer, Integer> map)
-      throws InterruptedException {
+      throws Exception {
     checkDrainBlocks(map, new Runnable() {
       @Override public void run() {
         map.ascendingKeySet();
@@ -470,7 +469,7 @@ public final class EvictionTest extends AbstractTest {
 
   @Test(dataProvider = "guardedMap")
   public void drain_blocksDescendingKeySet(final ConcurrentLinkedHashMap<Integer, Integer> map)
-      throws InterruptedException {
+      throws Exception {
     checkDrainBlocks(map, new Runnable() {
       @Override public void run() {
         map.descendingKeySet();
@@ -485,7 +484,7 @@ public final class EvictionTest extends AbstractTest {
 
   @Test(dataProvider = "guardedMap")
   public void drain_blocksAscendingMap(final ConcurrentLinkedHashMap<Integer, Integer> map)
-      throws InterruptedException {
+      throws Exception {
     checkDrainBlocks(map, new Runnable() {
       @Override public void run() {
         map.ascendingMap();
@@ -500,7 +499,7 @@ public final class EvictionTest extends AbstractTest {
 
   @Test(dataProvider = "guardedMap")
   public void drain_blocksDescendingMap(final ConcurrentLinkedHashMap<Integer, Integer> map)
-      throws InterruptedException {
+      throws Exception {
     checkDrainBlocks(map, new Runnable() {
       @Override public void run() {
         map.descendingMap();
@@ -515,7 +514,7 @@ public final class EvictionTest extends AbstractTest {
 
   @Test(dataProvider = "guardedMap")
   public void drain_blocksCapacity(final ConcurrentLinkedHashMap<Integer, Integer> map)
-      throws InterruptedException {
+      throws Exception {
     checkDrainBlocks(map, new Runnable() {
       @Override public void run() {
         map.setCapacity(0);
@@ -524,30 +523,32 @@ public final class EvictionTest extends AbstractTest {
   }
 
   void checkDrainBlocks(final ConcurrentLinkedHashMap<Integer, Integer> map, final Runnable task)
-      throws InterruptedException {
+      throws Exception {
     final ReentrantLock lock = (ReentrantLock) map.evictionLock;
-    final CountDownLatch begin = new CountDownLatch(1);
-    final CountDownLatch end = new CountDownLatch(1);
-
-    Thread thread = new Thread() {
+    final AtomicBoolean done = new AtomicBoolean();
+    final Thread thread = new Thread() {
       @Override public void run() {
         map.drainStatus.set(REQUIRED);
-        begin.countDown();
         task.run();
-        end.countDown();
+        done.set(true);
       }
     };
     lock.lock();
     try {
       thread.start();
-      begin.await();
-      long endTime = System.nanoTime() + TimeUnit.SECONDS.toNanos(1);
-      while (!lock.hasQueuedThread(thread) && (endTime > System.nanoTime())) { /* busy wait */ }
-      assertThat(lock.hasQueuedThread(thread), is(true));
+      await().until(new Callable<Boolean>() {
+        @Override public Boolean call() {
+          return lock.hasQueuedThread(thread);
+        }
+      });
     } finally {
       lock.unlock();
     }
-    assertThat(end.await(1, TimeUnit.SECONDS), is(true));
+    await().until(new Callable<Boolean>() {
+      @Override public Boolean call() {
+        return done.get();
+      }
+    });
   }
 
   @Test(dataProvider = "builder")
