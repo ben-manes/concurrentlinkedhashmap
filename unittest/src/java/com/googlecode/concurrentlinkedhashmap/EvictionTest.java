@@ -218,7 +218,7 @@ public final class EvictionTest extends AbstractTest {
           assertThat(map.remove(0), is(0));
         }
       }.start();
-      await().untilCall(to(map).containsKey(0), is(false));
+      await().untilCall(to((Map<?, ?>) map).containsKey(0), is(false));
       checkStatus(node, RETIRED);
       map.drainBuffers(AMORTIZED_DRAIN_THRESHOLD);
 
