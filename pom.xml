@@ -82,12 +82,12 @@
     </dependency>
   </dependencies>
   <build>
-    <directory>${build.dir}</directory>
-    <sourceDirectory>${api.src.dir}</sourceDirectory>
-    <outputDirectory>${api.build.dir}</outputDirectory>
-    <testSourceDirectory>${test.src.dir}</testSourceDirectory>
-    <testOutputDirectory>${test.build.dir}</testOutputDirectory>
-    <finalName>${project.artifactId}-${project.version}</finalName>
+    <directory>build</directory>
+    <sourceDirectory>src/java</sourceDirectory>
+    <outputDirectory>build/api</outputDirectory>
+    <testOutputDirectory>build/test</testOutputDirectory>
+    <testSourceDirectory>unittest/src/java</testSourceDirectory>
+    <finalName>${project.artifactId}-${project.version}</finalName>   
     <filters>
       <filter>build.properties</filter>
     </filters>

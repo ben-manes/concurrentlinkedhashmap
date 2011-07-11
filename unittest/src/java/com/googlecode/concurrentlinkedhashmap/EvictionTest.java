@@ -204,24 +204,26 @@ public final class EvictionTest extends AbstractTest {
   @Test
   public void evict_alreadyRemoved() throws Exception {
     final ConcurrentLinkedHashMap<Integer, Integer> map = new Builder<Integer, Integer>()
-        .maximumWeightedCapacity(capacity())
+        .maximumWeightedCapacity(1)
         .listener(listener)
         .build();
-    warmUp(map, 0, capacity());
+    map.put(0, 0);
     map.evictionLock.lock();
     try {
       ConcurrentLinkedHashMap<?, ?>.Node node = map.data.get(0);
       checkStatus(node, ALIVE);
       new Thread() {
         @Override public void run() {
-          map.remove(0);
+          map.put(1, 1);
+          assertThat(map.remove(0), is(0));
         }
       }.start();
-      await().untilCall(to((Map<?, ?>) map).containsKey(0), is(false));
+      await().untilCall(to(map).containsKey(0), is(false));
       checkStatus(node, RETIRED);
       map.drainBuffers(AMORTIZED_DRAIN_THRESHOLD);
 
       checkStatus(node, DEAD);
+      assertThat(map.containsKey(1), is(true));
       verify(listener, never()).onEviction(anyInt(), anyInt());
     } finally {
       map.evictionLock.unlock();
