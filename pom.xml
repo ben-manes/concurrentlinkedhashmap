@@ -27,6 +27,12 @@
   </parent>
   <dependencies>
     <dependency>
+      <groupId>com.googlecode.caliper</groupId>
+      <artifactId>caliper</artifactId>
+      <version>0.0</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
       <groupId>com.jayway.awaitility</groupId>
       <artifactId>awaitility</artifactId>
       <version>1.3.2</version>
@@ -63,6 +69,12 @@
       <scope>test</scope>
     </dependency>
     <dependency>
+      <groupId>org.cachebench</groupId>
+      <artifactId>cache-benchmark</artifactId>
+      <version>r7903</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
       <groupId>org.hamcrest</groupId>
       <artifactId>hamcrest-integration</artifactId>
       <version>1.3.RC2</version>
@@ -87,6 +99,15 @@
     <outputDirectory>build/api</outputDirectory>
     <testOutputDirectory>build/test</testOutputDirectory>
     <testSourceDirectory>unittest/src/java</testSourceDirectory>
+    <testResources>
+      <testResource>
+        <directory>src/java/com/googlecode/concurrentlinkedhashmap/benchmark</directory>
+        <includes>
+          <include>log4j.xml</include>
+          <include>cachebench.xml</include>
+        </includes>
+      </testResource>
+    </testResources>
     <finalName>${project.artifactId}-${project.version}</finalName>   
     <filters>
       <filter>build.properties</filter>

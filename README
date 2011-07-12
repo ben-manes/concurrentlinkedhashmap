@@ -1,0 +1,16 @@
+ConcurrentLinkedHashMap is a concurrent, bounded map for use as an in-memory cache.
+
+PRE-BUILD
+----------
+The following libraries should be installed into the local repository. 
+
+mvn install:install-file \
+  -Dfile=lib/caliper/0.0/caliper.jar \
+  -DgroupId=com.googlecode.caliper \
+  -DartifactId=caliper \
+  -Dversion=0.0 \
+  -Dpackaging=jar
+
+mvn install:install-file \
+  -Dfile=lib/cache-benchmark/r7903/benchmark-fwk.jar \
+  -DpomFile=lib/cache-benchmark/r7903/pom.xml

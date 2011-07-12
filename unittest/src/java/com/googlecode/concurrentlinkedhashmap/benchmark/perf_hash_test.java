@@ -4,12 +4,16 @@
  * Big Chunks of code shamelessly copied from Doug Lea's test harness which is also public domain.
  * Added CLHM to test scenarios and a bounded map option
  */
-package com.googlecode.concurrentlinkedhashmap;
+package com.googlecode.concurrentlinkedhashmap.benchmark;
 
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap;
 import com.googlecode.concurrentlinkedhashmap.caches.Cache;
 import com.googlecode.concurrentlinkedhashmap.caches.CacheBuilder;
 
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
+import org.testng.annotations.Optional;
+import org.testng.annotations.Parameters;
+import org.testng.annotations.Test;
 
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
@@ -22,7 +26,6 @@ public class perf_hash_test extends Thread {
   static int _thread_min, _thread_max, _thread_incr;
   static int _table_size;
   static int _map_impl;
-  static int _max_size = Integer.MAX_VALUE;
 
   static ConcurrentMap<String,String> make_map( int impl ) {
     switch( impl ) {
@@ -84,6 +87,23 @@ public class perf_hash_test extends Thread {
     return x;
   }
 
+  @Test(groups = "perfHash")
+  @Parameters({"readRatio", "threadMin", "threadMax", "threadIncrement",
+    "hashTableSize", "hashTableImpl"})
+  public static void benchmark(String readRatio, String threadMin, String threadMax,
+      String threadIncrement, String hashTableSize, @Optional("0") String hashTableImpl)
+      throws Exception {
+    String[] args = {
+      readRatio,
+      threadMin,
+      threadMax,
+      threadIncrement,
+      hashTableSize,
+      hashTableImpl
+    };
+    main(args);
+  }
+
   public static void main( String args[] ) throws Exception {
     // Parse args
     try {
@@ -93,9 +113,6 @@ public class perf_hash_test extends Thread {
       _thread_incr  = check( args[3], "thread_incr", 1, 100000 );
       _table_size   = check( args[4], "table_size", 1, 100000000 );
       _map_impl     = check( args[5], "implementation", -1, names.length );
-      if (_map_impl > 6) {
-        _max_size   = check( args[6], "max size (LHM/CLHM)", 0, Integer.MAX_VALUE);
-      }
 
       _gr = (_read_ratio<<20)/100;
       _pr = (((1<<20) - _gr)>>1) + _gr;
@@ -108,8 +125,7 @@ public class perf_hash_test extends Thread {
           + " read%[0=churn test]"
           + " thread-min thread-max thread-increment"
           + " hash_table_size"
-          + " impl[All=0,Hashtable=1,HerlihyHashSet=2,CHM_16=3,CHM_256=4,CHM_4096=5,NonBlockingHashMap=6,LHM=7,CLHM_16=8,CLHM_256=9,CLHM_4096=10]"
-          + " max_size[LHM,CLHM only]");
+          + " impl[All=0,Hashtable=1,HerlihyHashSet=2,CHM_16=3,CHM_256=4,CHM_4096=5,NonBlockingHashMap=6,LHM=7,CLHM_16=8,CLHM_256=9,CLHM_4096=10]");
       throw e;
     }
 
@@ -182,7 +198,7 @@ public class perf_hash_test extends Thread {
     for( int i=0; i<100; i++ ) {
       HM.put(KEYS[i],KEYS[i]);
       for( int j=0; j<i; j++ ) {
-        if( HM.get(KEYS[j]) != KEYS[j] && (_max_size == Integer.MAX_VALUE)) {
+        if( HM.get(KEYS[j]) != KEYS[j]) {
           throw new Error("Broken table, put "+i+" but cannot find #"+j);
         }
       }

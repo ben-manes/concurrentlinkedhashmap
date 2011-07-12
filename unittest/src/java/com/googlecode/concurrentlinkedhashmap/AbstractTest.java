@@ -86,7 +86,6 @@ public abstract class AbstractTest {
   @Parameters("capacity")
   @BeforeClass(alwaysRun = true)
   void initClass(int capacity) {
-    info("\nRunning %s...\n", getClass().getSimpleName());
     this.capacity = capacity;
   }
 

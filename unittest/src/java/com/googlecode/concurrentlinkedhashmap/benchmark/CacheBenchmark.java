@@ -13,32 +13,57 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.cachebench.cachewrappers;
+package com.googlecode.concurrentlinkedhashmap.benchmark;
 
 import com.googlecode.concurrentlinkedhashmap.caches.Cache;
 import com.googlecode.concurrentlinkedhashmap.caches.Cache.Policy;
 import com.googlecode.concurrentlinkedhashmap.caches.CacheBuilder;
 
+import org.cachebench.CacheBenchmarkRunner;
 import org.cachebench.CacheWrapper;
+import org.cachebench.reportgenerators.CsvStatisticReportGenerator;
+import org.testng.annotations.Parameters;
+import org.testng.annotations.Test;
 
+import java.io.File;
 import java.util.List;
 import java.util.Map;
 
 /**
- * A common facade to bootstrap a cache.
+ * This benchmark evaluates multi-threaded performance.
  *
  * @author ben.manes@gmail.com (Ben Manes)
  */
-public final class CommonCacheWrapper implements CacheWrapper {
+public final class CacheBenchmark implements CacheWrapper {
+  private static int initialCapacity;
+  private static int maximumCapacity;
+  private static int concurrencyLevel;
+  private static Cache cache;
+  private static String run;
+
   private Map<Object, Object> map;
-  private int initialCapacity;
-  private int maximumCapacity;
-  private int concurrencyLevel;
-  private Cache cache;
+
+  @Test(groups = "cachebench")
+  @Parameters({"cache", "initialCapacity", "maximumCapacity", "concurrencyLevel", "runId"})
+  public static void benchmark(String cache, int initialCapacity, int maximumCapacity,
+      int concurrencyLevel, String run) {
+    CacheBenchmark.run = run;
+    CacheBenchmark.cache = Cache.valueOf(cache);
+    CacheBenchmark.initialCapacity = initialCapacity;
+    CacheBenchmark.maximumCapacity = maximumCapacity;
+    CacheBenchmark.concurrencyLevel = concurrencyLevel;
+
+    System.setProperty("cacheBenchFwk.cacheWrapperClassName", CacheBenchmark.class.getName());
+    System.setProperty("cacheBenchFwk.report.chart", "putget");
+    System.setProperty("localOnly", "true");
+
+    CacheBenchmarkRunner.main(new String[] { });
+  }
 
   @Override
-  @SuppressWarnings("unchecked")
+  @SuppressWarnings("rawtypes")
   public void init(Map parameters) throws Exception {
+    // TODO(bmanes): Remove once migrated to Maven
     cache = Cache.valueOf(System.getProperty("cacheBenchFwk.cache.type"));
     initialCapacity = Integer.getInteger("cacheBenchFwk.cache.initialCapacity");
     maximumCapacity = Integer.getInteger("cacheBenchFwk.cache.maximumCapacity");
@@ -98,4 +123,15 @@ public final class CommonCacheWrapper implements CacheWrapper {
 
   @Override
   public void tearDown() throws Exception {}
+
+  /** An extension of the report generator to simplify the file name. */
+  public static final class CustomCsvStatisticReportGenerator extends CsvStatisticReportGenerator {
+    @Override public void setOutputFile(String fileName) {
+      if ("-generic-".equals(fileName)) {
+        this.output = new File(cache + (run == null ? "" : "-" + run) + ".csv");
+      } else {
+        super.setOutputFile(fileName);
+      }
+    }
+  }
 }

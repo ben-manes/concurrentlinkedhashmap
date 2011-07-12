@@ -64,6 +64,7 @@ import java.lang.ref.WeakReference;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CancellationException;
@@ -375,13 +376,15 @@ public final class EvictionTest extends AbstractTest {
         }
       }).when(task).run();
 
-      int index = i % Runtime.getRuntime().availableProcessors();
+      int index = i % map.buffers.length;
       map.buffers[index].add(task);
       map.bufferLengths.getAndIncrement(index);
     }
 
     map.drainBuffers(maxTasks);
-    assertThat(map.buffers[bufferIndex()].size(), is(0));
+    for (Queue<?> buffer : map.buffers) {
+      assertThat(buffer.isEmpty(), is(true));
+    }
   }
 
   @Test(dataProvider = "guardedMap")

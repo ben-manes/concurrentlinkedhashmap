@@ -33,13 +33,6 @@
     <pathelement location="${api.build.dir}"/>
     <pathelement location="${test.build.dir}"/>
   </path>
-  
-  <path id="benchmark.path">
-    <path refid="deploy.path"/>
-    <pathelement location="${api.build.dir}"/>
-    <pathelement location="${test.build.dir}"/>
-    <pathelement location="${benchmark.build.dir}"/>
-  </path>
 
   <!--
   Do not provide a target with a description attribute unless the target
@@ -95,7 +88,6 @@
 
     <compile.macro srcdir="${api.src.dir}" destdir="${api.build.dir}" pathref="empty.path"/>
     <compile.macro srcdir="${test.src.dir}" destdir="${test.build.dir}" pathref="test.path"/>
-    <compile.macro srcdir="${benchmark.src.dir}" destdir="${benchmark.build.dir}" pathref="benchmark.path"/>
   </target>
 
   <target
@@ -257,49 +249,6 @@
      srcdir="${api.src.dir}"
     />
   </target>
-
-  <target
-    name="run-caliper"
-    depends="compile"
-    description="Runs Caliper micro-benchmarks over the build artifacts."
-  >  
-    <java
-     classname="com.googlecode.concurrentlinkedhashmap.${caliper.scenario}Benchmark"
-     classpathref="benchmark.path"
-     fork="true"
-     maxmemory="${caliper.heap}"
-    >
-      <arg value="--warmupMillis"/>
-      <arg value="${caliper.warmupMillis}"/>
-      
-      <arg value="--runMillis"/>
-      <arg value="${caliper.runMillis}"/>
-      
-      <arg value="--timeUnit"/>
-      <arg value="${caliper.timeUnit}"/>
-    </java>
-  </target>
-	
-  <target
-    name="run-perf"
-    depends="compile"
-    description="Runs Cliff Click's micro-benchmark over the build artifacts."
-  >  
-    <java
-     classname="com.googlecode.concurrentlinkedhashmap.perf_hash_test"
-     classpathref="benchmark.path"
-     fork="true"
-     maxmemory="${perf.heap}"
-    >
-      <arg value="${perf.readRatio}"/>
-    	<arg value="${perf.thread.min}"/>
-    	<arg value="${perf.thread.max}"/>
-    	<arg value="${perf.thread.increment}"/>
-    	<arg value="${perf.hashtable.size}"/>
-    	<arg value="${perf.hashtable.impl}"/>
-    	<arg value="${perf.hashtable.maxSize}"/>
-    </java>
-  </target>
   
   <target
    name="run-benchmarks"
@@ -310,7 +259,7 @@
 
     <java
      classname="org.cachebench.CacheBenchmarkRunner"
-     classpathref="benchmark.path"
+     classpathref="test.path"
      fork="true"
      maxmemory="${cacheBenchFwk.heap}"
      dir="${cacheBenchFwk.report.dir}"
@@ -339,7 +288,7 @@
   >
     <java
      classname="org.cachebench.reportgenerators.ChartGenerator"
-     classpathref="benchmark.path"
+     classpathref="test.path"
      fork="true"
      dir="${cacheBenchFwk.report.dir}"
     >

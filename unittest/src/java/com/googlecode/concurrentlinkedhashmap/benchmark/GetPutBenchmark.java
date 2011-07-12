@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.googlecode.concurrentlinkedhashmap;
+package com.googlecode.concurrentlinkedhashmap.benchmark;
 
 import static com.googlecode.concurrentlinkedhashmap.Benchmarks.createWorkingSet;
 
@@ -24,6 +24,9 @@ import com.google.caliper.SimpleBenchmark;
 import com.googlecode.concurrentlinkedhashmap.caches.Cache;
 import com.googlecode.concurrentlinkedhashmap.caches.CacheBuilder;
 import com.googlecode.concurrentlinkedhashmap.generator.ScrambledZipfianGenerator;
+
+import org.testng.annotations.Parameters;
+import org.testng.annotations.Test;
 
 import java.util.List;
 import java.util.concurrent.ConcurrentMap;
@@ -71,8 +74,14 @@ public final class GetPutBenchmark extends SimpleBenchmark {
     }
   }
 
-  /** Kick-start the benchmark. */
-  public static void main(String[] args) {
+  @Test(groups = "caliper")
+  @Parameters({"warmupMillis", "runMillis", "timeUnit"})
+  public static void benchmark(String warmupMillis, String runMillis, String timeUnit) {
+    String[] args = {
+      "--warmupMillis", warmupMillis,
+      "--runMillis", runMillis,
+      "--timeUnit", timeUnit
+    };
     Runner.main(GetPutBenchmark.class, args);
   }
 }

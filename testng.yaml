@@ -5,8 +5,11 @@ parameters:
 # Global time out for load tests
 timeOut: 86400000 # 1 day in millis
 
+listeners:
+  - com.googlecode.concurrentlinkedhashmap.TestStatusListener
+
 tests:
-  - name: Standard
+  - name: Standard Tests
     parameters:
       capacity: 100
     packages:
@@ -16,20 +19,20 @@ tests:
           - MemoryLeakTest
           - MultiThreadedTest
 
-  - name: Efficiency
+  - name: Efficiency Tests
     parameters:
       capacity: 5000
     classes:
       - com.googlecode.concurrentlinkedhashmap.EfficiencyTest
 
-  - name: Load
+  - name: Load Tests
     parameters:
       threads: 250
       statusInterval: 5 # in seconds
     classes:
       - com.googlecode.concurrentlinkedhashmap.MemoryLeakTest
 
-  - name: Stress
+  - name: Stress Tests
     parameters:
       iterations: 40000
       capacity: 50000
@@ -37,3 +40,35 @@ tests:
       timeOut: 30 # in seconds
     classes:
       - com.googlecode.concurrentlinkedhashmap.MultiThreadedTest
+
+  - name: Cache Benchmark
+    parameters:
+      initialCapacity: 500000
+      maximumCapacity: 5000
+      concurrencyLevel: 32
+      runId: \
+      cache: ConcurrentLinkedHashMap
+        # MapMaker
+        # ConcurrentHashMap
+        # NonBlockingHashMap
+        # LinkedHashMap_Lru_Sync
+    classes:
+      - com.googlecode.concurrentlinkedhashmap.benchmark.CacheBenchmark
+
+  - name: Caliper Benchmark
+    parameters:
+      warmupMillis: 3000
+      runMillis: 1000
+      timeUnit: ns
+    classes:
+      - com.googlecode.concurrentlinkedhashmap.benchmark.GetPutBenchmark
+
+  - name: PerfHash Benchmark
+    parameters:
+      readRatio: 95
+      threadMin: 10
+      threadMax: 100
+      threadIncrement: 10
+      hashTableSize: 1000
+    classes:
+      - com.googlecode.concurrentlinkedhashmap.benchmark.perf_hash_test
