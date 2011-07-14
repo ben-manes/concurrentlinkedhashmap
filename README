@@ -1,16 +1,52 @@
-ConcurrentLinkedHashMap is a concurrent, bounded map for use as an in-memory cache.
+ConcurrentLinkedHashMap is a concurrent, bounded map for use as an in-memory
+cache.
 
 PRE-BUILD
 ----------
 The following libraries should be installed into the local repository. 
 
-mvn install:install-file \
-  -Dfile=lib/caliper/0.0/caliper.jar \
-  -DgroupId=com.googlecode.caliper \
-  -DartifactId=caliper \
-  -Dversion=0.0 \
-  -Dpackaging=jar
+$ mvn install:install-file \
+    -Dfile=lib/caliper/0.0/caliper.jar \
+    -DgroupId=com.googlecode.caliper \
+    -DartifactId=caliper \
+    -Dversion=0.0 \
+    -Dpackaging=jar
 
-mvn install:install-file \
-  -Dfile=lib/cache-benchmark/r7903/benchmark-fwk.jar \
-  -DpomFile=lib/cache-benchmark/r7903/pom.xml
+$ mvn install:install-file \
+    -Dfile=lib/cache-benchmark/r7903/benchmark-fwk.jar \
+    -DpomFile=lib/cache-benchmark/r7903/pom.xml
+
+Compiling
+----------
+$ mvn clean compile
+
+Testing
+----------
+This test suite is used for development.
+$ mvn test (or mvn -P development test)
+
+Efficiency
+----------
+This test suite is used to compare eviction algorithm efficiencies based on a
+scrambled zipfian working set.
+$ mvn -P efficiency test
+
+Load
+----------
+This test suite is used to detect problems that only appear after a long
+execution, such as memory leaks.
+$ mvn -P load test
+
+Benchmarks
+----------
+At this time, this library does not supply a canonical benchmark. It leverages
+existing ad hoc benchmarks available externally.
+
+This benchmarks the single-threaded performance.
+$ mvn -P caliper test
+
+This benchmarks the multi-threaded performance with an expected bound.
+$ mvn -P cachebench test
+
+This benchmarks the multi-threaded performance without an expected bound.
+$ mvn -P perfHash test

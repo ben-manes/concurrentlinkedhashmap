@@ -20,23 +20,22 @@ import static com.googlecode.concurrentlinkedhashmap.IsValidLinkedDeque.validLin
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.MockitoAnnotations.initMocks;
-import static org.testng.Assert.fail;
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.testng.ITestResult;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeClass;
-import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.BeforeSuite;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Parameters;
 
-import java.io.Serializable;
 import java.util.Map;
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -87,10 +86,6 @@ public abstract class AbstractTest {
   @BeforeClass(alwaysRun = true)
   void initClass(int capacity) {
     this.capacity = capacity;
-  }
-
-  @BeforeMethod(alwaysRun = true)
-  void initMethod() {
     initMocks(this);
   }
 
@@ -105,11 +100,8 @@ public abstract class AbstractTest {
     } catch (AssertionError caught) {
       result.setStatus(ITestResult.FAILURE);
       result.setThrowable(caught);
-    } finally {
-      if (!result.isSuccess()) {
-        info(" * %s: Failed", result.getMethod().getMethodName());
-      }
     }
+    initMocks(this);
   }
 
   /** Validates the state of the injected parameter. */
@@ -152,9 +144,13 @@ public abstract class AbstractTest {
 
   /** Creates a map that fails if an eviction occurs. */
   protected <K, V> ConcurrentLinkedHashMap<K, V> newGuarded() {
+    @SuppressWarnings("unchecked")
+    EvictionListener<K, V> guardingListener = (EvictionListener<K, V>) listener;
+    doThrow(new AssertionError()).when(guardingListener)
+        .onEviction(Mockito.<K>any(), Mockito.<V>any());
     return new Builder<K, V>()
-        .listener(new GuardingListener<K, V>())
         .maximumWeightedCapacity(capacity())
+        .listener(guardingListener)
         .build();
   }
 
@@ -218,25 +214,6 @@ public abstract class AbstractTest {
   @DataProvider(name = "mapWeigher")
   public Object[][] providesMapWeigher() {
     return new Object[][] {{ Weighers.map() }};
-  }
-
-  /* ---------------- Listener providers -------------- */
-
-  /** Provides a listener that fails on eviction. */
-  @DataProvider(name = "guardingListener")
-  public Object[][] providesGuardedListener() {
-    return new Object[][] {{ new GuardingListener<Object, Object>() }};
-  }
-
-  /** A listener that fails if invoked. */
-  private static final class GuardingListener<K, V>
-    implements EvictionListener<K, V>, Serializable {
-
-    @Override public void onEviction(Object key, Object value) {
-      fail(String.format("Evicted %s=%s", key, value));
-    }
-
-    private static final long serialVersionUID = 1L;
   }
 
   /* ---------------- Utility methods ------------- */

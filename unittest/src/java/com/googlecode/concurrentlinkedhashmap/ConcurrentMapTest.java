@@ -39,6 +39,7 @@ import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 
 import org.testng.annotations.Test;
 
+import java.io.Serializable;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.Map;
@@ -409,29 +410,37 @@ public final class ConcurrentMapTest extends AbstractTest {
     }
   }
 
-  @Test(dataProvider = "guardedMap")
-  public void serialization_whenEmpty(Map<Integer, Integer> map) {
+  @Test(dataProvider = "builder")
+  public void serialization_whenEmpty(Builder<Integer, Integer> builder) {
+    assertThat(builder.build(), is(reserializable()));
+  }
+
+  @Test(dataProvider = "builder")
+  public void serialization_whenPopulated(Builder<Integer, Integer> builder) {
+    Map<Integer, Integer> map = builder.build();
+    warmUp(map, 0, capacity());
     assertThat(map, is(reserializable()));
   }
 
-  @Test(dataProvider = "warmedMap")
-  public void serialization_whenPopulated(Map<Integer, Integer> map) {
-    assertThat(map, is(reserializable()));
-  }
-
-  @Test(dataProvider = "guardingListener")
-  public void serialize_withCustomSettings(
-      EvictionListener<Integer, Collection<Integer>> listener) {
-    Map<Integer, Collection<Integer>> map =
-      new Builder<Integer, Collection<Integer>>()
-          .weigher(Weighers.<Integer>collection())
-          .maximumWeightedCapacity(500)
-          .initialCapacity(100)
-          .concurrencyLevel(32)
-          .listener(listener)
-          .build();
+  @Test
+  public void serialize_withCustomSettings() {
+    Map<Integer, Collection<Integer>> map = new Builder<Integer, Collection<Integer>>()
+        .listener(new SerializableEvictionListener())
+        .weigher(Weighers.<Integer>collection())
+        .maximumWeightedCapacity(500)
+        .initialCapacity(100)
+        .concurrencyLevel(32)
+        .build();
     map.put(1, singletonList(2));
     assertThat(map, is(reserializable()));
+  }
+
+  private static final class SerializableEvictionListener
+      implements EvictionListener<Integer, Collection<Integer>>, Serializable {
+    @Override public void onEviction(Integer key, Collection<Integer> value) {
+      throw new AssertionError();
+    }
+    static final long serialVersionUID = 1;
   }
 
   /* ---------------- Key Set -------------- */
