@@ -19,13 +19,13 @@
 
   <!-- Cache Benchmark Framework -->
   <path id="cache.benchmark.compile.path">
-    <fileset dir="${external.dir}/cache-benchmark/r7903">
+    <fileset dir="${external.dir}/cache-benchmark">
       <include name="benchmark-fwk.jar"/>
     </fileset>
   </path>
   <path id="cache.benchmark.deploy.path">
     <path refid="cache.benchmark.compile.path"/>
-    <fileset dir="${external.dir}/cache-benchmark/r7903">
+    <fileset dir="${external.dir}/cache-benchmark/lib">
       <include name="commons-beanutils.jar"/>
       <include name="commons-digester.jar"/>
       <include name="commons-logging.jar"/>
@@ -38,7 +38,7 @@
 
   <!-- Caliper -->
   <path id="caliper.compile.path">
-    <fileset dir="${external.dir}/caliper/0.0">
+    <fileset dir="${external.dir}/caliper">
       <include name="caliper.jar"/>
     </fileset>
   </path>

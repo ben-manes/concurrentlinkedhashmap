@@ -34,6 +34,6 @@
 
   <!-- The CSV report generated can be plugged in to a spreadsheet to generate graphs. If 'outputFile is set to '-generic-'
        then the name would be generated as follows: 'data_<cache-product>.csv' -->
-  <report outputFile="-generic-" generator="com.googlecode.concurrentlinkedhashmap.benchmark.CacheBenchmark.CustomCsvStatisticReportGenerator"/>
+  <report outputFile="-generic-" generator="com.googlecode.concurrentlinkedhashmap.benchmark.CacheBenchmark$CustomCsvStatisticReportGenerator"/>
 
 </cachebench>

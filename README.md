@@ -10,11 +10,8 @@ Prior to Building
 The following libraries must be installed into the local repository. 
 
 $ mvn install:install-file \
-    -Dfile=lib/caliper/0.0/caliper.jar \
-    -DgroupId=com.googlecode.caliper \
-    -DartifactId=caliper \
-    -Dversion=0.0 \
-    -Dpackaging=jar
+    -Dfile=lib/caliper/caliper.jar \
+    -DpomFile=lib/caliper/pom.xml
 
 $ mvn install:install-file \
     -Dfile=lib/cache-benchmark/r7903/benchmark-fwk.jar \
