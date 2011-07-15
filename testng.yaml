@@ -15,15 +15,8 @@ tests:
     packages:
       - name: com.googlecode.concurrentlinkedhashmap
         exclude:
-          - EfficiencyTest
           - MemoryLeakTest
           - MultiThreadedTest
-
-  - name: Efficiency Tests
-    parameters:
-      capacity: 5000
-    classes:
-      - com.googlecode.concurrentlinkedhashmap.EfficiencyTest
 
   - name: Load Tests
     parameters:
@@ -62,6 +55,12 @@ tests:
       timeUnit: ns
     classes:
       - com.googlecode.concurrentlinkedhashmap.benchmark.GetPutBenchmark
+
+  - name: Efficiency Benchmark
+    parameters:
+      capacity: 5000
+    classes:
+      - com.googlecode.concurrentlinkedhashmap.benchmark.EfficiencyBenchmark
 
   - name: PerfHash Benchmark
     parameters:

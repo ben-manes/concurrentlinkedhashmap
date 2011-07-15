@@ -37,12 +37,6 @@ benchmarks.
 The default test suite is used for development.
 $ mvn test (or mvn -P development test)
 
-Efficiency
---------------------
-This test suite is used to compare eviction algorithm efficiencies based on a
-scrambled zipfian working set.
-$ mvn -P efficiency test
-
 Load
 --------------------
 This test suite is used to detect problems that only appear after a long
@@ -62,3 +56,7 @@ $ mvn -P cachebench test
 
 This benchmarks the multi-threaded performance without an expected bound.
 $ mvn -P perfHash test
+
+This benchmarks the eviction algorithm efficiencies based on a scrambled zipfian
+working set.
+$ mvn -P efficiency test

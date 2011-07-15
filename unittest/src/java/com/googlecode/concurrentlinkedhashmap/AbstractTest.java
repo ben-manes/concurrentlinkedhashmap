@@ -78,19 +78,19 @@ public abstract class AbstractTest {
 
   @Parameters("debug")
   @BeforeSuite(alwaysRun = true)
-  static void initSuite(boolean debugMode) {
+  public static void initSuite(boolean debugMode) {
     debug = debugMode;
   }
 
   @Parameters("capacity")
   @BeforeClass(alwaysRun = true)
-  void initClass(int capacity) {
+  public void initClass(int capacity) {
     this.capacity = capacity;
     initMocks(this);
   }
 
   @AfterMethod(alwaysRun = true)
-  void validateIfSuccessful(ITestResult result) {
+  public void validateIfSuccessful(ITestResult result) {
     try {
       if (result.isSuccess()) {
         for (Object provided : result.getParameters()) {

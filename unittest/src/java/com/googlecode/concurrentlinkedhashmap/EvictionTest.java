@@ -29,6 +29,8 @@ import static com.googlecode.concurrentlinkedhashmap.EvictionTest.Status.RETIRED
 import static com.googlecode.concurrentlinkedhashmap.IsEmptyCollection.emptyCollection;
 import static com.googlecode.concurrentlinkedhashmap.IsEmptyMap.emptyMap;
 import static com.googlecode.concurrentlinkedhashmap.IsValidConcurrentLinkedHashMap.valid;
+import static com.googlecode.concurrentlinkedhashmap.benchmark.Benchmarks.createWorkingSet;
+import static com.googlecode.concurrentlinkedhashmap.benchmark.Benchmarks.determineEfficiency;
 import static com.jayway.awaitility.Awaitility.await;
 import static com.jayway.awaitility.Awaitility.to;
 import static java.util.Arrays.asList;
@@ -55,6 +57,11 @@ import com.google.common.collect.Lists;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.DrainStatus;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Task;
+import com.googlecode.concurrentlinkedhashmap.benchmark.Benchmarks.EfficiencyRun;
+import com.googlecode.concurrentlinkedhashmap.caches.Cache;
+import com.googlecode.concurrentlinkedhashmap.caches.CacheBuilder;
+import com.googlecode.concurrentlinkedhashmap.generator.Generator;
+import com.googlecode.concurrentlinkedhashmap.generator.ScrambledZipfianGenerator;
 
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
@@ -296,6 +303,25 @@ public final class EvictionTest extends AbstractTest {
     assertThat(map.size(), is(equalTo(expect.length)));
     assertThat(map.keySet(), containsInAnyOrder(expect));
     assertThat(evictionList, is(equalTo(asList(expect))));
+  }
+
+  @Test
+  public void evict_efficiency() {
+    Map<String, String> expected = new CacheBuilder()
+        .maximumCapacity(capacity())
+        .makeCache(Cache.LinkedHashMap_Lru_Sync);
+    Map<String, String> actual = new Builder<String, String>()
+        .maximumWeightedCapacity(capacity())
+        .build();
+
+    Generator generator = new ScrambledZipfianGenerator(10 * capacity());
+    List<String> workingSet = createWorkingSet(generator, 10 * capacity());
+
+    EfficiencyRun runExpected = determineEfficiency(expected, workingSet);
+    EfficiencyRun runActual = determineEfficiency(actual, workingSet);
+
+    String reason = String.format("Expected [%s] but was [%s]", runExpected, runActual);
+    assertThat(reason, runActual.hitCount, is(runExpected.hitCount));
   }
 
   @Test(dataProvider = "warmedMap")

@@ -117,7 +117,7 @@ public final class IsValidConcurrentLinkedHashMap
     builder.expectNotEqual(node.get(), null, "null weighted value");
     builder.expectNotEqual(node.getValue(), null, "null value");
     builder.expectEqual(((WeightedValue) node.get()).weight,
-      ((Weigher) map.weigher).weightOf(node.getValue()), "weight");
+        ((Weigher) map.weigher).weightOf(node.getValue()), "weight");
 
     builder.expect(map.containsKey(node.key), "inconsistent");
     builder.expect(map.containsValue(node.getValue()),

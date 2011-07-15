@@ -1337,7 +1337,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   final class ValueIterator implements Iterator<V> {
     final Iterator<Node> iterator = data.values().iterator();
     Node current;
-    V value;
 
     @Override
     public boolean hasNext() {

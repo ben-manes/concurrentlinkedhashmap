@@ -15,7 +15,7 @@
  */
 package com.googlecode.concurrentlinkedhashmap.benchmark;
 
-import static com.googlecode.concurrentlinkedhashmap.Benchmarks.createWorkingSet;
+import static com.googlecode.concurrentlinkedhashmap.benchmark.Benchmarks.createWorkingSet;
 
 import com.google.caliper.Param;
 import com.google.caliper.Runner;

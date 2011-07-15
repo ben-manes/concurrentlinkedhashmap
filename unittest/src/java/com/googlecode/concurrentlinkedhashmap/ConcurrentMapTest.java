@@ -411,12 +411,12 @@ public final class ConcurrentMapTest extends AbstractTest {
   }
 
   @Test(dataProvider = "builder")
-  public void serialization_whenEmpty(Builder<Integer, Integer> builder) {
+  public void serialize_whenEmpty(Builder<Integer, Integer> builder) {
     assertThat(builder.build(), is(reserializable()));
   }
 
   @Test(dataProvider = "builder")
-  public void serialization_whenPopulated(Builder<Integer, Integer> builder) {
+  public void serialize_whenPopulated(Builder<Integer, Integer> builder) {
     Map<Integer, Integer> map = builder.build();
     warmUp(map, 0, capacity());
     assertThat(map, is(reserializable()));

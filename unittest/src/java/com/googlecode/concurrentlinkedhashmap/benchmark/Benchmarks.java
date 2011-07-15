@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.googlecode.concurrentlinkedhashmap;
+package com.googlecode.concurrentlinkedhashmap.benchmark;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Lists.newArrayListWithCapacity;
@@ -21,6 +21,7 @@ import static com.google.common.collect.Lists.newArrayListWithCapacity;
 import com.googlecode.concurrentlinkedhashmap.generator.Generator;
 import com.googlecode.concurrentlinkedhashmap.generator.IntegerGenerator;
 
+import java.text.NumberFormat;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -87,9 +88,9 @@ public final class Benchmarks {
    *
    * @param cache the self-evicting map
    * @param workingSet the request working set
-   * @return the hit rate
+   * @return the efficiency of the execution run
    */
-  public static <T> int determineEfficiency(Map<T, T> cache, List<T> workingSet) {
+  public static <T> EfficiencyRun determineEfficiency(Map<T, T> cache, List<T> workingSet) {
     int hits = 0;
     for (T key : workingSet) {
       if (cache.get(key) == null) {
@@ -98,6 +99,35 @@ public final class Benchmarks {
         hits++;
       }
     }
-    return hits;
+    return EfficiencyRun.of(hits, workingSet.size());
+  }
+
+  public static final class EfficiencyRun {
+    public final int hitCount;
+    public final int missCount;
+    public final double hitRate;
+    public final double missRate;
+    public final int workingSetSize;
+
+    private EfficiencyRun(int hitCount, int workingSetSize) {
+      this.workingSetSize = workingSetSize;
+      this.hitCount = hitCount;
+      this.missCount = workingSetSize - hitCount;
+      this.hitRate = ((double) hitCount) / workingSetSize;
+      this.missRate = ((double) missCount) / workingSetSize;
+    }
+
+    public static EfficiencyRun of(int hitCount, int workingSetSize) {
+      return new EfficiencyRun(hitCount, workingSetSize);
+    }
+
+    @Override
+    public String toString() {
+      return String.format("hits=%s (%s percent), misses=%s (%s percent)%n",
+        NumberFormat.getInstance().format(hitCount),
+        NumberFormat.getPercentInstance().format(hitRate),
+        NumberFormat.getInstance().format(missCount),
+        NumberFormat.getPercentInstance().format(missRate));
+    }
   }
 }
