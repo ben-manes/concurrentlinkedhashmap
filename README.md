@@ -14,8 +14,8 @@ $ mvn install:install-file \
     -DpomFile=lib/caliper/pom.xml
 
 $ mvn install:install-file \
-    -Dfile=lib/cache-benchmark/r7903/benchmark-fwk.jar \
-    -DpomFile=lib/cache-benchmark/r7903/pom.xml
+    -Dfile=lib/cache-benchmark/benchmark-fwk.jar \
+    -DpomFile=lib/cache-benchmark/pom.xml
 
 Compiling
 --------------------
