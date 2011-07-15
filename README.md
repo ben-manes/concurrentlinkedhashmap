@@ -49,7 +49,7 @@ This benchmarks the single-threaded performance.
 $ mvn -P caliper test
 
 This benchmarks the multi-threaded performance with an expected bound.
-$ mvn -P cachebench test
+$ ant run-benchmarks run-reports (after migration: mvn -P cachebench test)
 
 This benchmarks the multi-threaded performance without an expected bound.
 $ mvn -P perfHash test
