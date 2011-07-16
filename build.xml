@@ -199,7 +199,7 @@
        haltonskipped="${testng.haltonskipped}"
        outputdir="@{outputdir}"
       >
-      	<xmlfileset dir="${basedir}" includes="testng.yaml"/>
+      	<xmlfileset dir="${test.resources.dir}" includes="testng.yaml"/>
         <jvmarg value="-Xms64m"/>
         <jvmarg value="-Xmx1024m"/>
         <jvmarg value="-Xss1m"/>

@@ -100,20 +100,6 @@
     </dependency>
   </dependencies>
   <build>
-    <directory>build</directory>
-    <sourceDirectory>src/java</sourceDirectory>
-    <outputDirectory>build/api</outputDirectory>
-    <testOutputDirectory>build/test</testOutputDirectory>
-    <testSourceDirectory>unittest/src/java</testSourceDirectory>
-    <testResources>
-      <testResource>
-        <directory>src/java/com/googlecode/concurrentlinkedhashmap/benchmark</directory>
-        <includes>
-          <include>log4j.xml</include>
-          <include>cachebench.xml</include>
-        </includes>
-      </testResource>
-    </testResources>
     <finalName>${project.artifactId}-${project.version}</finalName>   
     <extensions>
       <extension>
@@ -138,7 +124,7 @@
         <version>2.5</version>
         <configuration>
           <suiteXmlFiles>
-            <suiteXmlFile>testng.yaml</suiteXmlFile>
+            <suiteXmlFile>src/test/resources/testng.yaml</suiteXmlFile>
           </suiteXmlFiles>
           <groups>development</groups>
         </configuration>
@@ -193,7 +179,7 @@
         <version>2.5</version>
         <configuration>
           <rulesets>
-            <ruleset>${basedir}/lib/config/pmd-config.xml</ruleset>
+            <ruleset>src/test/resources/pmd-config.xml</ruleset>
           </rulesets>
         </configuration>
       </plugin>
