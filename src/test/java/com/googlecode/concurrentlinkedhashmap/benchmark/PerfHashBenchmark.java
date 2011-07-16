@@ -2,7 +2,7 @@
  * Written by Cliff Click and released to the public domain, as explained at
  * http://creativecommons.org/licenses/publicdomain
  * Big Chunks of code shamelessly copied from Doug Lea's test harness which is also public domain.
- * Added CLHM to test scenarios and a bounded map option
+ * Added CLHM to test scenarios
  */
 package com.googlecode.concurrentlinkedhashmap.benchmark;
 
@@ -21,7 +21,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 @SuppressWarnings("unchecked")
-public class perf_hash_test extends Thread {
+public class PerfHashBenchmark extends Thread {
   static int _read_ratio, _gr, _pr;
   static int _thread_min, _thread_max, _thread_incr;
   static int _table_size;
@@ -121,7 +121,7 @@ public class perf_hash_test extends Thread {
       _thread_max = trips*_thread_incr + _thread_min;
 
     } catch( Exception e ) {
-      System.out.println("Usage: perf_hash_test"
+      System.out.println("Usage: PerfHashBenchmark"
           + " read%[0=churn test]"
           + " thread-min thread-max thread-increment"
           + " hash_table_size"
@@ -300,7 +300,7 @@ public class perf_hash_test extends Thread {
   final ConcurrentMap<String,String> _hash; // Shared hashtable
   final long[] _ops;
   final long[] _nanos;
-  perf_hash_test( int tnum, ConcurrentMap<String,String> HM, long[] ops, long[] nanos ) { _tnum = tnum; _hash = HM; _ops = ops; _nanos = nanos; }
+  PerfHashBenchmark( int tnum, ConcurrentMap<String,String> HM, long[] ops, long[] nanos ) { _tnum = tnum; _hash = HM; _ops = ops; _nanos = nanos; }
 
   static long run_once( int num_threads, ConcurrentMap<String,String> HM, long[] ops, long[] nanos ) throws Exception {
     Random R = new Random();
@@ -350,9 +350,9 @@ public class perf_hash_test extends Thread {
     }
 
     // Launch threads
-    perf_hash_test thrs[] = new perf_hash_test[num_threads];
+    PerfHashBenchmark thrs[] = new PerfHashBenchmark[num_threads];
     for( int i=0; i<num_threads; i++ ) {
-      thrs[i] = new perf_hash_test(i, HM, ops, nanos);
+      thrs[i] = new PerfHashBenchmark(i, HM, ops, nanos);
     }
     for( int i=0; i<num_threads; i++ ) {
       thrs[i].start();

@@ -74,4 +74,4 @@ tests:
       threadIncrement: 10
       hashTableSize: 1000
     classes:
-      - com.googlecode.concurrentlinkedhashmap.benchmark.perf_hash_test
+      - com.googlecode.concurrentlinkedhashmap.benchmark.PerfHashBenchmark
