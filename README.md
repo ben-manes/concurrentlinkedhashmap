@@ -28,8 +28,8 @@ $ mvn site
 
 Testing
 --------------------
-See testng.yaml for parameter configuration options of the unit tests and
-benchmarks.
+The unit tests and benchmarks parameter options can be configured in
+src/test/resources/testng.yaml
 
 The default test suite is used for development.
 $ mvn test (or mvn -P development test)
