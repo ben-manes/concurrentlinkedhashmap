@@ -39,12 +39,13 @@ tests:
       initialCapacity: 500000
       maximumCapacity: 5000
       concurrencyLevel: 32
-      runId: \
+      runId: ""
       cache: ConcurrentLinkedHashMap
         # MapMaker
         # ConcurrentHashMap
         # NonBlockingHashMap
         # LinkedHashMap_Lru_Sync
+        # ConcurrentLinkedHashMap
     classes:
       - com.googlecode.concurrentlinkedhashmap.benchmark.CacheBenchmark
 
@@ -58,7 +59,10 @@ tests:
 
   - name: Efficiency Benchmark
     parameters:
+      passes: 3
       capacity: 5000
+      generatorMultipler: 5
+      workingSetMultiplier: 50
     classes:
       - com.googlecode.concurrentlinkedhashmap.benchmark.EfficiencyBenchmark
 

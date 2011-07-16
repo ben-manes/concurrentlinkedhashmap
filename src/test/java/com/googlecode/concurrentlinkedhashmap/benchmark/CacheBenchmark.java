@@ -15,17 +15,22 @@
  */
 package com.googlecode.concurrentlinkedhashmap.benchmark;
 
+import static com.google.common.base.Strings.isNullOrEmpty;
+
 import com.googlecode.concurrentlinkedhashmap.caches.Cache;
 import com.googlecode.concurrentlinkedhashmap.caches.Cache.Policy;
 import com.googlecode.concurrentlinkedhashmap.caches.CacheBuilder;
 
 import org.cachebench.CacheBenchmarkRunner;
 import org.cachebench.CacheWrapper;
+import org.cachebench.reportgenerators.ChartGen;
 import org.cachebench.reportgenerators.CsvStatisticReportGenerator;
+import org.cachebench.reportgenerators.PutGetChartGenerator;
 import org.testng.annotations.Parameters;
 import org.testng.annotations.Test;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
@@ -35,6 +40,7 @@ import java.util.Map;
  * @author ben.manes@gmail.com (Ben Manes)
  */
 public final class CacheBenchmark implements CacheWrapper {
+  private static final String REPORT_DIR = "target";
   private static int initialCapacity;
   private static int maximumCapacity;
   private static int concurrencyLevel;
@@ -46,7 +52,7 @@ public final class CacheBenchmark implements CacheWrapper {
   @Test(groups = "cachebench")
   @Parameters({"cache", "initialCapacity", "maximumCapacity", "concurrencyLevel", "runId"})
   public static void benchmark(String cache, int initialCapacity, int maximumCapacity,
-      int concurrencyLevel, String run) {
+      int concurrencyLevel, String run) throws IOException {
     CacheBenchmark.run = run;
     CacheBenchmark.cache = Cache.valueOf(cache);
     CacheBenchmark.initialCapacity = initialCapacity;
@@ -58,17 +64,16 @@ public final class CacheBenchmark implements CacheWrapper {
     System.setProperty("localOnly", "true");
 
     CacheBenchmarkRunner.main(new String[] { });
+
+    ChartGen generator = new PutGetChartGenerator();
+    generator.setFileNamePrefix(REPORT_DIR + "/" + "cachebench");
+    generator.setReportDirectory(REPORT_DIR);
+    generator.generateChart();
   }
 
   @Override
   @SuppressWarnings("rawtypes")
   public void init(Map parameters) throws Exception {
-    // TODO(bmanes): Remove once migrated to Maven
-    cache = Cache.valueOf(System.getProperty("cacheBenchFwk.cache.type"));
-    initialCapacity = Integer.getInteger("cacheBenchFwk.cache.initialCapacity");
-    maximumCapacity = Integer.getInteger("cacheBenchFwk.cache.maximumCapacity");
-    concurrencyLevel = Integer.getInteger("cacheBenchFwk.cache.concurrencyLevel");
-
     map = new CacheBuilder()
         .concurrencyLevel(concurrencyLevel)
         .initialCapacity(initialCapacity)
@@ -128,10 +133,9 @@ public final class CacheBenchmark implements CacheWrapper {
   public static final class CustomCsvStatisticReportGenerator extends CsvStatisticReportGenerator {
     @Override public void setOutputFile(String fileName) {
       if ("-generic-".equals(fileName)) {
-        this.output = new File(cache + (run == null ? "" : "-" + run) + ".csv");
-      } else {
-        super.setOutputFile(fileName);
+        fileName = cache + (isNullOrEmpty(run) ? "" : "-" + run) + ".csv";
       }
+      this.output = new File(REPORT_DIR + "/" + fileName);
     }
   }
 }

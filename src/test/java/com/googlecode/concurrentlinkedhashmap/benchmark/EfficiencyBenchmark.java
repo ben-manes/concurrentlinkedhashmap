@@ -18,15 +18,15 @@ package com.googlecode.concurrentlinkedhashmap.benchmark;
 import static com.googlecode.concurrentlinkedhashmap.benchmark.Benchmarks.createWorkingSet;
 import static com.googlecode.concurrentlinkedhashmap.benchmark.Benchmarks.determineEfficiency;
 
-import com.googlecode.concurrentlinkedhashmap.AbstractTest;
-import com.googlecode.concurrentlinkedhashmap.benchmark.Benchmarks.EfficiencyRun;
 import com.googlecode.concurrentlinkedhashmap.caches.Cache;
 import com.googlecode.concurrentlinkedhashmap.caches.Cache.Policy;
 import com.googlecode.concurrentlinkedhashmap.caches.CacheBuilder;
 import com.googlecode.concurrentlinkedhashmap.generator.Generator;
 import com.googlecode.concurrentlinkedhashmap.generator.ScrambledZipfianGenerator;
 
+import org.testng.annotations.Parameters;
 import org.testng.annotations.Test;
+import org.testng.collections.Lists;
 
 import java.util.EnumSet;
 import java.util.List;
@@ -38,14 +38,18 @@ import java.util.Set;
  *
  * @author ben.manes@gmail.com (Ben Manes)
  */
-public final class EfficiencyBenchmark extends AbstractTest {
+public final class EfficiencyBenchmark {
 
   @Test(groups = "efficiency")
-  public void benchmark() {
-    Generator generator = new ScrambledZipfianGenerator(5 * capacity());
-    List<String> workingSet = createWorkingSet(generator, 50 * capacity());
-    List<String> workingSet2 = createWorkingSet(generator, 100 * capacity());
-    List<String> workingSet3 = createWorkingSet(generator, 150 * capacity());
+  @Parameters({"capacity", "passes", "generatorMultipler", "workingSetMultiplier"})
+  public void benchmark(int capacity, int passes, int generatorMultipler,
+      int workingSetMultiplier) {
+    Generator generator = new ScrambledZipfianGenerator(generatorMultipler * capacity);
+    List<List<String>> workingSets = Lists.newArrayList();
+    for (int i = 1; i <= passes; i++) {
+      int size = i * workingSetMultiplier * capacity;
+      workingSets.add(createWorkingSet(generator, size));
+    }
 
     Set<Policy> seen = EnumSet.noneOf(Policy.class);
     for (Cache cache : Cache.values()) {
@@ -53,20 +57,12 @@ public final class EfficiencyBenchmark extends AbstractTest {
         continue;
       }
       Map<String, String> map = new CacheBuilder()
-          .maximumCapacity(capacity())
+          .maximumCapacity(capacity)
           .makeCache(cache);
-      info(efficiencyOf(cache.policy().toString(),
-          determineEfficiency(map, workingSet),
-          determineEfficiency(map, workingSet2),
-          determineEfficiency(map, workingSet3)));
+      System.out.println(cache.policy().toString() + ":");
+      for (List<String> workingSet : workingSets) {
+        System.out.println(determineEfficiency(map, workingSet));
+      }
     }
-  }
-
-  public static String efficiencyOf(String name, EfficiencyRun... runs) {
-    StringBuilder builder = new StringBuilder(name + ":\n");
-    for (EfficiencyRun run : runs) {
-      builder.append(run);
-    }
-    return builder.toString();
   }
 }

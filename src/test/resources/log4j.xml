@@ -7,7 +7,7 @@
    <!-- The rolling file appender -->
    <appender name="FILE" class="org.cachebench.utils.PerNodeRollingFileAppender">
       <!--<appender name="FILE" class="org.cachebench.utils.PerNodeRollingFileAppender">-->
-      <param name="File" value="cachebench.log"/>
+      <param name="File" value="target/cachebench.log"/>
       <param name="Append" value="true"/>
       <param name="Threshold" value="WARN"/>
       <param name="MaxFileSize" value="100MB"/>

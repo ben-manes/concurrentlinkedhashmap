@@ -123,7 +123,7 @@ public final class Benchmarks {
 
     @Override
     public String toString() {
-      return String.format("hits=%s (%s percent), misses=%s (%s percent)%n",
+      return String.format("hits=%s (%s percent), misses=%s (%s percent)",
         NumberFormat.getInstance().format(hitCount),
         NumberFormat.getPercentInstance().format(hitRate),
         NumberFormat.getInstance().format(missCount),
