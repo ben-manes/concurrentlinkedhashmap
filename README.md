@@ -28,15 +28,13 @@ $ mvn site
 
 Testing
 --------------------
-The unit tests and benchmarks parameter options can be configured in
+The unit test and benchmark parameter options can be configured in
 src/test/resources/testng.yaml
 
 The default test suite is used for development.
 $ mvn test (or mvn -P development test)
 
-Load
---------------------
-This test suite is used to detect problems that only appear after a long
+The load test suite is used to detect problems that only appear after a long
 execution, such as memory leaks.
 $ mvn -P load test
 
