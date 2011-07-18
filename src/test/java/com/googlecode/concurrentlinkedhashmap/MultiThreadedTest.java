@@ -33,6 +33,7 @@ import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Node;
 
 import org.apache.commons.lang.SerializationUtils;
+import org.testng.annotations.AfterMethod;
 import org.testng.annotations.Parameters;
 import org.testng.annotations.Test;
 
@@ -71,6 +72,11 @@ public final class MultiThreadedTest extends AbstractTest {
     this.iterations = iterations;
     this.timeOut = timeOut;
     this.threads = threads;
+  }
+
+  @AfterMethod(alwaysRun = true)
+  public void tearDown() {
+    failures.clear();
   }
 
   @Test(dataProvider = "builder")

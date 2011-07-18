@@ -34,6 +34,7 @@ import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.BeforeSuite;
 import org.testng.annotations.DataProvider;
+import org.testng.annotations.Optional;
 import org.testng.annotations.Parameters;
 
 import java.util.Map;
@@ -78,7 +79,7 @@ public abstract class AbstractTest {
 
   @Parameters("debug")
   @BeforeSuite(alwaysRun = true)
-  public static void initSuite(boolean debugMode) {
+  public static void initSuite(@Optional("false") boolean debugMode) {
     debug = debugMode;
   }
 
