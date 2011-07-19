@@ -94,8 +94,8 @@ public abstract class AbstractTest {
   public void validateIfSuccessful(ITestResult result) {
     try {
       if (result.isSuccess()) {
-        for (Object provided : result.getParameters()) {
-          validate(provided);
+        for (Object param : result.getParameters()) {
+          validate(param);
         }
       }
     } catch (AssertionError caught) {
@@ -145,10 +145,7 @@ public abstract class AbstractTest {
 
   /** Creates a map that fails if an eviction occurs. */
   protected <K, V> ConcurrentLinkedHashMap<K, V> newGuarded() {
-    @SuppressWarnings("unchecked")
-    EvictionListener<K, V> guardingListener = (EvictionListener<K, V>) listener;
-    doThrow(new AssertionError()).when(guardingListener)
-        .onEviction(Mockito.<K>any(), Mockito.<V>any());
+    EvictionListener<K, V> guardingListener = guardingListener();
     return new Builder<K, V>()
         .maximumWeightedCapacity(capacity())
         .listener(guardingListener)
@@ -170,14 +167,24 @@ public abstract class AbstractTest {
 
   @DataProvider(name = "guardedWeightedMap")
   public Object[][] providesGuardedWeightedMap() {
-    return new Object[][] {{ newWeightedMap() }};
+    return new Object[][] {{ newGuardedWeightedMap() }};
   }
 
-  protected <K, V> ConcurrentLinkedHashMap<K, Iterable<V>> newWeightedMap() {
+  private <K, V> ConcurrentLinkedHashMap<K, Iterable<V>> newGuardedWeightedMap() {
+    EvictionListener<K, Iterable<V>> guardingListener = guardingListener();
     return new Builder<K, Iterable<V>>()
-        .weigher(Weighers.<V>iterable())
         .maximumWeightedCapacity(capacity())
+        .weigher(Weighers.<V>iterable())
+        .listener(guardingListener)
         .build();
+  }
+
+  @SuppressWarnings("unchecked")
+  private <K, V> EvictionListener<K, V> guardingListener() {
+    EvictionListener<K, V> guardingListener = (EvictionListener<K, V>) listener;
+    doThrow(new AssertionError()).when(guardingListener)
+        .onEviction(Mockito.<K>any(), Mockito.<V>any());
+    return guardingListener;
   }
 
   /* ---------------- Weigher providers -------------- */

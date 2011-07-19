@@ -12,10 +12,12 @@
     A high performance version of java.util.LinkedHashMap for use as a software cache.
   </description>
   <url>http://code.google.com/p/concurrentlinkedhashmap</url>
+  <inceptionYear>2008</inceptionYear>
   <licenses>
     <license>
       <name>Apache</name>
       <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
+      <distribution>repo</distribution>
     </license>
   </licenses>
   <scm>
@@ -23,6 +25,23 @@
     <connection>scm:svn:http://concurrentlinkedhashmap.googlecode.com/svn/trunk</connection>
     <developerConnection>scm:svn:https://concurrentlinkedhashmap.googlecode.com/svn/trunk</developerConnection>
   </scm>
+  <issueManagement>
+    <system>code.google.com</system>
+    <url>http://code.google.com/p/concurrentlinkedhashmap/issues</url>
+  </issueManagement>
+  <developers>
+    <developer>
+      <name>Ben Manes</name>
+      <email>ben.manes@gmail.com</email>
+      <organization>Google</organization>
+      <organizationUrl>http://www.google.com</organizationUrl>
+      <roles>
+        <role>owner</role>
+        <role>developer</role>
+      </roles>
+      <timezone>-8</timezone>
+    </developer>
+  </developers>
   <parent>
     <groupId>org.sonatype.oss</groupId>
     <artifactId>oss-parent</artifactId>
@@ -117,6 +136,19 @@
           <source>${targetJdk}</source>
           <target>${targetJdk}</target>
         </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-source-plugin</artifactId>
+        <version>2.1.2</version>
+        <executions>
+          <execution>
+            <id>attach-sources</id>
+              <goals>
+                <goal>jar</goal>
+              </goals>
+            </execution>
+        </executions>
       </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>

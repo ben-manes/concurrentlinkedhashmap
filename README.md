@@ -38,7 +38,7 @@ The load test suite is used to detect problems that only appear after a long
 execution, such as memory leaks.
 $ mvn -P load test
 
-An test or test method can be executed selectively, such as
+A test or test method can be executed selectively, such as
 $ mvn -Dtest=ConcurrentMapTest#get_whenNotFound -Dcapacity=100 test
 
 Benchmarks
