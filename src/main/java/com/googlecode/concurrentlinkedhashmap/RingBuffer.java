@@ -51,6 +51,14 @@ final class RingBuffer<E> {
     this.elements = new AtomicReferenceArray<E>(size);
   }
 
+  public int capacity() {
+    return elements.length();
+  }
+
+  public boolean isEmpty() {
+    return head.get() == tail.get();
+  }
+
   /**
    * Inserts the specified element into this queue, waiting if necessary for
    * space to become available.
@@ -69,7 +77,7 @@ final class RingBuffer<E> {
     int index = (int) t & mask;
     for (;;) {
       if ((elements.get(index) == null) && elements.compareAndSet(index, null, e)) {
-        return Math.max(0, t - head.get());
+        return Math.max(0, t - head.get() + 1);
       }
     }
   }
