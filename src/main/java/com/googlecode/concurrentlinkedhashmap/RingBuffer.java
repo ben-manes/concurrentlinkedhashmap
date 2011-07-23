@@ -27,7 +27,8 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 // TODO(bmanes): Consider skewing the threshold for drain based on the thread
 // id, to avoid hitting the #shouldDrain() at the same time and avoiding memory
 // barrier (e.g. t1: 16, t2: 20 for same buffer).
-final class RingBuffer<E> {
+// TODO(bmanes): Make private, only public for benchmark
+public final class RingBuffer<E> {
   final AtomicReferenceArray<E> elements;
   final AtomicLong head;
   final AtomicLong tail;
@@ -66,7 +67,7 @@ final class RingBuffer<E> {
    * @param e the element to add
    * @return the estimated size of the buffer
    */
-  public long put(E e) {
+  public int put(E e) {
     // TODO(bmanes): Handle only puts causing all threads to block & not drain
     // in progress. Make #add() fail, try to drain, and retry add. This could be
     // done by returning a negative estimated size as an error code.
@@ -77,7 +78,7 @@ final class RingBuffer<E> {
     int index = (int) t & mask;
     for (;;) {
       if ((elements.get(index) == null) && elements.compareAndSet(index, null, e)) {
-        return Math.max(0, t - head.get() + 1);
+        return (int) Math.max(0, t - head.get() + 1);
       }
     }
   }

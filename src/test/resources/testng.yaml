@@ -55,7 +55,8 @@ tests:
       runMillis: 1000
       timeUnit: ns
     classes:
-      - com.googlecode.concurrentlinkedhashmap.benchmark.GetPutBenchmark
+      #- com.googlecode.concurrentlinkedhashmap.benchmark.GetPutBenchmark
+      - com.googlecode.concurrentlinkedhashmap.benchmark.RingBufferBenchmark
 
   - name: Efficiency Benchmark
     parameters:
