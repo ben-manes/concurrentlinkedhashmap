@@ -94,6 +94,7 @@ public final class RingBuffer<E> {
   }
 
   // Should never be needed, but demonstrative as simpler than #drain().
+  @GuardedBy("lock")
   public E poll() {
     long h = head.get();
     if (h == tail.get()) {
