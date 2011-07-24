@@ -343,5 +343,18 @@
         </plugins>
       </build>
     </profile>
+    <profile>
+      <id>experimental</id>
+      <build>
+        <plugins>
+          <plugin>
+            <artifactId>maven-surefire-plugin</artifactId>
+            <configuration>
+              <groups>experimental</groups>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
   </profiles>
 </project>

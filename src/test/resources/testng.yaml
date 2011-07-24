@@ -15,8 +15,19 @@ tests:
     packages:
       - name: com.googlecode.concurrentlinkedhashmap
         exclude:
+          - RingBufferTest
           - MemoryLeakTest
           - MultiThreadedTest
+          
+  - name: Experimental
+    parameters:
+      iterations: 400
+      capacity: 128
+      threshold: 64
+      threads: 20
+      timeOut: 30 # in seconds
+    classes:
+      - com.googlecode.concurrentlinkedhashmap.RingBufferTest
 
   - name: Load Tests
     parameters:
@@ -51,12 +62,12 @@ tests:
 
   - name: Caliper Benchmark
     parameters:
-      warmupMillis: 3000
-      runMillis: 1000
+      warmupMillis: 10000
+      runMillis: 5000
       timeUnit: ns
     classes:
+      - com.googlecode.concurrentlinkedhashmap.benchmark.BufferBenchmark
       #- com.googlecode.concurrentlinkedhashmap.benchmark.GetPutBenchmark
-      - com.googlecode.concurrentlinkedhashmap.benchmark.RingBufferBenchmark
 
   - name: Efficiency Benchmark
     parameters:

@@ -28,6 +28,8 @@ import org.testng.annotations.Test;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * This benchmark evaluates single-threaded performance of the buffer
@@ -35,7 +37,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  *
  * @author ben.manes@gmail.com (Ben Manes)
  */
-public class RingBufferBenchmark extends SimpleBenchmark {
+public class BufferBenchmark extends SimpleBenchmark {
   @Param("16")
   int threshold;
 
@@ -44,42 +46,48 @@ public class RingBufferBenchmark extends SimpleBenchmark {
 
   Queue<Integer> queue;
   AtomicInteger length;
+  Lock lock;
 
   @Override
   protected void setUp() {
     sink = new Sink<Integer>() { @Override public void accept(Integer i) {} };
-    buffer = new RingBuffer<Integer>(4 * threshold, sink);
+    buffer = new RingBuffer<Integer>(4 * threshold, threshold, sink);
     queue = new ConcurrentLinkedQueue<Integer>();
     length = new AtomicInteger();
+    lock = new ReentrantLock();
   }
 
   public int timeRingBuffer(final int reps) {
     int dummy = 0;
-    for (int i = 0; i < reps; i++) {
-      if (buffer.put(i) > threshold) {
-        buffer.drain();
-        dummy++;
-      }
+    while (dummy < reps) {
+      buffer.put(dummy);
+      dummy++;
     }
     return dummy;
   }
 
   public int timeConcurrentLinkedQueue(final int reps) {
-    Integer dummy = 0;
+    int dummy = 0;
     for (int i = 0; i < reps; i++) {
       queue.add(i);
-      if (length.incrementAndGet() > threshold) {
-        int removedFromBuffer = 0;
-        while ((dummy = queue.poll()) != null) {
-          sink.accept(dummy);
-          removedFromBuffer++;
+      if ((length.incrementAndGet() > threshold) && lock.tryLock()) {
+        try {
+          int removedFromBuffer = 0;
+          Integer removed;
+          while ((removed = queue.poll()) != null) {
+            sink.accept(removed);
+            removedFromBuffer++;
+          }
+          dummy = removedFromBuffer;
+          length.addAndGet(-removedFromBuffer);
+        } finally {
+          lock.unlock();
         }
-        dummy = removedFromBuffer;
-        length.addAndGet(-removedFromBuffer);
       }
     }
     return dummy;
   }
+
 
   @Test(groups = "caliper")
   @Parameters({"warmupMillis", "runMillis", "timeUnit"})
@@ -89,6 +97,6 @@ public class RingBufferBenchmark extends SimpleBenchmark {
       "--runMillis", runMillis,
       "--timeUnit", timeUnit
     };
-    Runner.main(RingBufferBenchmark.class, args);
+    Runner.main(BufferBenchmark.class, args);
   }
 }
