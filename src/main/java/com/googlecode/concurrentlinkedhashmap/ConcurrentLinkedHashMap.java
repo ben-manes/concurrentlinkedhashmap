@@ -172,15 +172,15 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   static final Queue<?> DISCARDING_QUEUE = new DiscardingQueue();
 
   static {
-    // Find the power-of-two best matching the number of available processors
-    int buffers = 1;
-    int availableProcessors = Runtime.getRuntime().availableProcessors();
-    while (buffers < availableProcessors) {
-      buffers <<= 1;
-    }
+    int buffers = ceilingNextPowerOfTwo(Runtime.getRuntime().availableProcessors());
     AMORTIZED_DRAIN_THRESHOLD = (1 + buffers) * BUFFER_THRESHOLD;
     NUMBER_OF_BUFFERS = buffers;
     BUFFER_MASK = buffers - 1;
+  }
+
+  static final int ceilingNextPowerOfTwo(int x) {
+    // From Hacker's Delight, Chapter 3, Harry S. Warren Jr.
+    return 1 << (Integer.SIZE - Integer.numberOfLeadingZeros(x - 1));
   }
 
   /** The draining status of the buffers. */

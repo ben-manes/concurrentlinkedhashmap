@@ -15,6 +15,8 @@
  */
 package com.googlecode.concurrentlinkedhashmap;
 
+import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.ceilingNextPowerOfTwo;
+
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.concurrent.locks.Lock;
@@ -30,8 +32,9 @@ import java.util.concurrent.locks.ReentrantLock;
 // id, to avoid hitting the #shouldDrain() at the same time and avoiding memory
 // barrier (e.g. t1: 16, t2: 20 for same buffer); threshold + thread_id & 0xF
 // TODO(bmanes): Make private, only public for benchmark
-public final class RingBuffer<E> {
-  final AtomicReferenceArray<E> elements;
+public final class RingBuffer<E> extends AtomicReferenceArray<E> {
+  private static final int RETRIES = 10;
+
   final AtomicLong head;
   final AtomicLong tail;
   final long threshold;
@@ -46,21 +49,13 @@ public final class RingBuffer<E> {
    * @param sink the handler to drain elements to
    */
   public RingBuffer(int estimatedCapacity, int threshold, Sink<E> sink) {
-    int size = 1;
-    while (size < estimatedCapacity) {
-      size <<= 1;
-    }
+    super(ceilingNextPowerOfTwo(estimatedCapacity));
     this.sink = sink;
-    this.mask = size - 1;
+    this.mask = length() - 1;
     this.threshold = threshold;
     this.head = new AtomicLong();
     this.tail = new AtomicLong();
     this.lock = new ReentrantLock();
-    this.elements = new AtomicReferenceArray<E>(size);
-  }
-
-  public int capacity() {
-    return elements.length();
   }
 
   public boolean isEmpty() {
@@ -77,13 +72,12 @@ public final class RingBuffer<E> {
     // Acquire a slot and spin until accepted. If wrapped then may have multiple
     // producers waiting for the slot & won't be strictly FIFO
     long t = tail.getAndIncrement();
-    int index = (int) t & mask;
+    int index = (int) (t & mask);
 
     for (;;) {
-      for (int i = 0; i < 10; i++) {
-        if ((elements.get(index) == null) && elements.weakCompareAndSet(index, null, e)) {
-          long estimatedSize = (t - head.get());
-          if (estimatedSize >= threshold) {
+      for (int i = 0; i < RETRIES; i++) {
+        if ((get(index) == null) && weakCompareAndSet(index, null, e)) {
+          if ((t - head.get()) >= threshold) {
             tryToDrain();
           }
           return;
@@ -101,8 +95,8 @@ public final class RingBuffer<E> {
       return null;
     }
     int index = (int) h & mask;
-    E e = elements.get(index);
-    elements.lazySet(index, null);
+    E e = get(index);
+    lazySet(index, null);
     head.lazySet(h + 1);
     return e;
   }
@@ -130,12 +124,12 @@ public final class RingBuffer<E> {
       return;
     }
     do {
-      int index = (int) h & mask;
-      E e = elements.get(index);
+      int index = (int) (h & mask);
+      E e = get(index);
       if (e == null) {
         break;
       }
-      elements.lazySet(index, null);
+      lazySet(index, null);
       sink.accept(e);
     } while (h++ != t);
     head.lazySet(h);

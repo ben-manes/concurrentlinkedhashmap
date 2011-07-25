@@ -88,7 +88,6 @@ public class BufferBenchmark extends SimpleBenchmark {
     return dummy;
   }
 
-
   @Test(groups = "caliper")
   @Parameters({"warmupMillis", "runMillis", "timeUnit"})
   public static void benchmark(String warmupMillis, String runMillis, String timeUnit) {

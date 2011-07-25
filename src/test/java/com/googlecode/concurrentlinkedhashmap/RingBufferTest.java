@@ -72,13 +72,13 @@ public class RingBufferTest extends AbstractTest {
 
   @Test(dataProvider = "buffer")
   public void put_whenEmpty(RingBuffer<Integer> buffer) {
-    for (int i = 0; i < buffer.capacity(); i++) {
+    for (int i = 0; i < buffer.length(); i++) {
       buffer.put(i);
     }
-    for (int i = 0; i < buffer.capacity(); i++) {
-      assertThat(buffer.elements.get(i), either(is(i)).or(is(nullValue())));
+    for (int i = 0; i < buffer.length(); i++) {
+      assertThat(buffer.get(i), either(is(i)).or(is(nullValue())));
     }
-    assertThat(buffer.tail.get(), is((long) buffer.capacity()));
+    assertThat(buffer.tail.get(), is((long) buffer.length()));
   }
 
   @Test(dataProvider = "buffer")
@@ -87,7 +87,7 @@ public class RingBufferTest extends AbstractTest {
     buffer.lock.lock();
     new Thread() {
       @Override public void run() {
-        for (int i = 0; i < buffer.capacity() + 1; i++) {
+        for (int i = 0; i < buffer.length() + 1; i++) {
           buffer.put(i);
         }
         done.set(true);
@@ -97,7 +97,7 @@ public class RingBufferTest extends AbstractTest {
       @Override public Integer call() {
         return (int) buffer.tail.get();
       }
-    }, is(buffer.capacity() + 1));
+    }, is(buffer.length() + 1));
     assertThat(done.get(), is(false));
     buffer.drain();
     buffer.lock.unlock();
@@ -106,7 +106,7 @@ public class RingBufferTest extends AbstractTest {
         return done.get();
       }
     });
-    int expected = buffer.capacity() + (buffer.isEmpty() ? 1 : 0);
+    int expected = buffer.length() + (buffer.isEmpty() ? 1 : 0);
     verify(sink, times(expected)).accept(element.capture());
   }
 
@@ -118,12 +118,12 @@ public class RingBufferTest extends AbstractTest {
 
   @Test(dataProvider = "buffer")
   public void drain_whenFull(RingBuffer<Integer> buffer) {
-    for (int i = 0; i < buffer.capacity(); i++) {
+    for (int i = 0; i < buffer.length(); i++) {
       buffer.put(i);
     }
     buffer.drain();
-    verify(sink, times(buffer.capacity())).accept(element.capture());
-    for (int i = 0; i < buffer.capacity(); i++) {
+    verify(sink, times(buffer.length())).accept(element.capture());
+    for (int i = 0; i < buffer.length(); i++) {
       assertThat(element.getAllValues().get(i), is(i));
     }
   }
