@@ -44,7 +44,7 @@ $ mvn -Dtest=ConcurrentMapTest#get_whenNotFound -Dcapacity=100 test
 Benchmarks
 --------------------
 At this time, this library does not supply a canonical benchmark. It leverages
-existing benchmarks tools available externally.
+existing benchmarking tools available externally.
 
 This benchmarks the single-threaded performance.
 $ mvn -P caliper test
