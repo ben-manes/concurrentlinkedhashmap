@@ -501,7 +501,6 @@ public final class ConcurrentMapTest extends AbstractTest {
   @Test(dataProvider = "warmedMap")
   public void keySet_iterator(Map<Integer, Integer> map) {
     int iterations = 0;
-    Set<Integer> keys = map.keySet();
     for (Iterator<Integer> i = map.keySet().iterator(); i.hasNext();) {
       assertThat(map.containsKey(i.next()), is(true));
       iterations++;
@@ -580,7 +579,6 @@ public final class ConcurrentMapTest extends AbstractTest {
   @Test(dataProvider = "warmedMap")
   public void valueIterator(Map<Integer, Integer> map) {
     int iterations = 0;
-    Collection<Integer> values = map.values();
     for (Iterator<Integer> i = map.values().iterator(); i.hasNext();) {
       assertThat(map.containsValue(i.next()), is(true));
       iterations++;
@@ -665,7 +663,6 @@ public final class ConcurrentMapTest extends AbstractTest {
   @Test(dataProvider = "warmedMap")
   public void entryIterator(Map<Integer, Integer> map) {
     int iterations = 0;
-    Set<Entry<Integer, Integer>> entries = map.entrySet();
     for (Iterator<Entry<Integer, Integer>> i = map.entrySet().iterator(); i.hasNext();) {
       Entry<Integer, Integer> entry = i.next();
       assertThat(map, hasEntry(entry.getKey(), entry.getValue()));

@@ -30,14 +30,14 @@ import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 
-import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.BoundedWeigher;
-import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
-import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.DiscardingListener;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.RejectedExecutionException;
 
 import org.testng.annotations.Test;
 
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.RejectedExecutionException;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.BoundedWeigher;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.DiscardingListener;
 
 /**
  * A unit-test for the builder methods.
@@ -131,7 +131,6 @@ public final class BuilderTest extends AbstractTest {
 
   @Test(dataProvider = "builder")
   public void weigher_withDefault(Builder<Integer, Integer> builder) {
-    Weigher<?> weigher = builder.build().weigher;
     assertThat(builder.build().weigher, sameInstance((Object) Weighers.singleton()));
   }
 

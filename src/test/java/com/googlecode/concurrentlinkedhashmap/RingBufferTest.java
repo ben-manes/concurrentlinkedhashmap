@@ -36,8 +36,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
@@ -130,7 +128,6 @@ public class RingBufferTest extends AbstractTest {
 
   @Test(dataProvider = "buffer")
   public void concurrency(final RingBuffer<Integer> buffer) {
-    final Lock lock = new ReentrantLock();
     final Runnable task = new Runnable() {
       @Override public void run() {
         for (int i = 0; i < iterations; i++) {

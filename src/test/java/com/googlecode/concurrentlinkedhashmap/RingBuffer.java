@@ -31,8 +31,8 @@ import java.util.concurrent.locks.ReentrantLock;
 // TODO(bmanes): Consider skewing the threshold for drain based on the thread
 // id, to avoid hitting the #shouldDrain() at the same time and avoiding memory
 // barrier (e.g. t1: 16, t2: 20 for same buffer); threshold + thread_id & 0xF
-// TODO(bmanes): Make private, only public for benchmark
 public final class RingBuffer<E> extends AtomicReferenceArray<E> {
+  private static final long serialVersionUID = 1L;
   private static final int RETRIES = 10;
 
   final AtomicLong head;
