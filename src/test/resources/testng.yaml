@@ -52,7 +52,7 @@ tests:
       concurrencyLevel: 32
       runId: ""
       cache: ConcurrentLinkedHashMap
-        # MapMaker
+        # Guava
         # ConcurrentHashMap
         # NonBlockingHashMap
         # LinkedHashMap_Lru_Sync

@@ -3,15 +3,11 @@ ConcurrentLinkedHashMap
 
 ConcurrentLinkedHashMap is a concurrent, bounded map for use as an in-memory
 cache. It is the default caching library in Apache Cassandra and is the
-reference algorithm for Google Guava MapMaker.
+reference algorithm for Google Guava CacheBuilder (formally MapMaker).
 
 Prior to Building
 --------------------
 The following libraries must be installed into the local repository. 
-
-$ mvn install:install-file \
-    -Dfile=lib/caliper/caliper.jar \
-    -DpomFile=lib/caliper/pom.xml
 
 $ mvn install:install-file \
     -Dfile=lib/cache-benchmark/benchmark-fwk.jar \

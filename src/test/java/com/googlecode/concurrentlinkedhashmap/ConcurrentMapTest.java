@@ -33,12 +33,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
-import com.google.common.collect.ImmutableMap;
-
-import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
-
-import org.testng.annotations.Test;
-
 import java.io.Serializable;
 import java.util.Collection;
 import java.util.Iterator;
@@ -47,6 +41,11 @@ import java.util.Map.Entry;
 import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
+
+import org.testng.annotations.Test;
+
+import com.google.common.collect.ImmutableMap;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 
 /**
  * A unit-test for {@link java.util.concurrent.ConcurrentMap} interface and its
@@ -76,7 +75,7 @@ public final class ConcurrentMapTest extends AbstractTest {
 
   @Test(dataProvider = "warmedMap")
   public void size_whenPopulated(Map<Integer, Integer> map) {
-    assertThat(map.size(), is(equalTo(capacity())));
+    assertThat(map.size(), is(equalTo((int) capacity())));
   }
 
   @Test(dataProvider = "guardedMap")
@@ -264,7 +263,7 @@ public final class ConcurrentMapTest extends AbstractTest {
       assertThat(map.putIfAbsent(i, 1), is(i));
       assertThat(map.get(i), is(i));
     }
-    assertThat(map.size(), is(equalTo(capacity())));
+    assertThat(map.size(), is(equalTo((int) capacity())));
   }
 
   @Test(dataProvider = "guardedMap", expectedExceptions = NullPointerException.class)
@@ -489,7 +488,7 @@ public final class ConcurrentMapTest extends AbstractTest {
     Set<Integer> keys = map.keySet();
     assertThat(keys.contains(new Object()), is(false));
     assertThat(keys.remove(new Object()), is(false));
-    assertThat(keys, hasSize(capacity()));
+    assertThat(keys, hasSize((int) capacity()));
     for (int i = 0; i < capacity(); i++) {
       assertThat(keys.contains(i), is(true));
       assertThat(keys.remove(i), is(true));
@@ -508,7 +507,7 @@ public final class ConcurrentMapTest extends AbstractTest {
       iterations++;
       i.remove();
     }
-    assertThat(iterations, is(equalTo(capacity())));
+    assertThat(iterations, is(equalTo((int) capacity())));
     assertThat(map, is(emptyMap()));
   }
 
@@ -568,7 +567,7 @@ public final class ConcurrentMapTest extends AbstractTest {
     Collection<Integer> values = map.values();
     assertThat(values.contains(new Object()), is(false));
     assertThat(values.remove(new Object()), is(false));
-    assertThat(values, hasSize(capacity()));
+    assertThat(values, hasSize((int) capacity()));
     for (int i = 0; i < capacity(); i++) {
       assertThat(values.contains(-i), is(true));
       assertThat(values.remove(-i), is(true));
@@ -587,7 +586,7 @@ public final class ConcurrentMapTest extends AbstractTest {
       iterations++;
       i.remove();
     }
-    assertThat(iterations, is(equalTo(capacity())));
+    assertThat(iterations, is(equalTo((int) capacity())));
     assertThat(map, is(emptyMap()));
   }
 
@@ -652,7 +651,7 @@ public final class ConcurrentMapTest extends AbstractTest {
     assertThat(entries.contains(immutableEntry(entry.getKey(), entry.getValue() + 1)), is(false));
     assertThat(entries.contains(new Object()), is(false));
     assertThat(entries.remove(new Object()), is(false));
-    assertThat(entries, hasSize(capacity()));
+    assertThat(entries, hasSize((int) capacity()));
     for (int i = 0; i < capacity(); i++) {
       Entry<Integer, Integer> newEntry = immutableEntry(i, -i);
       assertThat(entries.contains(newEntry), is(true));
@@ -673,7 +672,7 @@ public final class ConcurrentMapTest extends AbstractTest {
       iterations++;
       i.remove();
     }
-    assertThat(iterations, is(equalTo(capacity())));
+    assertThat(iterations, is(equalTo((int) capacity())));
     assertThat(map, is(emptyMap()));
   }
 

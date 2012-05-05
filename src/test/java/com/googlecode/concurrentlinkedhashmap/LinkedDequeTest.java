@@ -23,18 +23,18 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
-
-import org.testng.annotations.DataProvider;
-import org.testng.annotations.Test;
-
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.List;
 import java.util.NoSuchElementException;
+
+import org.testng.annotations.DataProvider;
+import org.testng.annotations.Test;
+
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Lists;
 
 /**
  * A unit-test for {@link LinkedDeque} methods.
@@ -73,8 +73,8 @@ public final class LinkedDequeTest extends AbstractTest {
 
   @Test(dataProvider = "warmedDeque")
   public void size_whenPopulated(Deque<?> deque) {
-    assertThat(deque.size(), is(capacity()));
-    assertThat(Iterables.size(deque), is(capacity()));
+    assertThat(deque.size(), is((int) capacity()));
+    assertThat(Iterables.size(deque), is((int) capacity()));
   }
 
   @Test(dataProvider = "emptyDeque")
@@ -84,7 +84,7 @@ public final class LinkedDequeTest extends AbstractTest {
 
   @Test(dataProvider = "warmedDeque")
   public void contains_whenFound(Deque<SimpleLinkedValue> deque) {
-    assertThat(deque.contains(Iterables.get(deque, capacity() / 2)), is(true));
+    assertThat(deque.contains(Iterables.get(deque, (int) capacity() / 2)), is(true));
   }
 
   @Test(dataProvider = "warmedDeque")
@@ -102,7 +102,7 @@ public final class LinkedDequeTest extends AbstractTest {
 
   @Test(dataProvider = "warmedDeque")
   public void moveToFront_middle(LinkedDeque<SimpleLinkedValue> deque) {
-    checkMoveToFront(deque, Iterables.get(deque, capacity() / 2));
+    checkMoveToFront(deque, Iterables.get(deque, (int) capacity() / 2));
   }
 
   @Test(dataProvider = "warmedDeque")
@@ -113,7 +113,7 @@ public final class LinkedDequeTest extends AbstractTest {
   private void checkMoveToFront(LinkedDeque<SimpleLinkedValue> deque, SimpleLinkedValue element) {
     deque.moveToFront(element);
     assertThat(deque.peekFirst(), is(element));
-    assertThat(deque.size(), is(capacity()));
+    assertThat(deque.size(), is((int) capacity()));
   }
 
   @Test(dataProvider = "warmedDeque")
@@ -123,7 +123,7 @@ public final class LinkedDequeTest extends AbstractTest {
 
   @Test(dataProvider = "warmedDeque")
   public void moveToBack_middle(LinkedDeque<SimpleLinkedValue> deque) {
-    checkMoveToBack(deque, Iterables.get(deque, capacity() / 2));
+    checkMoveToBack(deque, Iterables.get(deque, (int) capacity() / 2));
   }
 
   @Test(dataProvider = "warmedDeque")
@@ -133,7 +133,7 @@ public final class LinkedDequeTest extends AbstractTest {
 
   private void checkMoveToBack(LinkedDeque<SimpleLinkedValue> deque, SimpleLinkedValue element) {
     deque.moveToBack(element);
-    assertThat(deque.size(), is(capacity()));
+    assertThat(deque.size(), is((int) capacity()));
     assertThat(deque.getLast(), is(element));
   }
 
@@ -149,7 +149,7 @@ public final class LinkedDequeTest extends AbstractTest {
     SimpleLinkedValue first = deque.first;
     assertThat(deque.peek(), is(first));
     assertThat(deque.first, is(first));
-    assertThat(deque, hasSize(capacity()));
+    assertThat(deque, hasSize((int) capacity()));
     assertThat(deque.contains(first), is(true));
   }
 
@@ -163,7 +163,7 @@ public final class LinkedDequeTest extends AbstractTest {
     SimpleLinkedValue first = deque.first;
     assertThat(deque.peekFirst(), is(first));
     assertThat(deque.first, is(first));
-    assertThat(deque, hasSize(capacity()));
+    assertThat(deque, hasSize((int) capacity()));
     assertThat(deque.contains(first), is(true));
   }
 
@@ -177,7 +177,7 @@ public final class LinkedDequeTest extends AbstractTest {
     SimpleLinkedValue last = deque.last;
     assertThat(deque.peekLast(), is(last));
     assertThat(deque.last, is(last));
-    assertThat(deque, hasSize(capacity()));
+    assertThat(deque, hasSize((int) capacity()));
     assertThat(deque.contains(last), is(true));
   }
 
@@ -193,7 +193,7 @@ public final class LinkedDequeTest extends AbstractTest {
     SimpleLinkedValue first = deque.first;
     assertThat(deque.getFirst(), is(first));
     assertThat(deque.first, is(first));
-    assertThat(deque, hasSize(capacity()));
+    assertThat(deque, hasSize((int) capacity()));
     assertThat(deque.contains(first), is(true));
   }
 
@@ -207,7 +207,7 @@ public final class LinkedDequeTest extends AbstractTest {
     SimpleLinkedValue last = deque.last;
     assertThat(deque.getLast(), is(last));
     assertThat(deque.last, is(last));
-    assertThat(deque, hasSize(capacity()));
+    assertThat(deque, hasSize((int) capacity()));
     assertThat(deque.contains(last), is(true));
   }
 
@@ -223,7 +223,7 @@ public final class LinkedDequeTest extends AbstractTest {
     SimpleLinkedValue first = deque.first;
     assertThat(deque.element(), is(first));
     assertThat(deque.first, is(first));
-    assertThat(deque, hasSize(capacity()));
+    assertThat(deque, hasSize((int) capacity()));
     assertThat(deque.contains(first), is(true));
   }
 
@@ -240,17 +240,17 @@ public final class LinkedDequeTest extends AbstractTest {
 
   @Test(dataProvider = "warmedDeque")
   public void offer_whenPopulated(Deque<SimpleLinkedValue> deque) {
-    SimpleLinkedValue value = new SimpleLinkedValue(capacity());
+    SimpleLinkedValue value = new SimpleLinkedValue((int) capacity());
     assertThat(deque.offer(value), is(true));
     assertThat(deque.peekFirst(), is(not(value)));
     assertThat(deque.peekLast(), is(value));
-    assertThat(deque, hasSize(capacity() + 1));
+    assertThat(deque, hasSize((int) capacity() + 1));
   }
 
   @Test(dataProvider = "warmedDeque")
   public void offer_whenLinked(Deque<SimpleLinkedValue> deque) {
     assertThat(deque.offer(deque.peek()), is(false));
-    assertThat(deque, hasSize(capacity()));
+    assertThat(deque, hasSize((int) capacity()));
   }
 
   @Test(dataProvider = "emptyDeque")
@@ -264,17 +264,17 @@ public final class LinkedDequeTest extends AbstractTest {
 
   @Test(dataProvider = "warmedDeque")
   public void offerFirst_whenPopulated(Deque<SimpleLinkedValue> deque) {
-    SimpleLinkedValue value = new SimpleLinkedValue(capacity());
+    SimpleLinkedValue value = new SimpleLinkedValue((int) capacity());
     assertThat(deque.offerFirst(value), is(true));
     assertThat(deque.peekFirst(), is(value));
     assertThat(deque.peekLast(), is(not(value)));
-    assertThat(deque, hasSize(capacity() + 1));
+    assertThat(deque, hasSize((int) capacity() + 1));
   }
 
   @Test(dataProvider = "warmedDeque")
   public void offerFirst_whenLinked(Deque<SimpleLinkedValue> deque) {
     assertThat(deque.offerFirst(deque.peek()), is(false));
-    assertThat(deque, hasSize(capacity()));
+    assertThat(deque, hasSize((int) capacity()));
   }
 
   @Test(dataProvider = "emptyDeque")
@@ -288,17 +288,17 @@ public final class LinkedDequeTest extends AbstractTest {
 
   @Test(dataProvider = "warmedDeque")
   public void offerLast_whenPopulated(Deque<SimpleLinkedValue> deque) {
-    SimpleLinkedValue value = new SimpleLinkedValue(capacity());
+    SimpleLinkedValue value = new SimpleLinkedValue((int) capacity());
     assertThat(deque.offerLast(value), is(true));
     assertThat(deque.peekFirst(), is(not(value)));
     assertThat(deque.peekLast(), is(value));
-    assertThat(deque, hasSize(capacity() + 1));
+    assertThat(deque, hasSize((int) capacity() + 1));
   }
 
   @Test(dataProvider = "warmedDeque")
   public void offerLast_whenLinked(Deque<SimpleLinkedValue> deque) {
     assertThat(deque.offerLast(deque.peek()), is(false));
-    assertThat(deque, hasSize(capacity()));
+    assertThat(deque, hasSize((int) capacity()));
   }
 
   /* ---------------- Add -------------- */
@@ -314,11 +314,11 @@ public final class LinkedDequeTest extends AbstractTest {
 
   @Test(dataProvider = "warmedDeque")
   public void add_whenPopulated(Deque<SimpleLinkedValue> deque) {
-    SimpleLinkedValue value = new SimpleLinkedValue(capacity());
+    SimpleLinkedValue value = new SimpleLinkedValue((int) capacity());
     assertThat(deque.add(value), is(true));
     assertThat(deque.peekFirst(), is(not(value)));
     assertThat(deque.peekLast(), is(value));
-    assertThat(deque, hasSize(capacity() + 1));
+    assertThat(deque, hasSize((int) capacity() + 1));
   }
 
   @Test(dataProvider = "warmedDeque")
@@ -337,11 +337,11 @@ public final class LinkedDequeTest extends AbstractTest {
 
   @Test(dataProvider = "warmedDeque")
   public void addFirst_whenPopulated(Deque<SimpleLinkedValue> deque) {
-    SimpleLinkedValue value = new SimpleLinkedValue(capacity());
+    SimpleLinkedValue value = new SimpleLinkedValue((int) capacity());
     deque.addFirst(value);
     assertThat(deque.peekFirst(), is(value));
     assertThat(deque.peekLast(), is(not(value)));
-    assertThat(deque, hasSize(capacity() + 1));
+    assertThat(deque, hasSize((int) capacity() + 1));
   }
 
   @Test(dataProvider = "warmedDeque", expectedExceptions = IllegalArgumentException.class)
@@ -360,11 +360,11 @@ public final class LinkedDequeTest extends AbstractTest {
 
   @Test(dataProvider = "warmedDeque")
   public void addLast_whenPopulated(Deque<SimpleLinkedValue> deque) {
-    SimpleLinkedValue value = new SimpleLinkedValue(capacity());
+    SimpleLinkedValue value = new SimpleLinkedValue((int) capacity());
     deque.addLast(value);
     assertThat(deque.peekFirst(), is(not(value)));
     assertThat(deque.peekLast(), is(value));
-    assertThat(deque, hasSize(capacity() + 1));
+    assertThat(deque, hasSize((int) capacity() + 1));
   }
 
   @Test(dataProvider = "warmedDeque", expectedExceptions = IllegalArgumentException.class)
@@ -402,7 +402,7 @@ public final class LinkedDequeTest extends AbstractTest {
   public void poll_whenPopulated(Deque<SimpleLinkedValue> deque) {
     SimpleLinkedValue first = deque.peek();
     assertThat(deque.poll(), is(first));
-    assertThat(deque, hasSize(capacity() - 1));
+    assertThat(deque, hasSize((int) capacity() - 1));
     assertThat(deque.contains(first), is(false));
   }
 
@@ -424,7 +424,7 @@ public final class LinkedDequeTest extends AbstractTest {
   public void pollFirst_whenPopulated(Deque<SimpleLinkedValue> deque) {
     SimpleLinkedValue first = deque.peekFirst();
     assertThat(deque.pollFirst(), is(first));
-    assertThat(deque, hasSize(capacity() - 1));
+    assertThat(deque, hasSize((int) capacity() - 1));
     assertThat(deque.contains(first), is(false));
   }
 
@@ -446,7 +446,7 @@ public final class LinkedDequeTest extends AbstractTest {
   public void pollLast_whenPopulated(Deque<SimpleLinkedValue> deque) {
     SimpleLinkedValue last = deque.peekLast();
     assertThat(deque.pollLast(), is(last));
-    assertThat(deque, hasSize(capacity() - 1));
+    assertThat(deque, hasSize((int) capacity() - 1));
     assertThat(deque.contains(last), is(false));
   }
 
@@ -470,7 +470,7 @@ public final class LinkedDequeTest extends AbstractTest {
   public void remove_whenPopulated(Deque<SimpleLinkedValue> deque) {
     SimpleLinkedValue first = deque.peekFirst();
     assertThat(deque.remove(), is(first));
-    assertThat(deque, hasSize(capacity() - 1));
+    assertThat(deque, hasSize((int) capacity() - 1));
     assertThat(deque.contains(first), is(false));
   }
 
@@ -492,7 +492,7 @@ public final class LinkedDequeTest extends AbstractTest {
   public void removeElement_whenFound(Deque<SimpleLinkedValue> deque) {
     SimpleLinkedValue first = deque.peekFirst();
     assertThat(deque.remove(first), is(true));
-    assertThat(deque, hasSize(capacity() - 1));
+    assertThat(deque, hasSize((int) capacity() - 1));
     assertThat(deque.contains(first), is(false));
   }
 
@@ -515,7 +515,7 @@ public final class LinkedDequeTest extends AbstractTest {
   public void removeFirst_whenPopulated(Deque<SimpleLinkedValue> deque) {
     SimpleLinkedValue first = deque.peekFirst();
     assertThat(deque.removeFirst(), is(first));
-    assertThat(deque, hasSize(capacity() - 1));
+    assertThat(deque, hasSize((int) capacity() - 1));
     assertThat(deque.contains(first), is(false));
   }
 
@@ -537,7 +537,7 @@ public final class LinkedDequeTest extends AbstractTest {
   public void removeLast_whenPopulated(Deque<SimpleLinkedValue> deque) {
     SimpleLinkedValue last = deque.peekLast();
     assertThat(deque.removeLast(), is(last));
-    assertThat(deque, hasSize(capacity() - 1));
+    assertThat(deque, hasSize((int) capacity() - 1));
     assertThat(deque.contains(last), is(false));
   }
 
@@ -559,7 +559,7 @@ public final class LinkedDequeTest extends AbstractTest {
   public void removeFirstOccurrence_whenFound(Deque<SimpleLinkedValue> deque) {
     SimpleLinkedValue first = deque.peekFirst();
     assertThat(deque.removeFirstOccurrence(first), is(true));
-    assertThat(deque, hasSize(capacity() - 1));
+    assertThat(deque, hasSize((int) capacity() - 1));
     assertThat(deque.contains(first), is(false));
   }
 
@@ -582,7 +582,7 @@ public final class LinkedDequeTest extends AbstractTest {
   public void removeLastOccurrence_whenFound(Deque<SimpleLinkedValue> deque) {
     SimpleLinkedValue first = deque.peekFirst();
     assertThat(deque.removeLastOccurrence(first), is(true));
-    assertThat(deque, hasSize(capacity() - 1));
+    assertThat(deque, hasSize((int) capacity() - 1));
     assertThat(deque.contains(first), is(false));
   }
 
@@ -606,7 +606,7 @@ public final class LinkedDequeTest extends AbstractTest {
   public void remove_withPopulated(Deque<SimpleLinkedValue> deque) {
     SimpleLinkedValue first = deque.peekFirst();
     assertThat(deque.removeAll(ImmutableList.of(first)), is(true));
-    assertThat(deque, hasSize(capacity() - 1));
+    assertThat(deque, hasSize((int) capacity() - 1));
     assertThat(deque.contains(first), is(false));
   }
 
@@ -629,11 +629,11 @@ public final class LinkedDequeTest extends AbstractTest {
 
   @Test(dataProvider = "warmedDeque")
   public void push_whenPopulated(Deque<SimpleLinkedValue> deque) {
-    SimpleLinkedValue value = new SimpleLinkedValue(capacity());
+    SimpleLinkedValue value = new SimpleLinkedValue((int) capacity());
     deque.push(value);
     assertThat(deque.peekFirst(), is(value));
     assertThat(deque.peekLast(), is(not(value)));
-    assertThat(deque, hasSize(capacity() + 1));
+    assertThat(deque, hasSize((int) capacity() + 1));
   }
 
   @Test(dataProvider = "warmedDeque", expectedExceptions = IllegalArgumentException.class)
@@ -650,7 +650,7 @@ public final class LinkedDequeTest extends AbstractTest {
   public void pop_whenPopulated(Deque<SimpleLinkedValue> deque) {
     SimpleLinkedValue first = deque.peekFirst();
     assertThat(deque.pop(), is(first));
-    assertThat(deque, hasSize(capacity() - 1));
+    assertThat(deque, hasSize((int) capacity() - 1));
     assertThat(deque.contains(first), is(false));
   }
 

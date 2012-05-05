@@ -29,21 +29,20 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.when;
 import static org.testng.Assert.fail;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-
-import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
-
-import org.mockito.Mock;
-import org.testng.annotations.Test;
-
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import org.mockito.Mock;
+import org.testng.annotations.Test;
+
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 
 /**
  * A unit-test for the weigher algorithms and that the map keeps track of the
@@ -145,7 +144,7 @@ public final class WeigherTest extends AbstractTest {
     ConcurrentLinkedHashMap<Integer, Integer> map = builder
         .maximumWeightedCapacity(capacity())
         .weigher(weigher).build();
-    doReturn(MAXIMUM_WEIGHT + 1).when(weigher).weightOf(anyInt());
+    doReturn((int) MAXIMUM_WEIGHT + 1).when(weigher).weightOf(anyInt());
     map.put(1, 2);
   }
 
@@ -156,8 +155,8 @@ public final class WeigherTest extends AbstractTest {
         .weigher(weigher)
         .build();
 
-    doReturn(MAXIMUM_WEIGHT).when(weigher).weightOf(1);
-    doReturn(MAXIMUM_WEIGHT).when(weigher).weightOf(2);
+    doReturn((int) MAXIMUM_WEIGHT).when(weigher).weightOf(1);
+    doReturn((int) MAXIMUM_WEIGHT).when(weigher).weightOf(2);
     doReturn(1).when(weigher).weightOf(3);
 
     map.putAll(ImmutableMap.of(1, 1, 2, 2));
@@ -172,7 +171,7 @@ public final class WeigherTest extends AbstractTest {
   public void put(ConcurrentLinkedHashMap<String, List<Integer>> map) {
     map.put("a", asList(1, 2, 3));
     assertThat(map.size(), is(1));
-    assertThat(map.weightedSize(), is(3));
+    assertThat(map.weightedSize(), is(3L));
   }
 
   @Test(dataProvider = "guardedWeightedMap")
@@ -181,7 +180,7 @@ public final class WeigherTest extends AbstractTest {
 
     map.put("a", asList(-1, -2, -3));
     assertThat(map.size(), is(2));
-    assertThat(map.weightedSize(), is(4));
+    assertThat(map.weightedSize(), is(4L));
   }
 
   @Test(dataProvider = "guardedWeightedMap")
@@ -190,7 +189,7 @@ public final class WeigherTest extends AbstractTest {
 
     map.put("a", asList(-1, -2, -3, -4));
     assertThat(map.size(), is(2));
-    assertThat(map.weightedSize(), is(5));
+    assertThat(map.weightedSize(), is(5L));
   }
 
   @Test(dataProvider = "guardedWeightedMap")
@@ -199,7 +198,7 @@ public final class WeigherTest extends AbstractTest {
 
     map.replace("a", asList(-1, -2, -3));
     assertThat(map.size(), is(2));
-    assertThat(map.weightedSize(), is(4));
+    assertThat(map.weightedSize(), is(4L));
   }
 
   @Test(dataProvider = "guardedWeightedMap")
@@ -208,7 +207,7 @@ public final class WeigherTest extends AbstractTest {
 
     map.replace("a", asList(-1, -2, -3, -4));
     assertThat(map.size(), is(2));
-    assertThat(map.weightedSize(), is(5));
+    assertThat(map.weightedSize(), is(5L));
   }
 
   @Test(dataProvider = "guardedWeightedMap")
@@ -217,7 +216,7 @@ public final class WeigherTest extends AbstractTest {
 
     assertThat(map.replace("a", asList(1, 2, 3), asList(4, 5, 6)), is(true));
     assertThat(map.size(), is(2));
-    assertThat(map.weightedSize(), is(4));
+    assertThat(map.weightedSize(), is(4L));
   }
 
   @Test(dataProvider = "guardedWeightedMap")
@@ -226,7 +225,7 @@ public final class WeigherTest extends AbstractTest {
 
     map.replace("a", asList(1, 2, 3), asList(-1, -2, -3, -4));
     assertThat(map.size(), is(2));
-    assertThat(map.weightedSize(), is(5));
+    assertThat(map.weightedSize(), is(5L));
   }
 
   @Test(dataProvider = "guardedWeightedMap")
@@ -235,7 +234,7 @@ public final class WeigherTest extends AbstractTest {
 
     assertThat(map.replace("a", asList(1), asList(4, 5)), is(false));
     assertThat(map.size(), is(2));
-    assertThat(map.weightedSize(), is(4));
+    assertThat(map.weightedSize(), is(4L));
   }
 
   @Test(dataProvider = "guardedWeightedMap")
@@ -244,7 +243,7 @@ public final class WeigherTest extends AbstractTest {
 
     assertThat(map.remove("a"), is(asList(1, 2, 3)));
     assertThat(map.size(), is(1));
-    assertThat(map.weightedSize(), is(1));
+    assertThat(map.weightedSize(), is(1L));
   }
 
   @Test(dataProvider = "guardedWeightedMap")
@@ -253,7 +252,7 @@ public final class WeigherTest extends AbstractTest {
 
     assertThat(map.remove("a", asList(1, 2, 3)), is(true));
     assertThat(map.size(), is(1));
-    assertThat(map.weightedSize(), is(1));
+    assertThat(map.weightedSize(), is(1L));
   }
 
   @Test(dataProvider = "guardedWeightedMap")
@@ -262,7 +261,7 @@ public final class WeigherTest extends AbstractTest {
 
     assertThat(map.remove("a", asList(-1, -2, -3)), is(false));
     assertThat(map.size(), is(2));
-    assertThat(map.weightedSize(), is(4));
+    assertThat(map.weightedSize(), is(4L));
   }
 
   @Test(dataProvider = "guardedWeightedMap")
@@ -271,6 +270,6 @@ public final class WeigherTest extends AbstractTest {
 
     map.clear();
     assertThat(map.size(), is(0));
-    assertThat(map.weightedSize(), is(0));
+    assertThat(map.weightedSize(), is(0L));
   }
 }

@@ -15,16 +15,6 @@
  */
 package com.googlecode.concurrentlinkedhashmap.caches;
 
-import com.google.common.collect.MapMaker;
-
-import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
-import com.googlecode.concurrentlinkedhashmap.caches.BoundedLinkedHashMap.AccessOrder;
-import com.googlecode.concurrentlinkedhashmap.caches.ProductionMap.EvictionPolicy;
-
-import net.sf.ehcache.store.MemoryStoreEvictionPolicy;
-
-import org.cliffc.high_scale_lib.NonBlockingHashMap;
-
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -32,6 +22,14 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+
+import net.sf.ehcache.store.MemoryStoreEvictionPolicy;
+
+import org.cliffc.high_scale_lib.NonBlockingHashMap;
+
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
+import com.googlecode.concurrentlinkedhashmap.caches.BoundedLinkedHashMap.AccessOrder;
+import com.googlecode.concurrentlinkedhashmap.caches.ProductionMap.EvictionPolicy;
 
 /**
  * A collection of cache data structures that can be built.
@@ -184,13 +182,13 @@ public enum Cache {
   },
 
   /** MapMaker, with a maximum size. */
-  MapMaker() {
+  Guava() {
     @Override public <K, V> ConcurrentMap<K, V> create(CacheBuilder builder) {
-      return new MapMaker()
+      return com.google.common.cache.CacheBuilder.newBuilder()
           .initialCapacity(builder.initialCapacity)
           .concurrencyLevel(builder.concurrencyLevel)
           .maximumSize(builder.maximumCapacity)
-          .makeMap();
+          .<K, V>build().asMap();
     }
     @Override public Policy policy() {
       return Policy.LRU_SEGMENTED;

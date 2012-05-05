@@ -27,16 +27,6 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.testng.Assert.fail;
 
-import com.google.common.collect.Sets;
-
-import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
-import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Node;
-
-import org.apache.commons.lang.SerializationUtils;
-import org.testng.annotations.AfterMethod;
-import org.testng.annotations.Parameters;
-import org.testng.annotations.Test;
-
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
@@ -52,6 +42,15 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import org.apache.commons.lang.SerializationUtils;
+import org.testng.annotations.AfterMethod;
+import org.testng.annotations.Parameters;
+import org.testng.annotations.Test;
+
+import com.google.common.collect.Sets;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Node;
 
 /**
  * A unit-test to assert basic concurrency characteristics by validating the
@@ -196,7 +195,7 @@ public final class MultiThreadedTest extends AbstractTest {
     },
     CAPACITY() {
       @Override void execute(ConcurrentLinkedHashMap<Integer, Integer> cache, Integer key) {
-        cache.setCapacity(cache.capacity());
+        cache.setCapacity((int) cache.capacity());
       }
     },
     GET() {

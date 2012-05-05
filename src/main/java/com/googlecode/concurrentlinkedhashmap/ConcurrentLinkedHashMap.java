@@ -148,10 +148,10 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    */
 
   /** The maximum weighted capacity of the map. */
-  static final int MAXIMUM_CAPACITY = 1 << 30;
+  static final long MAXIMUM_CAPACITY = 1 << 30;
 
   /** The maximum weight of a value. */
-  static final int MAXIMUM_WEIGHT = 1 << 29;
+  static final long MAXIMUM_WEIGHT = 1 << 29;
 
   /** The maximum number of pending operations per buffer. */
   static final int MAXIMUM_BUFFER_SIZE = 1 << 20;
@@ -205,9 +205,9 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   final LinkedDeque<Node> evictionDeque;
 
   @GuardedBy("evictionLock") // must write under lock
-  volatile int weightedSize;
+  volatile long weightedSize;
   @GuardedBy("evictionLock") // must write under lock
-  volatile int capacity;
+  volatile long capacity;
 
   volatile int nextOrder;
   @GuardedBy("evictionLock")
@@ -274,7 +274,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    *
    * @return the maximum weighted capacity
    */
-  public int capacity() {
+  public long capacity() {
     return capacity;
   }
 
@@ -285,7 +285,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * @param capacity the maximum weighted capacity of the map
    * @throws IllegalArgumentException if the capacity is negative
    */
-  public void setCapacity(int capacity) {
+  public void setCapacity(long capacity) {
     if (capacity < 0) {
       throw new IllegalArgumentException();
     }
@@ -683,7 +683,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    *
    * @return the combined weight of the values in this map
    */
-  public int weightedSize() {
+  public long weightedSize() {
     return Math.max(0, weightedSize);
   }
 
@@ -980,7 +980,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       drainBuffers(AMORTIZED_DRAIN_THRESHOLD);
 
       int initialCapacity = (weigher == Weighers.singleton())
-          ? Math.min(limit, weightedSize())
+          ? Math.min(limit, (int) weightedSize())
           : 16;
       Set<K> keys = new LinkedHashSet<K>(initialCapacity);
       Iterator<Node> iterator = ascending
@@ -1092,7 +1092,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       drainBuffers(AMORTIZED_DRAIN_THRESHOLD);
 
       int initialCapacity = (weigher == Weighers.singleton())
-          ? Math.min(limit, weightedSize())
+          ? Math.min(limit, (int) weightedSize())
           : 16;
       Map<K, V> map = new LinkedHashMap<K, V>(initialCapacity);
       Iterator<Node> iterator = ascending
@@ -1588,7 +1588,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     final Weigher<? super V> weigher;
     final int concurrencyLevel;
     final Map<K, V> data;
-    final int capacity;
+    final long capacity;
 
     SerializationProxy(ConcurrentLinkedHashMap<K, V> map) {
       concurrencyLevel = map.concurrencyLevel;
@@ -1639,7 +1639,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
     int concurrencyLevel;
     int initialCapacity;
-    int capacity;
+    long capacity;
 
     @SuppressWarnings("unchecked")
     public Builder() {
@@ -1676,7 +1676,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
      * @throws IllegalArgumentException if the maximumWeightedCapacity is
      *     negative
      */
-    public Builder<K, V> maximumWeightedCapacity(int capacity) {
+    public Builder<K, V> maximumWeightedCapacity(long capacity) {
       if (capacity < 0) {
         throw new IllegalArgumentException();
       }

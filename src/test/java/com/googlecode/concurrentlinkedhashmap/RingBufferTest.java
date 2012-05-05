@@ -29,15 +29,6 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.testng.Assert.fail;
 
-import com.googlecode.concurrentlinkedhashmap.RingBuffer.Sink;
-
-import org.mockito.ArgumentCaptor;
-import org.mockito.Captor;
-import org.mockito.Mock;
-import org.testng.annotations.DataProvider;
-import org.testng.annotations.Parameters;
-import org.testng.annotations.Test;
-
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -47,6 +38,15 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+
+import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
+import org.mockito.Mock;
+import org.testng.annotations.DataProvider;
+import org.testng.annotations.Parameters;
+import org.testng.annotations.Test;
+
+import com.googlecode.concurrentlinkedhashmap.RingBuffer.Sink;
 
 /**
  * A unit-test for the ring buffer algorithm.
@@ -168,6 +168,6 @@ public class RingBufferTest extends AbstractTest {
 
   @DataProvider(name = "buffer")
   public Object[][] providesRingBuffer() {
-    return new Object[][] {{ new RingBuffer<Integer>(capacity(), threshold, sink) }};
+    return new Object[][] {{ new RingBuffer<Integer>((int) capacity(), threshold, sink) }};
   }
 }

@@ -23,7 +23,8 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.MockitoAnnotations.initMocks;
 
-import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
+import java.util.Map;
+import java.util.concurrent.ScheduledExecutorService;
 
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
@@ -37,8 +38,7 @@ import org.testng.annotations.DataProvider;
 import org.testng.annotations.Optional;
 import org.testng.annotations.Parameters;
 
-import java.util.Map;
-import java.util.concurrent.ScheduledExecutorService;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 
 /**
  * A testing harness for simplifying the unit tests.
@@ -47,7 +47,7 @@ import java.util.concurrent.ScheduledExecutorService;
  */
 public abstract class AbstractTest {
   private static boolean debug;
-  private int capacity;
+  private long capacity;
 
   @Mock protected EvictionListener<Integer, Integer> listener;
   @Captor protected ArgumentCaptor<Runnable> catchUpTask;
@@ -55,7 +55,7 @@ public abstract class AbstractTest {
   @Mock protected Weigher<Integer> weigher;
 
   /** Retrieves the maximum weighted capacity to build maps with. */
-  protected final int capacity() {
+  protected final long capacity() {
     return capacity;
   }
 
@@ -85,7 +85,7 @@ public abstract class AbstractTest {
 
   @Parameters("capacity")
   @BeforeClass(alwaysRun = true)
-  public void initClass(int capacity) {
+  public void initClass(long capacity) {
     this.capacity = capacity;
     initMocks(this);
   }
@@ -230,7 +230,7 @@ public abstract class AbstractTest {
    * Populates the map with the half-closed interval [start, end) where the
    * value is the negation of the key.
    */
-  protected static void warmUp(Map<Integer, Integer> map, int start, int end) {
+  protected static void warmUp(Map<Integer, Integer> map, int start, long end) {
     for (Integer i = start; i < end; i++) {
       assertThat(map.put(i, -i), is(nullValue()));
     }

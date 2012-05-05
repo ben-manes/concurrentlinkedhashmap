@@ -18,17 +18,16 @@ package com.googlecode.concurrentlinkedhashmap;
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.AMORTIZED_DRAIN_THRESHOLD;
 import static com.googlecode.concurrentlinkedhashmap.IsValidLinkedDeque.validLinkedDeque;
 
-import com.google.common.collect.Sets;
-
-import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Node;
-import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.WeightedValue;
+import java.util.Set;
+import java.util.concurrent.locks.ReentrantLock;
 
 import org.hamcrest.Description;
 import org.hamcrest.Factory;
 import org.hamcrest.TypeSafeDiagnosingMatcher;
 
-import java.util.Set;
-import java.util.concurrent.locks.ReentrantLock;
+import com.google.common.collect.Sets;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Node;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.WeightedValue;
 
 /**
  * A matcher that evaluates a {@link ConcurrentLinkedHashMap} to determine if it
@@ -96,7 +95,7 @@ public final class IsValidConcurrentLinkedHashMap
 
   @SuppressWarnings("rawtypes")
   private void checkLinks(ConcurrentLinkedHashMap<?, ?> map, DescriptionBuilder builder) {
-    int weightedSize = 0;
+    long weightedSize = 0;
     Set<Node> seen = Sets.newIdentityHashSet();
     for (Node node : map.evictionDeque) {
       builder.expect(seen.add(node), "Loop detected: %s, saw %s in %s", node, seen, map);

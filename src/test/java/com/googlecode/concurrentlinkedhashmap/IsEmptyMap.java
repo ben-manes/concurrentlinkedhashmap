@@ -17,13 +17,13 @@ package com.googlecode.concurrentlinkedhashmap;
 
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.AMORTIZED_DRAIN_THRESHOLD;
 
-import com.google.common.collect.ImmutableMap;
+import java.util.Map;
 
 import org.hamcrest.Description;
 import org.hamcrest.Factory;
 import org.hamcrest.TypeSafeDiagnosingMatcher;
 
-import java.util.Map;
+import com.google.common.collect.ImmutableMap;
 
 /**
  * A matcher that performs an exhaustive empty check throughout the {@link Map}
@@ -61,8 +61,8 @@ public final class IsEmptyMap extends TypeSafeDiagnosingMatcher<Map<?, ?>> {
     builder.expectEqual(map.size(), 0, "Size != 0");
     builder.expect(map.data.isEmpty(), "Internal not empty");
     builder.expectEqual(map.data.size(), 0, "Internal size != 0");
-    builder.expectEqual(map.weightedSize(), 0, "Weighted size != 0");
-    builder.expectEqual(map.weightedSize, 0, "Internal weighted size != 0");
+    builder.expectEqual(map.weightedSize(), 0L, "Weighted size != 0");
+    builder.expectEqual(map.weightedSize, 0L, "Internal weighted size != 0");
     builder.expectEqual(map.evictionDeque.peekFirst(), null, "first not null: " + map.evictionDeque);
     builder.expectEqual(map.evictionDeque.peekLast(), null, "last not null");
   }
