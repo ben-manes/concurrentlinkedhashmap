@@ -40,7 +40,6 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicIntegerArray;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Lock;
@@ -56,8 +55,8 @@ import java.util.concurrent.locks.ReentrantLock;
  * through a {@link Builder}.
  * <p>
  * An entry is evicted from the map when the <tt>weighted capacity</tt> exceeds
- * its <tt>maximum weighted capacity</tt> threshold. A {@link Weigher} instance
- * determines how many units of capacity that a value consumes. The default
+ * its <tt>maximum weighted capacity</tt> threshold. A {@link EntryWeigher}
+ * determines how many units of capacity that an entry consumes. The default
  * weigher assigns each value a weight of <tt>1</tt> to bound the map by the
  * total number of key-value pairs. A map that holds collections may choose to
  * weigh values by the number of elements in the collection and bound the map
@@ -247,10 +246,24 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
         : new ConcurrentLinkedQueue<Node>();
   }
 
-  /** Asserts that the object is not null. */
+  /** Ensures that the object is not null. */
   static void checkNotNull(Object o) {
     if (o == null) {
       throw new NullPointerException();
+    }
+  }
+
+  /** Ensures that the argument expression is true. */
+  static void checkArgument(boolean expression) {
+    if (!expression) {
+      throw new IllegalArgumentException();
+    }
+  }
+
+  /** Ensures that the state expression is true. */
+  static void checkState(boolean expression) {
+    if (!expression) {
+      throw new IllegalStateException();
     }
   }
 
@@ -273,10 +286,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * @throws IllegalArgumentException if the capacity is negative
    */
   public void setCapacity(long capacity) {
-    if (capacity < 0) {
-      throw new IllegalArgumentException();
-    }
-
+    checkArgument(capacity >= 0);
     evictionLock.lock();
     try {
       this.capacity = Math.min(capacity, MAXIMUM_CAPACITY);
@@ -956,9 +966,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   }
 
   Set<K> orderedKeySet(boolean ascending, int limit) {
-    if (limit < 0) {
-      throw new IllegalArgumentException();
-    }
+    checkArgument(limit >= 0);
     evictionLock.lock();
     try {
       drainBuffers(AMORTIZED_DRAIN_THRESHOLD);
@@ -1068,9 +1076,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   }
 
   Map<K, V> orderedMap(boolean ascending, int limit) {
-    if (limit < 0) {
-      throw new IllegalArgumentException();
-    }
+    checkArgument(limit >= 0);
     evictionLock.lock();
     try {
       drainBuffers(AMORTIZED_DRAIN_THRESHOLD);
@@ -1285,9 +1291,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
     @Override
     public void remove() {
-      if (current == null) {
-        throw new IllegalStateException();
-      }
+      checkState(current != null);
       ConcurrentLinkedHashMap.this.remove(current);
       current = null;
     }
@@ -1335,9 +1339,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
     @Override
     public void remove() {
-      if (current == null) {
-        throw new IllegalStateException();
-      }
+      checkState(current != null);
       ConcurrentLinkedHashMap.this.remove(current.key);
       current = null;
     }
@@ -1405,9 +1407,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
     @Override
     public void remove() {
-      if (current == null) {
-        throw new IllegalStateException();
-      }
+      checkState(current != null);
       ConcurrentLinkedHashMap.this.remove(current.key);
       current = null;
     }
@@ -1445,9 +1445,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     @Override
     public int weightOf(K key, V value) {
       int weight = weigher.weightOf(key, value);
-      if (weight < 1) {
-        throw new IllegalArgumentException("invalid weight");
-      }
+      checkArgument(weight >= 1);
       return weight;
     }
 
@@ -1605,9 +1603,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
      * @throws IllegalArgumentException if the initialCapacity is negative
      */
     public Builder<K, V> initialCapacity(int initialCapacity) {
-      if (initialCapacity < 0) {
-        throw new IllegalArgumentException();
-      }
+      checkArgument(initialCapacity >= 0);
       this.initialCapacity = initialCapacity;
       return this;
     }
@@ -1621,9 +1617,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
      *     negative
      */
     public Builder<K, V> maximumWeightedCapacity(long capacity) {
-      if (capacity < 0) {
-        throw new IllegalArgumentException();
-      }
+      checkArgument(capacity >= 0);
       this.capacity = capacity;
       return this;
     }
@@ -1639,9 +1633,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
      *     equal to zero
      */
     public Builder<K, V> concurrencyLevel(int concurrencyLevel) {
-      if (concurrencyLevel <= 0) {
-        throw new IllegalArgumentException();
-      }
+      checkArgument(concurrencyLevel > 0);
       this.concurrencyLevel = concurrencyLevel;
       return this;
     }
@@ -1694,13 +1686,9 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
      *
      * @throws IllegalStateException if the maximum weighted capacity was
      *     not set
-     * @throws RejectedExecutionException if an executor was specified and the
-     *     catch-up task cannot be scheduled for execution
      */
     public ConcurrentLinkedHashMap<K, V> build() {
-      if (capacity < 0) {
-        throw new IllegalStateException();
-      }
+      checkState(capacity >= 0);
       return new ConcurrentLinkedHashMap<K, V>(this);
     }
   }
