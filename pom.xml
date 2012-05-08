@@ -48,7 +48,9 @@
     <version>3</version>
   </parent>
   <properties>
-    <targetJdk>1.6</targetJdk>
+    <jdk.version>java16</jdk.version>
+    <java.version>1.6</java.version>
+    <targetJdk>${java.version}</targetJdk>
   </properties>
   <dependencies>
     <dependency>
@@ -128,15 +130,72 @@
       </extension>
     </extensions>
     <plugins>
+      <!-- Java compiler -->
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-compiler-plugin</artifactId>
         <version>2.3.2</version>
         <configuration>
-          <source>${targetJdk}</source>
-          <target>${targetJdk}</target>
+          <source>${java.version}</source>
+          <target>${java.version}</target>
         </configuration>
       </plugin>
+
+      <!-- Add OSGi Manifest metadata -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+        <version>2.4</version>
+        <configuration>
+          <archive>
+            <manifestFile>${project.build.outputDirectory}/META-INF/MANIFEST.MF</manifestFile>
+          </archive>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.felix</groupId>
+        <artifactId>maven-bundle-plugin</artifactId>
+        <version>2.3.7</version>
+        <executions>
+          <execution>
+            <id>bundle-manifest</id>
+            <phase>process-classes</phase>
+            <goals>
+              <goal>manifest</goal>
+            </goals>
+          </execution>
+        </executions>
+        <configuration>
+          <instructions>
+            <Export-Package>com.googlecode.concurrentlinkedhashmap.*</Export-Package>
+          </instructions>
+        </configuration>
+      </plugin>
+
+      <!-- Enforce JDK version compatibility -->
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>animal-sniffer-maven-plugin</artifactId>
+        <version>1.7</version>
+        <configuration>
+          <signature>
+            <groupId>org.codehaus.mojo.signature</groupId>
+            <artifactId>${jdk.version}-sun</artifactId>
+            <version>1.0</version>
+          </signature>
+        </configuration>
+        <executions>
+          <execution>
+            <id>check-${jdk.version}-sun</id>
+            <phase>test</phase>
+            <goals>
+              <goal>check</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+
+      <!-- Create source jar -->
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-source-plugin</artifactId>
@@ -150,6 +209,8 @@
             </execution>
         </executions>
       </plugin>
+
+      <!-- Bootstrap Unit Tests -->
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-plugin</artifactId>
@@ -161,6 +222,8 @@
           <groups>development</groups>
         </configuration>
       </plugin>
+
+      <!-- Generates a Maven site -->
       <plugin>
         <artifactId>maven-site-plugin</artifactId>
         <version>3.1</version>
