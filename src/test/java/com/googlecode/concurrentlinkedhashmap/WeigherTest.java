@@ -15,6 +15,7 @@
  */
 package com.googlecode.concurrentlinkedhashmap;
 
+import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.MAXIMUM_CAPACITY;
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -152,6 +153,21 @@ public final class WeigherTest extends AbstractTest {
         .weigher(weigher).build();
     doReturn(0).when(weigher).weightOf(anyInt());
     map.put(1, 2);
+  }
+
+  @Test(dataProvider = "builder")
+  public void put_withNoOverflow(Builder<Integer, Integer> builder) {
+    ConcurrentLinkedHashMap<Integer, Integer> map = builder
+        .maximumWeightedCapacity(MAXIMUM_CAPACITY)
+        .weigher(weigher)
+        .build();
+    doReturn(Integer.MAX_VALUE).when(weigher).weightOf(anyInt());
+    map.putAll(ImmutableMap.of(1, 1, 2, 2));
+    map.weightedSize = MAXIMUM_CAPACITY;
+
+    map.put(3, 3);
+    assertThat(map.size(), is(2));
+    assertThat(map.weightedSize(), is(MAXIMUM_CAPACITY));
   }
 
   @Test(dataProvider = "guardedWeightedMap")
