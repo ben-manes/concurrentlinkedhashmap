@@ -65,6 +65,23 @@ public final class WeigherTest extends AbstractTest {
     }
   }
 
+  @Test(dataProvider = "collectionWeigher")
+  public void asEntryWeigher(Weigher<Collection<?>> weigher) {
+    EntryWeigher<Collection<?>, Collection<?>> entryWeigher =
+        Weighers.asEntryWeigher(weigher);
+
+    assertThat(entryWeigher.weightOf(emptyList(), emptyList()), is(0));
+    assertThat(entryWeigher.weightOf(asList(1), asList(1)), is(1));
+    assertThat(entryWeigher.weightOf(asList(1, 2, 3), asList(1, 2, 3)), is(3));
+  }
+
+  @Test(dataProvider = "singletonEntryWeigher")
+  public void singleton_entry(EntryWeigher<Object, Object> weigher) {
+    assertThat(weigher.weightOf(new Object(), new Object()), is(1));
+    assertThat(weigher.weightOf(emptyList(), emptyList()), is(1));
+    assertThat(weigher.weightOf(asList(1, 2, 3), asList(1, 2, 3)), is(1));
+  }
+
   @Test(dataProvider = "singletonWeigher")
   public void singleton(Weigher<Object> weigher) {
     assertThat(weigher.weightOf(new Object()), is(1));

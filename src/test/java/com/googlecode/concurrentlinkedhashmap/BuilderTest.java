@@ -25,9 +25,10 @@ import static org.hamcrest.Matchers.sameInstance;
 
 import org.testng.annotations.Test;
 
-import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.BoundedWeigher;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.BoundedEntryWeigher;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.DiscardingListener;
+import com.googlecode.concurrentlinkedhashmap.Weighers.EntryWeigherView;
 
 /**
  * A unit-test for the builder methods.
@@ -116,18 +117,36 @@ public final class BuilderTest extends AbstractTest {
 
   @Test(dataProvider = "builder", expectedExceptions = NullPointerException.class)
   public void weigher_withNull(Builder<?, ?> builder) {
-    builder.weigher(null);
+    builder.weigher((Weigher<Object>) null);
+  }
+
+  @Test(dataProvider = "builder", expectedExceptions = NullPointerException.class)
+  public void weigher_withNull_entry(Builder<?, ?> builder) {
+    builder.weigher((EntryWeigher<Object, Object>) null);
   }
 
   @Test(dataProvider = "builder")
   public void weigher_withDefault(Builder<Integer, Integer> builder) {
-    assertThat(builder.build().weigher, sameInstance((Object) Weighers.singleton()));
+    assertThat(builder.build().weigher, sameInstance((Object) Weighers.entrySingleton()));
   }
 
   @Test(dataProvider = "builder")
   public void weigher_withCustom(Builder<Integer, byte[]> builder) {
     builder.weigher(Weighers.byteArray());
-    Weigher<?> weigher = ((BoundedWeigher<?>) builder.build().weigher).weigher;
-    assertThat(weigher, is(sameInstance((Object) Weighers.byteArray())));
+    EntryWeigher<?, ?> weigher = ((BoundedEntryWeigher<?, ?>) builder.build().weigher).weigher;
+    Weigher<?> customWeigher = ((EntryWeigherView<?, ?>) weigher).weigher;
+    assertThat(customWeigher, is(sameInstance((Object) Weighers.byteArray())));
+  }
+
+  @Test(dataProvider = "builder")
+  public void weigher_withCustom_entry(Builder<Integer, Integer> builder) {
+    EntryWeigher<Integer, Integer> custom = new EntryWeigher<Integer, Integer>() {
+      @Override public int weightOf(Integer key, Integer value) {
+        return key + value;
+      }
+    };
+    builder.weigher(custom);
+    EntryWeigher<?, ?> weigher = ((BoundedEntryWeigher<?, ?>) builder.build().weigher).weigher;
+    assertThat(weigher, is(sameInstance((Object) custom)));
   }
 }

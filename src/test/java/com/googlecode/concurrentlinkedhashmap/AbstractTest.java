@@ -165,6 +165,18 @@ public abstract class AbstractTest {
     return map;
   }
 
+  @DataProvider(name = "emptyWeightedMap")
+  public Object[][] providesEmptyWeightedMap() {
+    return new Object[][] {{ newEmptyWeightedMap() }};
+  }
+
+  private <K, V> ConcurrentLinkedHashMap<K, Iterable<V>> newEmptyWeightedMap() {
+    return new Builder<K, Iterable<V>>()
+        .maximumWeightedCapacity(capacity())
+        .weigher(Weighers.<V>iterable())
+        .build();
+  }
+
   @DataProvider(name = "guardedWeightedMap")
   public Object[][] providesGuardedWeightedMap() {
     return new Object[][] {{ newGuardedWeightedMap() }};
@@ -188,6 +200,11 @@ public abstract class AbstractTest {
   }
 
   /* ---------------- Weigher providers -------------- */
+
+  @DataProvider(name = "singletonEntryWeigher")
+  public Object[][] providesSingletonEntryWeigher() {
+    return new Object[][] {{ Weighers.entrySingleton() }};
+  }
 
   @DataProvider(name = "singletonWeigher")
   public Object[][] providesSingletonWeigher() {

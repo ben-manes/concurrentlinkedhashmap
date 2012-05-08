@@ -25,7 +25,6 @@ import static java.util.Collections.unmodifiableSet;
 import java.io.InvalidObjectException;
 import java.io.ObjectInputStream;
 import java.io.Serializable;
-import java.lang.ref.WeakReference;
 import java.util.AbstractCollection;
 import java.util.AbstractMap;
 import java.util.AbstractQueue;
@@ -38,7 +37,6 @@ import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
-import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
@@ -206,9 +204,9 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
   final Lock evictionLock;
   final Queue<Task>[] buffers;
-  final Weigher<? super V> weigher;
   final AtomicIntegerArray bufferLengths;
   final AtomicReference<DrainStatus> drainStatus;
+  final EntryWeigher<? super K, ? super V> weigher;
 
   // These fields provide support for notifying a listener.
   final Queue<Node> pendingNotifications;
@@ -753,7 +751,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   V put(K key, V value, boolean onlyIfAbsent) {
     checkNotNull(value);
 
-    final int weight = weigher.weightOf(value);
+    final int weight = weigher.weightOf(key, value);
     final WeightedValue<V> weightedValue = new WeightedValue<V>(value, weight);
     final Node node = new Node(key, weightedValue);
 
@@ -828,7 +826,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   public V replace(K key, V value) {
     checkNotNull(value);
 
-    final int weight = weigher.weightOf(value);
+    final int weight = weigher.weightOf(key, value);
     final WeightedValue<V> weightedValue = new WeightedValue<V>(value, weight);
 
     final Node node = data.get(key);
@@ -856,7 +854,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     checkNotNull(oldValue);
     checkNotNull(newValue);
 
-    final int weight = weigher.weightOf(newValue);
+    final int weight = weigher.weightOf(key, newValue);
     final WeightedValue<V> newWeightedValue = new WeightedValue<V>(newValue, weight);
 
     final Node node = data.get(key);
@@ -1435,18 +1433,18 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   }
 
   /** A weigher that enforces that the weight falls within a valid range. */
-  static final class BoundedWeigher<V> implements Weigher<V>, Serializable {
+  static final class BoundedEntryWeigher<K, V> implements EntryWeigher<K, V>, Serializable {
     static final long serialVersionUID = 1;
-    final Weigher<? super V> weigher;
+    final EntryWeigher<? super K, ? super V> weigher;
 
-    BoundedWeigher(Weigher<? super V> weigher) {
+    BoundedEntryWeigher(EntryWeigher<? super K, ? super V> weigher) {
       checkNotNull(weigher);
       this.weigher = weigher;
     }
 
     @Override
-    public int weightOf(V value) {
-      int weight = weigher.weightOf(value);
+    public int weightOf(K key, V value) {
+      int weight = weigher.weightOf(key, value);
       if (weight < 1) {
         throw new IllegalArgumentException("invalid weight");
       }
@@ -1455,30 +1453,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
     Object writeReplace() {
       return weigher;
-    }
-  }
-
-  /** A task that catches up the page replacement policy. */
-  static final class CatchUpTask implements Runnable {
-    final WeakReference<ConcurrentLinkedHashMap<?, ?>> mapRef;
-
-    CatchUpTask(ConcurrentLinkedHashMap<?, ?> map) {
-      this.mapRef = new WeakReference<ConcurrentLinkedHashMap<?, ?>>(map);
-    }
-
-    @Override
-    public void run() {
-      ConcurrentLinkedHashMap<?, ?> map = mapRef.get();
-      if (map == null) {
-        throw new CancellationException();
-      }
-      int pendingTasks = 0;
-      for (int i = 0; i < map.buffers.length; i++) {
-        pendingTasks += map.bufferLengths.get(i);
-      }
-      if (pendingTasks != 0) {
-        map.tryToDrainBuffers(pendingTasks + BUFFER_THRESHOLD);
-      }
     }
   }
 
@@ -1560,8 +1534,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * used as a fast warm-up process.
    */
   static final class SerializationProxy<K, V> implements Serializable {
+    final EntryWeigher<? super K, ? super V> weigher;
     final EvictionListener<K, V> listener;
-    final Weigher<? super V> weigher;
     final int concurrencyLevel;
     final Map<K, V> data;
     final long capacity;
@@ -1606,7 +1580,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     static final int DEFAULT_INITIAL_CAPACITY = 16;
 
     EvictionListener<K, V> listener;
-    Weigher<? super V> weigher;
+    EntryWeigher<? super K, ? super V> weigher;
 
     int concurrencyLevel;
     int initialCapacity;
@@ -1615,7 +1589,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     @SuppressWarnings("unchecked")
     public Builder() {
       capacity = -1;
-      weigher = Weighers.singleton();
+      weigher = Weighers.entrySingleton();
       initialCapacity = DEFAULT_INITIAL_CAPACITY;
       concurrencyLevel = DEFAULT_CONCURRENCY_LEVEL;
       listener = (EvictionListener<K, V>) DiscardingListener.INSTANCE;
@@ -1686,6 +1660,21 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     }
 
     /**
+     * Specifies an algorithm to determine how many the units of capacity an
+     * entry consumes. The default algorithm bounds the map by the number of
+     * key-value pairs by giving each entry a weight of <tt>1</tt>.
+     *
+     * @param weigher the algorithm to determine a entry's weight
+     * @throws NullPointerException if the weigher is null
+     */
+    public Builder<K, V> weigher(Weigher<? super V> weigher) {
+      this.weigher = (weigher == Weighers.singleton())
+          ? Weighers.<K, V>entrySingleton()
+          : new BoundedEntryWeigher<K, V>(Weighers.asEntryWeigher(weigher));
+      return this;
+    }
+
+    /**
      * Specifies an algorithm to determine how many the units of capacity a
      * value consumes. The default algorithm bounds the map by the number of
      * key-value pairs by giving each entry a weight of <tt>1</tt>.
@@ -1693,10 +1682,10 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
      * @param weigher the algorithm to determine a value's weight
      * @throws NullPointerException if the weigher is null
      */
-    public Builder<K, V> weigher(Weigher<? super V> weigher) {
-      this.weigher = (weigher == Weighers.singleton())
-          ? Weighers.<V>singleton()
-          : new BoundedWeigher<V>(weigher);
+    public Builder<K, V> weigher(EntryWeigher<? super K, ? super V> weigher) {
+      this.weigher = (weigher == Weighers.entrySingleton())
+          ? Weighers.<K, V>entrySingleton()
+          : new BoundedEntryWeigher<K, V>(weigher);
       return this;
     }
 

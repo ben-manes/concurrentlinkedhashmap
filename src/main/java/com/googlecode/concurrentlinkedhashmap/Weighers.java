@@ -15,13 +15,17 @@
  */
 package com.googlecode.concurrentlinkedhashmap;
 
+import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.checkNotNull;
+
+import java.io.Serializable;
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 /**
- * A common set of {@link Weigher} implementations.
+ * A common set of {@link Weigher} and {@link EntryWeigher} implementations.
  *
  * @author ben.manes@gmail.com (Ben Manes)
  * @see <a href="http://code.google.com/p/concurrentlinkedhashmap/">
@@ -31,6 +35,32 @@ public final class Weighers {
 
   private Weighers() {
     throw new AssertionError();
+  }
+
+  /**
+   * A entry weigher backed by the specified weigher. The weight of the value
+   * determines the weight of the entry.
+   *
+   * @param weigher the weigher to be "wrapped" in a entry weigher.
+   * @return A entry weigher view of the specified weigher.
+   */
+  public static <K, V> EntryWeigher<K, V> asEntryWeigher(
+      final Weigher<? super V> weigher) {
+    return (weigher == singleton())
+        ? Weighers.<K, V>entrySingleton()
+        : new EntryWeigherView<K, V>(weigher);
+  }
+
+  /**
+   * A weigher where an entry has a weight of <tt>1</tt>. A map bounded with
+   * this weigher will evict when the number of key-value pairs exceeds the
+   * capacity.
+   *
+   * @return A weigher where a value takes one unit of capacity.
+   */
+  @SuppressWarnings({"cast", "unchecked"})
+  public static <K, V> EntryWeigher<K, V> entrySingleton() {
+    return (EntryWeigher<K, V>) SingletonEntryWeigher.INSTANCE;
   }
 
   /**
@@ -155,7 +185,31 @@ public final class Weighers {
     return (Weigher<Map<A, B>>) (Weigher<?>) MapWeigher.INSTANCE;
   }
 
-  private enum SingletonWeigher implements Weigher<Object> {
+  static final class EntryWeigherView<K, V> implements EntryWeigher<K, V>, Serializable {
+    static final long serialVersionUID = 1;
+    final Weigher<? super V> weigher;
+
+    EntryWeigherView(Weigher<? super V> weigher) {
+      checkNotNull(weigher);
+      this.weigher = weigher;
+    }
+
+    @Override
+    public int weightOf(K key, V value) {
+      return weigher.weightOf(value);
+    }
+  }
+
+  enum SingletonEntryWeigher implements EntryWeigher<Object, Object> {
+    INSTANCE;
+
+    @Override
+    public int weightOf(Object key, Object value) {
+      return 1;
+    }
+  }
+
+  enum SingletonWeigher implements Weigher<Object> {
     INSTANCE;
 
     @Override
@@ -164,7 +218,7 @@ public final class Weighers {
     }
   }
 
-  private enum ByteArrayWeigher implements Weigher<byte[]> {
+  enum ByteArrayWeigher implements Weigher<byte[]> {
     INSTANCE;
 
     @Override
@@ -173,7 +227,7 @@ public final class Weighers {
     }
   }
 
-  private enum IterableWeigher implements Weigher<Iterable<?>> {
+  enum IterableWeigher implements Weigher<Iterable<?>> {
     INSTANCE;
 
     @Override
@@ -182,14 +236,15 @@ public final class Weighers {
         return ((Collection<?>) values).size();
       }
       int size = 0;
-      for (Object value : values) {
+      for (Iterator<?> i = values.iterator(); i.hasNext();) {
+        i.next();
         size++;
       }
       return size;
     }
   }
 
-  private enum CollectionWeigher implements Weigher<Collection<?>> {
+  enum CollectionWeigher implements Weigher<Collection<?>> {
     INSTANCE;
 
     @Override
@@ -198,7 +253,7 @@ public final class Weighers {
     }
   }
 
-  private enum ListWeigher implements Weigher<List<?>> {
+  enum ListWeigher implements Weigher<List<?>> {
     INSTANCE;
 
     @Override
@@ -207,7 +262,7 @@ public final class Weighers {
     }
   }
 
-  private enum SetWeigher implements Weigher<Set<?>> {
+  enum SetWeigher implements Weigher<Set<?>> {
     INSTANCE;
 
     @Override
@@ -216,7 +271,7 @@ public final class Weighers {
     }
   }
 
-  private enum MapWeigher implements Weigher<Map<?, ?>> {
+  enum MapWeigher implements Weigher<Map<?, ?>> {
     INSTANCE;
 
     @Override

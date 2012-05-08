@@ -19,7 +19,8 @@ import static com.google.common.collect.Maps.newHashMap;
 import static com.googlecode.concurrentlinkedhashmap.IsEmptyMap.emptyMap;
 import static com.googlecode.concurrentlinkedhashmap.IsValidConcurrentLinkedHashMap.valid;
 
-import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.BoundedWeigher;
+import java.io.Serializable;
+import java.util.Map;
 
 import org.apache.commons.lang.SerializationUtils;
 import org.apache.commons.lang.builder.EqualsBuilder;
@@ -28,8 +29,7 @@ import org.hamcrest.Factory;
 import org.hamcrest.Matcher;
 import org.hamcrest.TypeSafeMatcher;
 
-import java.io.Serializable;
-import java.util.Map;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.BoundedEntryWeigher;
 
 /**
  * A matcher that evaluates an object by creating a serialized copy and checking
@@ -62,9 +62,9 @@ public final class IsReserializable<T> extends TypeSafeMatcher<T> {
 
   private boolean matchesSafely(ConcurrentLinkedHashMap<?, ?> original,
       ConcurrentLinkedHashMap<?, ?> copy, EqualsBuilder builder) {
-    if (original.weigher instanceof BoundedWeigher<?>) {
-      builder.append(((BoundedWeigher<?>) original.weigher).weigher.getClass(),
-          ((BoundedWeigher<?>) copy.weigher).weigher.getClass());
+    if (original.weigher instanceof BoundedEntryWeigher<?, ?>) {
+      builder.append(((BoundedEntryWeigher<?, ?>) original.weigher).weigher.getClass(),
+          ((BoundedEntryWeigher<?, ?>) copy.weigher).weigher.getClass());
     }
     Map<?, ?> data = newHashMap(original);
     return builder
