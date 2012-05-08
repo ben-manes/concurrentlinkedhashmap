@@ -212,6 +212,8 @@ public final class EvictionTest extends AbstractTest {
     map.put(2, 3);
     assertThat(map.weightedSize(), is(MAXIMUM_CAPACITY));
     assertThat(map, is(equalTo(singletonMap(2, 3))));
+
+    map.weightedSize = 1;
   }
 
   @Test

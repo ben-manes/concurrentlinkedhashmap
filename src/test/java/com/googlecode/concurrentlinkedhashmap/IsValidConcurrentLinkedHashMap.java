@@ -41,7 +41,7 @@ public final class IsValidConcurrentLinkedHashMap
 
   @Override
   public void describeTo(Description description) {
-    description.appendText("state");
+    description.appendText("valid");
   }
 
   @Override

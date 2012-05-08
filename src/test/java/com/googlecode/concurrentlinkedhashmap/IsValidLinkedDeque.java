@@ -15,15 +15,15 @@
  */
 package com.googlecode.concurrentlinkedhashmap;
 
-import com.google.common.collect.Sets;
+import java.util.Deque;
+import java.util.Iterator;
+import java.util.Set;
 
 import org.hamcrest.Description;
 import org.hamcrest.Factory;
 import org.hamcrest.TypeSafeDiagnosingMatcher;
 
-import java.util.Deque;
-import java.util.Iterator;
-import java.util.Set;
+import com.google.common.collect.Sets;
 
 /**
  * A matcher that evaluates a {@link LinkedDeque} to determine if it is in a
@@ -36,7 +36,7 @@ public final class IsValidLinkedDeque
 
   @Override
   public void describeTo(Description description) {
-    description.appendText("deque");
+    description.appendText("valid");
   }
 
   @Override
