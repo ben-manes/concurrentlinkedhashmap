@@ -344,7 +344,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * @param task the pending operation
    * @return if the draining of the buffers can be delayed
    */
-  private boolean schedule(Task task) {
+  boolean schedule(Task task) {
     int index = bufferIndex();
     int buffered = bufferLengths.incrementAndGet(index);
 
