@@ -148,10 +148,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    */
 
   /** The maximum weighted capacity of the map. */
-  static final long MAXIMUM_CAPACITY = 1 << 30;
-
-  /** The maximum weight of a value. */
-  static final long MAXIMUM_WEIGHT = 1 << 29;
+  static final long MAXIMUM_CAPACITY = Long.MAX_VALUE - Integer.MAX_VALUE;
 
   /** The maximum number of pending operations per buffer. */
   static final int MAXIMUM_BUFFER_SIZE = 1 << 20;
@@ -1461,7 +1458,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     @Override
     public int weightOf(V value) {
       int weight = weigher.weightOf(value);
-      if ((weight < 1) || (weight > MAXIMUM_WEIGHT)) {
+      if (weight < 1) {
         throw new IllegalArgumentException("invalid weight");
       }
       return weight;

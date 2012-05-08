@@ -34,6 +34,7 @@ import static com.googlecode.concurrentlinkedhashmap.benchmark.Benchmarks.determ
 import static com.jayway.awaitility.Awaitility.await;
 import static com.jayway.awaitility.Awaitility.to;
 import static java.util.Arrays.asList;
+import static java.util.Collections.singletonMap;
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -206,6 +207,17 @@ public final class EvictionTest extends AbstractTest {
     assertThat(map.weightedSize(), is(10L));
 
     assertThat(map, is(valid()));
+  }
+
+  @Test(dataProvider = "emptyMap")
+  public void evict_maximumCapacity(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    map.put(1, 2);
+    map.capacity = MAXIMUM_CAPACITY;
+    map.weightedSize = MAXIMUM_CAPACITY;
+
+    map.put(2, 3);
+    assertThat(map.weightedSize(), is(MAXIMUM_CAPACITY));
+    assertThat(map, is(equalTo(singletonMap(2, 3))));
   }
 
   @Test

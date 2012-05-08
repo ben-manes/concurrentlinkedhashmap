@@ -15,8 +15,6 @@
  */
 package com.googlecode.concurrentlinkedhashmap;
 
-import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.MAXIMUM_CAPACITY;
-import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.MAXIMUM_WEIGHT;
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -137,34 +135,6 @@ public final class WeigherTest extends AbstractTest {
         .weigher(weigher).build();
     doReturn(0).when(weigher).weightOf(anyInt());
     map.put(1, 2);
-  }
-
-  @Test(dataProvider = "builder", expectedExceptions = IllegalArgumentException.class)
-  public void put_withAboveMaximumWeight(Builder<Integer, Integer> builder) {
-    ConcurrentLinkedHashMap<Integer, Integer> map = builder
-        .maximumWeightedCapacity(capacity())
-        .weigher(weigher).build();
-    doReturn((int) MAXIMUM_WEIGHT + 1).when(weigher).weightOf(anyInt());
-    map.put(1, 2);
-  }
-
-  @Test(dataProvider = "builder")
-  public void put_withIntegerOverflow(Builder<Integer, Integer> builder) {
-    ConcurrentLinkedHashMap<Integer, Integer> map = builder
-        .maximumWeightedCapacity(MAXIMUM_CAPACITY)
-        .weigher(weigher)
-        .build();
-
-    doReturn((int) MAXIMUM_WEIGHT).when(weigher).weightOf(1);
-    doReturn((int) MAXIMUM_WEIGHT).when(weigher).weightOf(2);
-    doReturn(1).when(weigher).weightOf(3);
-
-    map.putAll(ImmutableMap.of(1, 1, 2, 2));
-    assertThat(map.size(), is(2));
-    assertThat(map.weightedSize(), is(MAXIMUM_CAPACITY));
-    map.put(3, 3);
-    assertThat(map.size(), is(2));
-    assertThat(map.weightedSize(), is(MAXIMUM_WEIGHT + 1));
   }
 
   @Test(dataProvider = "guardedWeightedMap")
