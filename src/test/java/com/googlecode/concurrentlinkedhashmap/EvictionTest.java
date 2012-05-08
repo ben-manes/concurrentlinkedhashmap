@@ -35,15 +35,12 @@ import static com.jayway.awaitility.Awaitility.await;
 import static com.jayway.awaitility.Awaitility.to;
 import static java.util.Arrays.asList;
 import static java.util.Collections.singletonMap;
-import static java.util.concurrent.TimeUnit.MINUTES;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Matchers.anyInt;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -52,14 +49,12 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import java.lang.ref.WeakReference;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.Callable;
-import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -70,7 +65,6 @@ import org.testng.annotations.Test;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
-import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.DrainStatus;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Task;
 import com.googlecode.concurrentlinkedhashmap.benchmark.Benchmarks.EfficiencyRun;
 import com.googlecode.concurrentlinkedhashmap.caches.Cache;
@@ -583,58 +577,6 @@ public final class EvictionTest extends AbstractTest {
       lock.unlock();
     }
     await().untilTrue(done);
-  }
-
-  @Test(dataProvider = "builder")
-  void drain_withShutdownExecutor(Builder<Integer, Integer> builder) {
-    when(executor.isShutdown()).thenReturn(true);
-
-    final ConcurrentLinkedHashMap<Integer, Integer> map = builder
-        .maximumWeightedCapacity(capacity())
-        .catchup(executor, 1, MINUTES)
-        .build();
-    map.put(1, 1);
-
-    assertThat(((ReentrantLock) map.evictionLock).isLocked(), is(false));
-    assertThat(map.drainStatus.get(), is(DrainStatus.IDLE));
-    assertThat(map.buffers[bufferIndex()], hasSize(0));
-    assertThat(map, is(valid()));
-  }
-
-  @Test(dataProvider = "builder")
-  void drain_withExecutor(Builder<Integer, Integer> builder) {
-    ConcurrentLinkedHashMap<Integer, Integer> map = builder
-        .maximumWeightedCapacity(capacity())
-        .catchup(executor, 1L, MINUTES)
-        .build();
-    verify(executor).scheduleWithFixedDelay(catchUpTask.capture(), eq(1L), eq(1L), eq(MINUTES));
-    catchUpTask.getValue().run();
-
-    warmUp(map, 0, 2 * BUFFER_THRESHOLD);
-    assertThat(map.buffers[bufferIndex()], hasSize(2 * BUFFER_THRESHOLD));
-
-    catchUpTask.getValue().run();
-
-    assertThat(((ReentrantLock) map.evictionLock).isLocked(), is(false));
-    assertThat(map.drainStatus.get(), is(DrainStatus.IDLE));
-    assertThat(map.buffers[bufferIndex()], hasSize(0));
-    assertThat(map, is(valid()));
-  }
-
-  @Test(dataProvider = "builder", expectedExceptions = CancellationException.class)
-  void drain_garbageCollected(Builder<Integer, Integer> builder) {
-    ConcurrentLinkedHashMap<Integer, Integer> map = builder
-        .maximumWeightedCapacity(capacity())
-        .catchup(executor, 1L, MINUTES)
-        .build();
-    WeakReference<?> ref = new WeakReference<Object>(map);
-    map = null;
-    do {
-      System.gc();
-    } while (ref.get() != null);
-
-    verify(executor).scheduleWithFixedDelay(catchUpTask.capture(), eq(1L), eq(1L), eq(MINUTES));
-    catchUpTask.getValue().run();
   }
 
   /* ---------------- Ascending KeySet -------------- */

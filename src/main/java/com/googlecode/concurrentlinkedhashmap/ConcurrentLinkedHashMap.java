@@ -31,24 +31,18 @@ import java.util.AbstractMap;
 import java.util.AbstractQueue;
 import java.util.AbstractSet;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
-import java.util.concurrent.AbstractExecutorService;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicIntegerArray;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Lock;
@@ -212,7 +206,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
   final Lock evictionLock;
   final Queue<Task>[] buffers;
-  final ExecutorService executor;
   final Weigher<? super V> weigher;
   final AtomicIntegerArray bufferLengths;
   final AtomicReference<DrainStatus> drainStatus;
@@ -237,7 +230,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
     // The eviction support
     weigher = builder.weigher;
-    executor = builder.executor;
     nextOrder = Integer.MIN_VALUE;
     drainedOrder = Integer.MIN_VALUE;
     evictionLock = new ReentrantLock();
@@ -395,11 +387,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * @return if a drain should be attempted
    */
   boolean shouldDrainBuffers(boolean delayable) {
-    if (executor.isShutdown()) {
-      DrainStatus status = drainStatus.get();
-      return (status != PROCESSING) & (!delayable | (status == REQUIRED));
-    }
-    return false;
+    DrainStatus status = drainStatus.get();
+    return (status != PROCESSING) & (!delayable | (status == REQUIRED));
   }
 
   /**
@@ -1493,16 +1482,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     }
   }
 
-  /** An executor that is always terminated. */
-  static final class DisabledExecutorService extends AbstractExecutorService {
-    @Override public boolean isShutdown() { return true; }
-    @Override public boolean isTerminated() { return true; }
-    @Override public void shutdown() {}
-    @Override public List<Runnable> shutdownNow() { return Collections.emptyList(); }
-    @Override public boolean awaitTermination(long timeout, TimeUnit unit) { return true; }
-    @Override public void execute(Runnable command) { throw new RejectedExecutionException(); }
-  }
-
   /** A queue that discards all additions and is always empty. */
   static final class DiscardingQueue extends AbstractQueue<Object> {
     @Override public boolean add(Object e) { return true; }
@@ -1623,16 +1602,11 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * }</pre>
    */
   public static final class Builder<K, V> {
-    static final ExecutorService DEFAULT_EXECUTOR = new DisabledExecutorService();
     static final int DEFAULT_CONCURRENCY_LEVEL = 16;
     static final int DEFAULT_INITIAL_CAPACITY = 16;
 
     EvictionListener<K, V> listener;
     Weigher<? super V> weigher;
-
-    ExecutorService executor;
-    TimeUnit unit;
-    long delay;
 
     int concurrencyLevel;
     int initialCapacity;
@@ -1641,7 +1615,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     @SuppressWarnings("unchecked")
     public Builder() {
       capacity = -1;
-      executor = DEFAULT_EXECUTOR;
       weigher = Weighers.singleton();
       initialCapacity = DEFAULT_INITIAL_CAPACITY;
       concurrencyLevel = DEFAULT_CONCURRENCY_LEVEL;
@@ -1728,38 +1701,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     }
 
     /**
-     * Specifies an executor for use in catching up the page replacement policy.
-     * The catch-up phase processes both updates to the retention ordering and
-     * writes that may trigger an eviction. The delay should be chosen carefully
-     * as the map will not automatically evict between executions.
-     * <p>
-     * If unspecified or the executor is shutdown, the catching up will be
-     * amortized on user threads during write operations (or during read
-     * operations, in the absence of writes).
-     * <p>
-     * A single-threaded {@link ScheduledExecutorService} should be sufficient
-     * for catching up the page replacement policy in many maps.
-     *
-     * @param executor the executor to schedule on
-     * @param delay the delay between executions
-     * @param unit the time unit of the delay parameter
-     * @throws NullPointerException if the executor or time unit is null
-     * @throws IllegalArgumentException if the delay is less than or equal to
-     *     zero
-     */
-    public Builder<K, V> catchup(ScheduledExecutorService executor, long delay, TimeUnit unit) {
-      if (delay <= 0) {
-        throw new IllegalArgumentException();
-      }
-      checkNotNull(executor);
-      checkNotNull(unit);
-      this.executor = executor;
-      this.delay = delay;
-      this.unit = unit;
-      return this;
-    }
-
-    /**
      * Creates a new {@link ConcurrentLinkedHashMap} instance.
      *
      * @throws IllegalStateException if the maximum weighted capacity was
@@ -1771,12 +1712,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       if (capacity < 0) {
         throw new IllegalStateException();
       }
-      ConcurrentLinkedHashMap<K, V> map = new ConcurrentLinkedHashMap<K, V>(this);
-      if (executor != DEFAULT_EXECUTOR) {
-        ScheduledExecutorService es = (ScheduledExecutorService) executor;
-        es.scheduleWithFixedDelay(new CatchUpTask(map), delay, delay, unit);
-      }
-      return map;
+      return new ConcurrentLinkedHashMap<K, V>(this);
     }
   }
 }

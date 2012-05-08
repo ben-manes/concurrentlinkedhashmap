@@ -17,21 +17,11 @@ package com.googlecode.concurrentlinkedhashmap;
 
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.MAXIMUM_CAPACITY;
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder.DEFAULT_CONCURRENCY_LEVEL;
-import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder.DEFAULT_EXECUTOR;
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder.DEFAULT_INITIAL_CAPACITY;
-import static java.util.concurrent.TimeUnit.MINUTES;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.verify;
-
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.RejectedExecutionException;
 
 import org.testng.annotations.Test;
 
@@ -139,48 +129,5 @@ public final class BuilderTest extends AbstractTest {
     builder.weigher(Weighers.byteArray());
     Weigher<?> weigher = ((BoundedWeigher<?>) builder.build().weigher).weigher;
     assertThat(weigher, is(sameInstance((Object) Weighers.byteArray())));
-  }
-
-  @Test(dataProvider = "builder", expectedExceptions = NullPointerException.class)
-  public void catchup_withNullExecutor(Builder<?, ?> builder) {
-    builder.catchup(null, 1, MINUTES);
-  }
-
-  @Test(dataProvider = "builder", expectedExceptions = IllegalArgumentException.class)
-  public void catchup_withZeroDelay(Builder<?, ?> builder) {
-    builder.catchup(executor, 0, MINUTES);
-  }
-
-  @Test(dataProvider = "builder", expectedExceptions = IllegalArgumentException.class)
-  public void catchup_withNegativeDelay(Builder<?, ?> builder) {
-    builder.catchup(executor, -1, MINUTES);
-  }
-
-  @Test(dataProvider = "builder", expectedExceptions = NullPointerException.class)
-  public void catchup_withNullTimeUnit(Builder<?, ?> builder) {
-    builder.catchup(executor, 1, null);
-  }
-
-  @Test(dataProvider = "builder")
-  public void catchup_withDefault(Builder<?, ?> builder) {
-    assertThat(builder.build().executor, is(DEFAULT_EXECUTOR));
-  }
-
-  @Test(dataProvider = "builder")
-  public void catchup_withCustom(Builder<?, ?> builder) {
-    builder.catchup(executor, 1, MINUTES).build();
-    assertThat(builder.executor, is((ExecutorService) executor));
-
-    verify(executor).scheduleWithFixedDelay(catchUpTask.capture(), eq(1L), eq(1L), eq(MINUTES));
-    assertThat(catchUpTask.getAllValues(), hasSize(1));
-  }
-
-  @Test(dataProvider = "builder", expectedExceptions = RejectedExecutionException.class)
-  public void catchup_withRejected(Builder<?, ?> builder) {
-    doThrow(new RejectedExecutionException()).when(executor)
-        .scheduleWithFixedDelay(any(Runnable.class), eq(1L), eq(1L), eq(MINUTES));
-
-    builder.catchup(executor, 1, MINUTES);
-    builder.build();
   }
 }
