@@ -166,7 +166,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     BUFFER_MASK = buffers - 1;
   }
 
-  static final int ceilingNextPowerOfTwo(int x) {
+  static int ceilingNextPowerOfTwo(int x) {
     // From Hacker's Delight, Chapter 3, Harry S. Warren Jr.
     return 1 << (Integer.SIZE - Integer.numberOfLeadingZeros(x - 1));
   }

@@ -203,8 +203,11 @@ public final class EvictionTest extends AbstractTest {
     assertThat(map, is(valid()));
   }
 
-  @Test(dataProvider = "emptyMap")
-  public void evict_maximumCapacity(ConcurrentLinkedHashMap<Integer, Integer> map) {
+  @Test(dataProvider = "builder")
+  public void evict_maximumCapacity(Builder<Integer, Integer> builder) {
+    ConcurrentLinkedHashMap<Integer, Integer> map = builder
+        .maximumWeightedCapacity(MAXIMUM_CAPACITY)
+        .build();
     map.put(1, 2);
     map.capacity = MAXIMUM_CAPACITY;
     map.weightedSize = MAXIMUM_CAPACITY;
@@ -212,8 +215,6 @@ public final class EvictionTest extends AbstractTest {
     map.put(2, 3);
     assertThat(map.weightedSize(), is(MAXIMUM_CAPACITY));
     assertThat(map, is(equalTo(singletonMap(2, 3))));
-
-    map.weightedSize = 1;
   }
 
   @Test

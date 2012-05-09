@@ -4,60 +4,58 @@
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:schemaLocation="http://pmd.sf.net/ruleset/1.0.0 http://pmd.sf.net/ruleset_xml_schema.xsd"
     xsi:noNamespaceSchemaLocation="http://pmd.sf.net/ruleset_xml_schema.xsd">
-  <description>Sample Java Coding Conventions</description>
-  <!--<rule ref="rulesets/basic-jsf.xml"/>-->
-  <!--<rule ref="rulesets/basic-jsp.xml"/>-->
-  <rule ref="rulesets/basic.xml">
-    <exclude name="CollapsibleIfStatements"/>
-    <exclude name="UselessOverridingMethod"/>
-  </rule>
+  <description>Rules for Java Best Practices</description>
+  
+  <!-- For details, see http://pmd.sourceforge.net/rules/index.html -->
+  <rule ref="rulesets/basic.xml"/>
   <rule ref="rulesets/braces.xml"/>
   <rule ref="rulesets/clone.xml"/>
-  <rule ref="rulesets/codesize.xml">
-    <exclude name="NPathComplexity"/>
-    <exclude name="ExcessiveMethodLength"/>
-    <exclude name="CyclomaticComplexity"/>
-  </rule>
+  <rule ref="rulesets/codesize.xml"/>
   <rule ref="rulesets/controversial.xml">
-    <exclude name="UnnecessaryConstructor"/>
+    <exclude name="AtLeastOneConstructor"/>
+    <exclude name="AssignmentInOperand"/>
+    <exclude name="AvoidAccessibilityAlteration"/>
+    <exclude name="AvoidFinalLocalVariable"/>
+    <exclude name="AvoidLiteralsInIfCondition"/>
+    <exclude name="AvoidUsingVolatile"/>
+    <exclude name="BooleanInversion"/>
+    <exclude name="CallSuperInConstructor"/>
+    <exclude name="DataflowAnomalyAnalysis"/>
+    <exclude name="DefaultPackage"/>
+    <exclude name="DoNotCallGarbageCollectionExplicitly"/>
     <exclude name="NullAssignment"/>
     <exclude name="OnlyOneReturn"/>
-    <exclude name="AssignmentInOperand"/>
-    <exclude name="BooleanInversion"/>
-    <exclude name="DataflowAnomalyAnalysis"/>
+    <exclude name="UseConcurrentHashMap"/>
+    <exclude name="UseObjectForClearerAPI"/>
+    <exclude name="UnusedModifier"/>
   </rule>
   <rule ref="rulesets/coupling.xml">
     <exclude name="ExcessiveImports"/>
   </rule>
   <rule ref="rulesets/design.xml">
-    <exclude name="ConfusingTernary"/>
+    <exclude name="AccessorClassGeneration"/>
+    <exclude name="EmptyMethodInAbstractClassShouldBeAbstract"/>
     <exclude name="UseLocaleWithCaseConversions"/>
-    <exclude name="AvoidSynchronizedAtMethodLevel"/>
-    <exclude name="UseNotifyAllInsteadOfNotify"/>
   </rule>
   <rule ref="rulesets/finalizers.xml"/>
-  <rule ref="rulesets/imports.xml"/>
-  <!--<rule ref="rulesets/j2ee.xml"/>-->
-  <rule ref="rulesets/javabeans.xml">
-    <exclude name="BeanMembersShouldSerialize"/>
+  <rule ref="rulesets/imports.xml">
+    <exclude name="TooManyStaticImports"/>
   </rule>
-  <!--<rule ref="rulesets/junit.xml"/>-->
   <rule ref="rulesets/logging-jakarta-commons.xml"/>
   <rule ref="rulesets/logging-java.xml"/>
-  <!--<rule ref="rulesets/migrating.xml"/>-->
-  <rule ref="rulesets/migrating_to_13.xml"/>
-  <rule ref="rulesets/migrating_to_14.xml"/>
-  <rule ref="rulesets/migrating_to_15.xml"/>
+  <rule ref="rulesets/migrating.xml"/>
   <rule ref="rulesets/naming.xml">
-    <exclude name="ShortVariable"/>
     <exclude name="LongVariable"/>
+    <exclude name="ShortVariable"/>
   </rule>
   <rule ref="rulesets/optimizations.xml">
+    <exclude name="AvoidInstantiatingObjectsInLoops"/>
     <exclude name="LocalVariableCouldBeFinal"/>
     <exclude name="MethodArgumentCouldBeFinal"/>
+    <exclude name="SimplifyStartsWith"/>
   </rule>
   <rule ref="rulesets/strictexception.xml"/>
   <rule ref="rulesets/strings.xml"/>
-  <rule ref="rulesets/sunsecure.xml"/>
+  <rule ref="rulesets/typeresolution.xml"/>
   <rule ref="rulesets/unusedcode.xml"/>
 </ruleset>

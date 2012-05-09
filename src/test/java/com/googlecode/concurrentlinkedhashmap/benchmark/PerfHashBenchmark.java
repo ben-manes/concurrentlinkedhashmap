@@ -6,21 +6,20 @@
  */
 package com.googlecode.concurrentlinkedhashmap.benchmark;
 
-import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap;
-import com.googlecode.concurrentlinkedhashmap.caches.Cache;
-import com.googlecode.concurrentlinkedhashmap.caches.CacheBuilder;
+import java.util.Random;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.testng.annotations.Optional;
 import org.testng.annotations.Parameters;
 import org.testng.annotations.Test;
 
-import java.util.Random;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.atomic.AtomicLong;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap;
+import com.googlecode.concurrentlinkedhashmap.caches.Cache;
+import com.googlecode.concurrentlinkedhashmap.caches.CacheBuilder;
 
-@SuppressWarnings("unchecked")
 public class PerfHashBenchmark extends Thread {
   static int _read_ratio, _gr, _pr;
   static int _thread_min, _thread_max, _thread_incr;
@@ -212,6 +211,7 @@ public class PerfHashBenchmark extends Thread {
       long[] nanos = new long[num_threads];
       long millis = run_once(num_threads,HM,ops,nanos);
       long sum_ops = 0;
+      @SuppressWarnings("unused")
       long sum_nanos = 0;
       for( int i=0; i<num_threads; i++ ) {
         sum_ops += ops[i];
@@ -228,7 +228,7 @@ public class PerfHashBenchmark extends Thread {
       // Note: sum of nanos does not mean much if there are more threads than cpus
       //System.out.printf("+-%f%%",(ops_per_sec - ops_per_sec_n)*100.0/ops_per_sec);
       if( HM instanceof NonBlockingHashMap ) {
-        long reprobes = ((NonBlockingHashMap)HM).reprobes();
+        long reprobes = ((NonBlockingHashMap<String,String>)HM).reprobes();
         if( reprobes > 0 ) {
           System.out.printf("(%5.2f)",(double)reprobes/(double)sum_ops);
         }
@@ -311,6 +311,7 @@ public class PerfHashBenchmark extends Thread {
     HM.remove("Cliff");
 
     int sz = HM.size();
+    @SuppressWarnings("unused")
     int xsz=0;
     while( sz+1024 < _table_size ) {
       int idx = R.nextInt();
@@ -385,11 +386,11 @@ public class PerfHashBenchmark extends Thread {
       total = run_churn();
     } else {
       if( _hash instanceof ConcurrentLinkedHashMap) {
-        total = run_normal( (ConcurrentLinkedHashMap) _hash);
+        total = run_normal( (ConcurrentLinkedHashMap<String,String>) _hash);
       } else if( _hash instanceof NonBlockingHashMap ) {
-        total = run_normal( (NonBlockingHashMap) _hash);
+        total = run_normal( (NonBlockingHashMap<String,String>) _hash);
       } else if( _hash instanceof ConcurrentHashMap ) {
-        total = run_normal( (ConcurrentHashMap) _hash);
+        total = run_normal( (ConcurrentHashMap<String,String>) _hash);
       } else {
         total = run_normal(_hash);
       }

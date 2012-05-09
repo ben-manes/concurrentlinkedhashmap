@@ -138,6 +138,7 @@
         <configuration>
           <source>${java.version}</source>
           <target>${java.version}</target>
+          <compilerArgument>-Xlint:all -Werror</compilerArgument>
         </configuration>
       </plugin>
 
@@ -187,7 +188,7 @@
         <executions>
           <execution>
             <id>check-${jdk.version}-sun</id>
-            <phase>test</phase>
+            <phase>compile</phase>
             <goals>
               <goal>check</goal>
             </goals>
@@ -244,6 +245,9 @@
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-checkstyle-plugin</artifactId>
         <version>2.9</version>
+        <configuration>
+          <configLocation>src/test/resources/checkstyle.xml</configLocation>
+        </configuration>
       </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
@@ -268,8 +272,13 @@
         <artifactId>maven-pmd-plugin</artifactId>
         <version>2.7.1</version>
         <configuration>
+          <verbose>true</verbose>
+          <!-- CPD duplication detection -->
+          <minimumTokens>120</minimumTokens>
+          <!-- Severity: highest = 0, lowest = 5 -->
+          <failurePriority>0</failurePriority>
           <rulesets>
-            <ruleset>src/test/resources/pmd-config.xml</ruleset>
+            <ruleset>src/test/resources/pmd.xml</ruleset>
           </rulesets>
         </configuration>
       </plugin>

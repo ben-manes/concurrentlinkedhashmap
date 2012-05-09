@@ -547,7 +547,7 @@ public class LirsMap<K, V> extends AbstractMap<K, V> {
           // fallthrough
         case COLD:
           size--;
-          break;
+        default:
       }
       status = Status.NONRES;
     }
