@@ -15,7 +15,7 @@
   <inceptionYear>2008</inceptionYear>
   <licenses>
     <license>
-      <name>Apache</name>
+      <name>The Apache Software License, Version 2.0</name>
       <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
       <distribution>repo</distribution>
     </license>
@@ -45,7 +45,7 @@
   <parent>
     <groupId>org.sonatype.oss</groupId>
     <artifactId>oss-parent</artifactId>
-    <version>3</version>
+    <version>7</version>
   </parent>
   <properties>
     <jdk.version>java16</jdk.version>
@@ -103,7 +103,7 @@
     </dependency>
     <dependency>
       <groupId>org.hamcrest</groupId>
-      <artifactId>hamcrest-integration</artifactId>
+      <artifactId>hamcrest-library</artifactId>
       <version>1.3.RC2</version>
       <scope>test</scope>
     </dependency>

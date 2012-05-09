@@ -19,19 +19,18 @@ import static com.googlecode.concurrentlinkedhashmap.ConcurrentTestHarness.timeT
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.commons.lang.time.DurationFormatUtils.formatDuration;
 
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
-
-import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
+import java.text.NumberFormat;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ThreadFactory;
 
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Parameters;
 import org.testng.annotations.Test;
 
-import java.text.NumberFormat;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ThreadFactory;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 
 /**
  * A unit-test to assert that the cache does not have a memory leak by not being
@@ -39,7 +38,7 @@ import java.util.concurrent.ThreadFactory;
  *
  * @author ben.manes@gmail.com (Ben Manes)
  */
-@Test(groups = "memoryLeak")
+@Test(groups = "load")
 public final class MemoryLeakTest {
   private final long statusInterval;
   private final int threads;
