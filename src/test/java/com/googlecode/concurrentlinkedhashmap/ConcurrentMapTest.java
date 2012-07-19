@@ -200,6 +200,21 @@ public final class ConcurrentMapTest extends AbstractTest {
   }
 
   @Test(dataProvider = "guardedMap", expectedExceptions = NullPointerException.class)
+  public void getQuietly_withNull(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    map.getQuietly(null);
+  }
+
+  @Test(dataProvider = "warmedMap")
+  public void getQuietly_whenFound(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    assertThat(map.getQuietly(1), is(-1));
+  }
+
+  @Test(dataProvider = "warmedMap")
+  public void getQuietly_whenNotFound(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    assertThat(map.getQuietly(-1), is(nullValue()));
+  }
+
+  @Test(dataProvider = "guardedMap", expectedExceptions = NullPointerException.class)
   public void put_withNullKey(Map<Integer, Integer> map) {
     map.put(null, 2);
   }

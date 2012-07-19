@@ -343,6 +343,20 @@ public final class EvictionTest extends AbstractTest {
   }
 
   @Test(dataProvider = "warmedMap")
+  public void updateRecency_onGetQuietly(final ConcurrentLinkedHashMap<Integer, Integer> map) {
+    final ConcurrentLinkedHashMap<Integer, Integer>.Node first = map.evictionDeque.peek();
+    final ConcurrentLinkedHashMap<Integer, Integer>.Node last = map.evictionDeque.peekLast();
+
+    map.getQuietly(first.key);
+    int maxTaskIndex = map.moveTasksFromBuffers(new Task[AMORTIZED_DRAIN_THRESHOLD]);
+
+    assertThat(map.evictionDeque.peekFirst(), is(first));
+    assertThat(map.evictionDeque.peekLast(), is(last));
+    assertThat(map, is(valid()));
+    assertThat(maxTaskIndex, is(-1));
+  }
+
+  @Test(dataProvider = "warmedMap")
   public void updateRecency_onPutIfAbsent(final ConcurrentLinkedHashMap<Integer, Integer> map) {
     final ConcurrentLinkedHashMap<Integer, Integer>.Node first = map.evictionDeque.peek();
     updateRecency(map, new Runnable() {

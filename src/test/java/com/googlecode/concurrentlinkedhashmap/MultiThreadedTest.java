@@ -203,6 +203,11 @@ public final class MultiThreadedTest extends AbstractTest {
         cache.get(key);
       }
     },
+    GET_QUIETLY() {
+      @Override void execute(ConcurrentLinkedHashMap<Integer, Integer> cache, Integer key) {
+        cache.getQuietly(key);
+      }
+    },
     PUT() {
       @Override void execute(ConcurrentLinkedHashMap<Integer, Integer> cache, Integer key) {
         cache.put(key, key);
