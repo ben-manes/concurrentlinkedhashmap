@@ -15,13 +15,6 @@
  */
 package com.googlecode.concurrentlinkedhashmap;
 
-import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.DrainStatus.IDLE;
-import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.DrainStatus.PROCESSING;
-import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.DrainStatus.REQUIRED;
-import static java.util.Collections.emptyList;
-import static java.util.Collections.unmodifiableMap;
-import static java.util.Collections.unmodifiableSet;
-
 import java.io.InvalidObjectException;
 import java.io.ObjectInputStream;
 import java.io.Serializable;
@@ -44,6 +37,13 @@ import java.util.concurrent.atomic.AtomicIntegerArray;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+
+import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.DrainStatus.IDLE;
+import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.DrainStatus.PROCESSING;
+import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.DrainStatus.REQUIRED;
+import static java.util.Collections.emptyList;
+import static java.util.Collections.unmodifiableMap;
+import static java.util.Collections.unmodifiableSet;
 
 /**
  * A hash table supporting full concurrency of retrievals, adjustable expected
@@ -739,9 +739,10 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   }
 
   /**
-   * Returns the value to which the specified key is mapped, or {@code null} if this map contains
-   * no mapping for the key. This method differs from {@link #get(Object)} in that it does not
-   * record the operation with the page replacement policy.
+   * Returns the value to which the specified key is mapped, or {@code null}
+   * if this map contains no mapping for the key. This method differs from
+   * {@link #get(Object)} in that it does not record the operation with the
+   * page replacement policy.
    *
    * @param key the key whose associated value is to be returned
    * @return the value to which the specified key is mapped, or

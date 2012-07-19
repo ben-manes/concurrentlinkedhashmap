@@ -15,6 +15,28 @@
  */
 package com.googlecode.concurrentlinkedhashmap;
 
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.Queue;
+import java.util.Set;
+import java.util.concurrent.Callable;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.ReentrantLock;
+
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Task;
+import com.googlecode.concurrentlinkedhashmap.benchmark.Benchmarks.EfficiencyRun;
+import com.googlecode.concurrentlinkedhashmap.caches.Cache;
+import com.googlecode.concurrentlinkedhashmap.caches.CacheBuilder;
+import com.googlecode.concurrentlinkedhashmap.generator.Generator;
+import com.googlecode.concurrentlinkedhashmap.generator.ScrambledZipfianGenerator;
+import org.mockito.invocation.InvocationOnMock;
+import org.mockito.stubbing.Answer;
+import org.testng.annotations.Test;
+
 import static com.google.common.collect.Maps.newLinkedHashMap;
 import static com.google.common.collect.Sets.newLinkedHashSet;
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.AMORTIZED_DRAIN_THRESHOLD;
@@ -48,29 +70,6 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
-import java.util.Queue;
-import java.util.Set;
-import java.util.concurrent.Callable;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.locks.ReentrantLock;
-
-import org.mockito.invocation.InvocationOnMock;
-import org.mockito.stubbing.Answer;
-import org.testng.annotations.Test;
-
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
-import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
-import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Task;
-import com.googlecode.concurrentlinkedhashmap.benchmark.Benchmarks.EfficiencyRun;
-import com.googlecode.concurrentlinkedhashmap.caches.Cache;
-import com.googlecode.concurrentlinkedhashmap.caches.CacheBuilder;
-import com.googlecode.concurrentlinkedhashmap.generator.Generator;
-import com.googlecode.concurrentlinkedhashmap.generator.ScrambledZipfianGenerator;
 
 /**
  * A unit-test for the page replacement algorithm and its public methods.
@@ -352,8 +351,8 @@ public final class EvictionTest extends AbstractTest {
 
     assertThat(map.evictionDeque.peekFirst(), is(first));
     assertThat(map.evictionDeque.peekLast(), is(last));
-    assertThat(map, is(valid()));
     assertThat(maxTaskIndex, is(-1));
+    assertThat(map, is(valid()));
   }
 
   @Test(dataProvider = "warmedMap")
