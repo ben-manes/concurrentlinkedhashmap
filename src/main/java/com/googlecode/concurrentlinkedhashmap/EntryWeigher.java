@@ -15,6 +15,8 @@
  */
 package com.googlecode.concurrentlinkedhashmap;
 
+import javax.annotation.concurrent.ThreadSafe;
+
 /**
  * A class that can determine the weight of an entry. The total weight threshold
  * is used to determine when an eviction is required.

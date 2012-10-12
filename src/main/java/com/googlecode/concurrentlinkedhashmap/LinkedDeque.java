@@ -21,6 +21,8 @@ import java.util.Deque;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
+import javax.annotation.concurrent.NotThreadSafe;
+
 /**
  * Linked list implementation of the {@link Deque} interface where the link
  * pointers are tightly integrated with the element. Linked deques have no

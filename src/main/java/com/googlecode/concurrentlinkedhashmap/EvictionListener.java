@@ -15,6 +15,8 @@
  */
 package com.googlecode.concurrentlinkedhashmap;
 
+import javax.annotation.concurrent.ThreadSafe;
+
 /**
  * A listener registered for notification when an entry is evicted. An instance
  * may be called concurrently by multiple threads to process entries. An

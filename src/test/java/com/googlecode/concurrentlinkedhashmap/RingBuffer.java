@@ -15,12 +15,14 @@
  */
 package com.googlecode.concurrentlinkedhashmap;
 
-import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.ceilingNextPowerOfTwo;
-
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+
+import javax.annotation.concurrent.GuardedBy;
+
+import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.ceilingNextPowerOfTwo;
 
 /**
  * An single-consumer, multiple-producer bounded buffer backed by an array.
