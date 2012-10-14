@@ -15,21 +15,19 @@
  */
 package com.googlecode.concurrentlinkedhashmap.benchmark;
 
-import static com.googlecode.concurrentlinkedhashmap.benchmark.Benchmarks.createWorkingSet;
+import java.util.List;
+import java.util.concurrent.ConcurrentMap;
 
 import com.google.caliper.Param;
 import com.google.caliper.Runner;
 import com.google.caliper.SimpleBenchmark;
-
 import com.googlecode.concurrentlinkedhashmap.caches.Cache;
 import com.googlecode.concurrentlinkedhashmap.caches.CacheBuilder;
 import com.googlecode.concurrentlinkedhashmap.generator.ScrambledZipfianGenerator;
-
 import org.testng.annotations.Parameters;
 import org.testng.annotations.Test;
 
-import java.util.List;
-import java.util.concurrent.ConcurrentMap;
+import static com.googlecode.concurrentlinkedhashmap.benchmark.Benchmarks.createWorkingSet;
 
 /**
  * This benchmark evaluates single-threaded performance.
@@ -43,7 +41,7 @@ public final class GetPutBenchmark extends SimpleBenchmark {
   private static final Integer DUMMY = 1;
 
   @Param({
-    "MapMaker",
+    "Guava",
     "ConcurrentHashMap",
     "LinkedHashMap_Lru_Lock",
     "ConcurrentLinkedHashMap"})

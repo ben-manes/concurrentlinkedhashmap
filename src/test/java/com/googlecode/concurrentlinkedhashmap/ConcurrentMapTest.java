@@ -15,6 +15,19 @@
  */
 package com.googlecode.concurrentlinkedhashmap;
 
+import java.io.Serializable;
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.NoSuchElementException;
+import java.util.Set;
+import java.util.concurrent.ConcurrentMap;
+
+import com.google.common.collect.ImmutableMap;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
+import org.testng.annotations.Test;
+
 import static com.google.common.collect.Maps.immutableEntry;
 import static com.google.common.collect.Maps.newHashMap;
 import static com.googlecode.concurrentlinkedhashmap.IsEmptyCollection.emptyCollection;
@@ -32,20 +45,6 @@ import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
-
-import java.io.Serializable;
-import java.util.Collection;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.NoSuchElementException;
-import java.util.Set;
-import java.util.concurrent.ConcurrentMap;
-
-import org.testng.annotations.Test;
-
-import com.google.common.collect.ImmutableMap;
-import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 
 /**
  * A unit-test for {@link java.util.concurrent.ConcurrentMap} interface and its
@@ -90,26 +89,26 @@ public final class ConcurrentMapTest extends AbstractTest {
 
   @Test(dataProvider = "warmedMap")
   public void equals_withNull(Map<Integer, Integer> map) {
-    assertThat(map, is(not(equalTo(null))));
+    assertThat(map.equals(null), is(false));
   }
 
   @Test(dataProvider = "warmedMap")
   public void equals_withSelf(Map<Integer, Integer> map) {
-    assertThat(map, is(equalTo(map)));
+    assertThat(map.equals(map), is(true));
   }
 
   @Test(dataProvider = "guardedMap")
   public void equals_whenEmpty(Map<Object, Object> map) {
     Map<Object, Object> empty = ImmutableMap.of();
-    assertThat(map, is(equalTo(empty)));
-    assertThat(empty, is(equalTo(map)));
+    assertThat(map.equals(empty), is(true));
+    assertThat(empty.equals(map), is(true));
   }
 
   @Test(dataProvider = "warmedMap")
   public void equals_whenPopulated(Map<Integer, Integer> map) {
     Map<Integer, Integer> expected = ImmutableMap.copyOf(newWarmedMap());
-    assertThat(map, is(equalTo(expected)));
-    assertThat(expected, is(equalTo(map)));
+    assertThat(map.equals(expected), is(true));
+    assertThat(expected.equals(map), is(true));
   }
 
   @Test(dataProvider = "warmedMap")
@@ -149,8 +148,8 @@ public final class ConcurrentMapTest extends AbstractTest {
     map.putAll(first);
     other.putAll(second);
 
-    assertThat(errorMsg, map, is(not(equalTo(other))));
-    assertThat(errorMsg, other, is(not(equalTo(map))));
+    assertThat(errorMsg, map.equals(other), is(false));
+    assertThat(errorMsg, other.equals(map), is(false));
     assertThat(errorMsg, map.hashCode(), is(not(equalTo(other.hashCode()))));
   }
 
@@ -258,12 +257,12 @@ public final class ConcurrentMapTest extends AbstractTest {
 
   @Test(dataProvider = "guardedMap", expectedExceptions = NullPointerException.class)
   public void putIfAbsent_withNullKey(ConcurrentMap<Integer, Integer> map) {
-    map.putIfAbsent(1, null);
+    map.putIfAbsent(null, 2);
   }
 
   @Test(dataProvider = "guardedMap", expectedExceptions = NullPointerException.class)
   public void putIfAbsent_withNullValue(ConcurrentMap<Integer, Integer> map) {
-    map.putIfAbsent(null, 2);
+    map.putIfAbsent(1, null);
   }
 
   @Test(dataProvider = "guardedMap", expectedExceptions = NullPointerException.class)

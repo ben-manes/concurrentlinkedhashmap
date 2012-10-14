@@ -209,7 +209,7 @@ public final class EvictionTest extends AbstractTest {
         .build();
     map.put(1, 2);
     map.capacity = MAXIMUM_CAPACITY;
-    map.weightedSize = MAXIMUM_CAPACITY;
+    map.weightedSize.set(MAXIMUM_CAPACITY);
 
     map.put(2, 3);
     assertThat(map.weightedSize(), is(MAXIMUM_CAPACITY));
@@ -235,7 +235,7 @@ public final class EvictionTest extends AbstractTest {
       }.start();
       await().untilCall(to((Map<?, ?>) map).containsKey(0), is(false));
       checkStatus(node, RETIRED);
-      map.drainBuffers(AMORTIZED_DRAIN_THRESHOLD);
+      map.drainBuffers();
 
       checkStatus(node, DEAD);
       assertThat(map.containsKey(1), is(true));
@@ -302,7 +302,7 @@ public final class EvictionTest extends AbstractTest {
 
   private void checkContainsInOrder(ConcurrentLinkedHashMap<Integer, Integer> map,
       Integer... expect) {
-    map.tryToDrainBuffers(AMORTIZED_DRAIN_THRESHOLD);
+    map.drainBuffers();
     List<Integer> evictionList = Lists.newArrayList();
     for (ConcurrentLinkedHashMap<Integer, Integer>.Node node : map.evictionDeque) {
       evictionList.add(node.key);
@@ -352,7 +352,6 @@ public final class EvictionTest extends AbstractTest {
     assertThat(map.evictionDeque.peekFirst(), is(first));
     assertThat(map.evictionDeque.peekLast(), is(last));
     assertThat(maxTaskIndex, is(-1));
-    assertThat(map, is(valid()));
   }
 
   @Test(dataProvider = "warmedMap")
@@ -400,7 +399,7 @@ public final class EvictionTest extends AbstractTest {
     ConcurrentLinkedHashMap<?, ?>.Node first = map.evictionDeque.peek();
 
     operation.run();
-    map.drainBuffers(AMORTIZED_DRAIN_THRESHOLD);
+    map.drainBuffers();
 
     assertThat(map.evictionDeque.peekFirst(), is(not(first)));
     assertThat(map.evictionDeque.peekLast(), is(first));
@@ -428,7 +427,7 @@ public final class EvictionTest extends AbstractTest {
       map.bufferLengths.getAndIncrement(index);
     }
 
-    map.drainBuffers(maxTasks);
+    map.drainBuffers();
     for (Queue<?> buffer : map.buffers) {
       assertThat(buffer.isEmpty(), is(true));
     }
@@ -468,6 +467,7 @@ public final class EvictionTest extends AbstractTest {
     assertThat(map.bufferLengths.get(index), is(equalTo(BUFFER_THRESHOLD)));
     map.get(1);
     assertThat(map.bufferLengths.get(index), is(equalTo(0)));
+    assertThat(map.tasks, is(equalTo(new Task[AMORTIZED_DRAIN_THRESHOLD])));
   }
 
   @Test(dataProvider = "guardedMap")
@@ -477,7 +477,7 @@ public final class EvictionTest extends AbstractTest {
     Thread thread = new Thread() {
       @Override public void run() {
         map.drainStatus.set(REQUIRED);
-        map.tryToDrainBuffers(AMORTIZED_DRAIN_THRESHOLD);
+        map.tryToDrainBuffers();
         done.set(true);
       }
     };

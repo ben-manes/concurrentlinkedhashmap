@@ -311,18 +311,12 @@ final class LinkedDeque<E extends Linked<E>> extends AbstractCollection<E> imple
 
   @Override
   public E pollFirst() {
-    if (isEmpty()) {
-      return null;
-    }
-    return unlinkFirst();
+    return isEmpty() ? null : unlinkFirst();
   }
 
   @Override
   public E pollLast() {
-    if (isEmpty()) {
-      return null;
-    }
-    return unlinkLast();
+    return isEmpty() ? null : unlinkLast();
   }
 
   @Override
@@ -333,8 +327,13 @@ final class LinkedDeque<E extends Linked<E>> extends AbstractCollection<E> imple
   @Override
   @SuppressWarnings("unchecked")
   public boolean remove(Object o) {
-    if (contains(o)) {
-      unlink((E) o);
+    return (o instanceof Linked<?>) && remove((E) o);
+  }
+
+  // A fast-path removal
+  boolean remove(E e) {
+    if (contains(e)) {
+      unlink(e);
       return true;
     }
     return false;

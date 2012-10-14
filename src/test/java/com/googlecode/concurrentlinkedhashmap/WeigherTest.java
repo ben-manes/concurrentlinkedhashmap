@@ -15,6 +15,20 @@
  */
 package com.googlecode.concurrentlinkedhashmap;
 
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
+import org.mockito.Mock;
+import org.testng.annotations.Test;
+
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.MAXIMUM_CAPACITY;
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
@@ -27,21 +41,6 @@ import static org.mockito.Matchers.anyInt;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.when;
 import static org.testng.Assert.fail;
-
-import java.lang.reflect.Constructor;
-import java.lang.reflect.InvocationTargetException;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
-import org.mockito.Mock;
-import org.testng.annotations.Test;
-
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 
 /**
  * A unit-test for the weigher algorithms and that the map keeps track of the
@@ -163,7 +162,7 @@ public final class WeigherTest extends AbstractTest {
         .build();
     doReturn(Integer.MAX_VALUE).when(weigher).weightOf(anyInt());
     map.putAll(ImmutableMap.of(1, 1, 2, 2));
-    map.weightedSize = MAXIMUM_CAPACITY;
+    map.weightedSize.set(MAXIMUM_CAPACITY);
 
     map.put(3, 3);
     assertThat(map.size(), is(2));

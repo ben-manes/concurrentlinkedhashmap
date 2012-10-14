@@ -15,19 +15,22 @@
  */
 package com.googlecode.concurrentlinkedhashmap;
 
-import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.AMORTIZED_DRAIN_THRESHOLD;
-import static com.googlecode.concurrentlinkedhashmap.IsValidLinkedDeque.validLinkedDeque;
-
 import java.util.Set;
 import java.util.concurrent.locks.ReentrantLock;
 
+import com.google.common.collect.Sets;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Node;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Task;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.WeightedValue;
 import org.hamcrest.Description;
 import org.hamcrest.Factory;
 import org.hamcrest.TypeSafeDiagnosingMatcher;
 
-import com.google.common.collect.Sets;
-import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Node;
-import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.WeightedValue;
+import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.AMORTIZED_DRAIN_THRESHOLD;
+import static com.googlecode.concurrentlinkedhashmap.IsValidLinkedDeque.validLinkedDeque;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 /**
  * A matcher that evaluates a {@link ConcurrentLinkedHashMap} to determine if it
@@ -56,7 +59,8 @@ public final class IsValidConcurrentLinkedHashMap
 
   private void drain(ConcurrentLinkedHashMap<?, ?> map) {
     for (;;) {
-      map.tryToDrainBuffers(AMORTIZED_DRAIN_THRESHOLD);
+      map.drainBuffers();
+      assertThat(map.tasks, is(equalTo(new Task[AMORTIZED_DRAIN_THRESHOLD])));
 
       int pending = 0;
       for (int i = 0; i < map.bufferLengths.length(); i++) {
@@ -75,7 +79,7 @@ public final class IsValidConcurrentLinkedHashMap
     }
     builder.expect(map.pendingNotifications.isEmpty(), "listenerQueue");
     builder.expectEqual(map.data.size(), map.size(), "Inconsistent size");
-    builder.expectEqual(map.weightedSize(), map.weightedSize, "weightedSize");
+    builder.expectEqual(map.weightedSize(), map.weightedSize.get(), "weightedSize");
     builder.expectEqual(map.capacity(), map.capacity, "capacity");
     builder.expect(map.capacity >= map.weightedSize(), "overflow");
     builder.expectNot(((ReentrantLock) map.evictionLock).isLocked());

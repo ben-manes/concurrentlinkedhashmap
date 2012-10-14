@@ -23,13 +23,11 @@ import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
-import net.sf.ehcache.store.MemoryStoreEvictionPolicy;
-
-import org.cliffc.high_scale_lib.NonBlockingHashMap;
-
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 import com.googlecode.concurrentlinkedhashmap.caches.BoundedLinkedHashMap.AccessOrder;
 import com.googlecode.concurrentlinkedhashmap.caches.ProductionMap.EvictionPolicy;
+import net.sf.ehcache.store.MemoryStoreEvictionPolicy;
+import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 /**
  * A collection of cache data structures that can be built.
@@ -181,7 +179,7 @@ public enum Cache {
     }
   },
 
-  /** MapMaker, with a maximum size. */
+  /** Guava cache, with a maximum size. */
   Guava() {
     @Override public <K, V> ConcurrentMap<K, V> create(CacheBuilder builder) {
       return com.google.common.cache.CacheBuilder.newBuilder()
