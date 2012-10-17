@@ -19,6 +19,7 @@ import org.testng.annotations.Test;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap;
 import com.googlecode.concurrentlinkedhashmap.caches.Cache;
 import com.googlecode.concurrentlinkedhashmap.caches.CacheBuilder;
+import com.googlecode.concurrentlinkedhashmap.caches.CacheConcurrentLIRS;
 
 public class PerfHashBenchmark extends Thread {
   static int _read_ratio, _gr, _pr;
@@ -31,8 +32,8 @@ public class PerfHashBenchmark extends Thread {
     case 1: return null; //new Hashtable<String,String>(0);
     case 2: return null; // new CliffWrapHerlihy(); // was a non-blocking HashSet implementation from Maurice Herlihy
     case 3: return new ConcurrentHashMap<String,String>(_table_size,0.75f,  16); // force to   16 striping
-    case 4: return new ConcurrentHashMap<String,String>(_table_size,0.75f, 256); // force to  256 striping
-    case 5: return new ConcurrentHashMap<String,String>(_table_size,0.75f,4096); // force to 4096 striping
+    case 4: return null; // new ConcurrentHashMap<String,String>(_table_size,0.75f, 256); // force to  256 striping
+    case 5: return null; // new ConcurrentHashMap<String,String>(_table_size,0.75f,4096); // force to 4096 striping
     case 6: return new NonBlockingHashMap<String,String>();
     case 7: return new CacheBuilder().maximumCapacity(Integer.MAX_VALUE).makeCache(Cache.LinkedHashMap_Lru_Sync);
     case 8:
@@ -53,6 +54,8 @@ public class PerfHashBenchmark extends Thread {
           .initialCapacity(_table_size)
           .maximumWeightedCapacity(Integer.MAX_VALUE)
           .build();
+    case 11:
+        return CacheConcurrentLIRS.newInstance(_table_size);
     default: throw new Error("Bad imple");
     }
   }
@@ -68,6 +71,7 @@ public class PerfHashBenchmark extends Thread {
     "CLHM_16",
     "CLHM_256",
     "CLHM_4096",
+    "CLIRS_16"
   };
 
 

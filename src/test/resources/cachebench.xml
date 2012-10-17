@@ -13,15 +13,15 @@
 	numThreads
     the number of executor threads to use to perform the required number of operations.  
 -->
-<cachebench sampleSize="500000" gcBetweenTestsEnabled="true" sleepBetweenTests="1000"
-  emptyCacheBetweenTests="true" useTransactions="false" numThreads="250">
+<cachebench sampleSize="50000" gcBetweenTestsEnabled="true" sleepBetweenTests="2000"
+  emptyCacheBetweenTests="true" useTransactions="false" numThreads="25">
 
   <testcase name="NonClusteredTest" stopOnFailure="true">
     <!-- org.cachebench.warmup.PutGetCacheWarmup warms up the cache by doing operation on it;
          simulates a real-world environment. If no warmup is needed use org.cachebench.warmup.NoCacheWarmup
     -->
     <warmup warmupClass="org.cachebench.warmup.PutGetCacheWarmup">
-      <param name="operationCount" value="5000000"/>
+      <param name="operationCount" value="50000"/>
     </warmup>
 
     <!-- The "name" attrib is just used for display in the reports. You can write your own custom testClass.

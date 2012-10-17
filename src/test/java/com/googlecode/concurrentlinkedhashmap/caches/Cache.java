@@ -195,12 +195,22 @@ public enum Cache {
 
   /** A HashMap with LIRS eviction, guarded by synchronized monitor. */
   Lirs() {
+      @Override public <K, V> ConcurrentMap<K, V>  create(CacheBuilder builder) {
+        Map<K, V> delegate = new LirsMap<K, V>(builder.maximumCapacity);
+        return new SynchronizedForwardingConcurrentMap<K, V>(delegate);
+      }
+      @Override public Policy policy() {
+        return Policy.LIRS;
+      }
+    },
+  
+  /** A concurrent HashMap with LIRS eviction. */
+  ConcurrentLirs() {
     @Override public <K, V> ConcurrentMap<K, V>  create(CacheBuilder builder) {
-      Map<K, V> delegate = new LirsMap<K, V>(builder.maximumCapacity);
-      return new SynchronizedForwardingConcurrentMap<K, V>(delegate);
+        return CacheConcurrentLIRS.newInstance(builder.maximumCapacity);
     }
     @Override public Policy policy() {
-      return Policy.LIRS;
+      return Policy.LIRS_APPROX;
     }
   };
 
@@ -210,7 +220,8 @@ public enum Cache {
     SECOND_CHANCE,
     LRU,
     LRU_SEGMENTED,
-    LIRS;
+    LIRS,
+    LIRS_APPROX
   }
 
   /** Creates the cache instance. */

@@ -20,6 +20,7 @@ import static com.google.common.base.Strings.isNullOrEmpty;
 import com.googlecode.concurrentlinkedhashmap.caches.Cache;
 import com.googlecode.concurrentlinkedhashmap.caches.Cache.Policy;
 import com.googlecode.concurrentlinkedhashmap.caches.CacheBuilder;
+import com.googlecode.concurrentlinkedhashmap.caches.CacheConcurrentLIRS;
 
 import org.cachebench.CacheBenchmarkRunner;
 import org.cachebench.CacheWrapper;
@@ -70,15 +71,23 @@ public final class CacheBenchmark implements CacheWrapper {
     generator.setReportDirectory(REPORT_DIR);
     generator.generateChart();
   }
+  
+  private static final boolean TEST_CONCURRENT_LIRS = true;
 
   @Override
   @SuppressWarnings("rawtypes")
   public void init(Map parameters) throws Exception {
-    map = new CacheBuilder()
-        .concurrencyLevel(concurrencyLevel)
-        .initialCapacity(initialCapacity)
-        .maximumCapacity(maximumCapacity)
-        .makeCache(cache);
+      if (TEST_CONCURRENT_LIRS) {
+          // to test with the concurrent LIRS cache:
+          map = CacheConcurrentLIRS.newInstance(maximumCapacity);
+      } else {
+          // to test with the ConcurrentLinkedHashMap:
+          map = new CacheBuilder()
+              .concurrencyLevel(concurrencyLevel)
+              .initialCapacity(initialCapacity)
+              .maximumCapacity(maximumCapacity)
+              .makeCache(cache);
+      }
   }
 
   @Override
