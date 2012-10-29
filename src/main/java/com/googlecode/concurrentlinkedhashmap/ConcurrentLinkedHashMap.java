@@ -181,7 +181,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
   // These fields provide support to bound the map by a maximum capacity
   @GuardedBy("evictionLock")
-  final LinkedDeque<Node<K, V>> evictionDeque;
+  final EvictionDeque<Node<K, V>> evictionDeque;
 
   @GuardedBy("evictionLock") // must write under lock
   final AtomicLong weightedSize;
@@ -224,7 +224,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     weightedSize = new AtomicLong();
     drainedOrder = Integer.MIN_VALUE;
     evictionLock = new ReentrantLock();
-    evictionDeque = new LinkedDeque<Node<K, V>>();
+    evictionDeque = new EvictionDeque<Node<K, V>>();
     drainStatus = new AtomicReference<DrainStatus>(IDLE);
 
     bufferLengths = new AtomicIntegerArray(NUMBER_OF_BUFFERS);
@@ -1231,7 +1231,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    */
   @SuppressWarnings("serial")
   static final class Node<K, V> extends AtomicReference<WeightedValue<V>>
-      implements Linked<Node<K, V>> {
+      implements LinkedOnEvictionDeque<Node<K, V>> {
     final K key;
     @GuardedBy("evictionLock")
     Node<K, V> prev;
@@ -1246,25 +1246,25 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
     @Override
     @GuardedBy("evictionLock")
-    public Node<K, V> getPrevious() {
+    public Node<K, V> getPreviousOnEvictionDeque() {
       return prev;
     }
 
     @Override
     @GuardedBy("evictionLock")
-    public void setPrevious(Node<K, V> prev) {
+    public void setPreviousOnEvictionDeque(Node<K, V> prev) {
       this.prev = prev;
     }
 
     @Override
     @GuardedBy("evictionLock")
-    public Node<K, V> getNext() {
+    public Node<K, V> getNextOnEvictionDeque() {
       return next;
     }
 
     @Override
     @GuardedBy("evictionLock")
-    public void setNext(Node<K, V> next) {
+    public void setNextOnEvictionDeque(Node<K, V> next) {
       this.next = next;
     }
 

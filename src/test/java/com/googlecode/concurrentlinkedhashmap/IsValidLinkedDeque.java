@@ -15,7 +15,6 @@
  */
 package com.googlecode.concurrentlinkedhashmap;
 
-import java.util.Deque;
 import java.util.Iterator;
 import java.util.Set;
 
@@ -31,13 +30,13 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
- * A matcher that evaluates a {@link LinkedDeque} to determine if it is in a
+ * A matcher that evaluates a {@link AbstractLinkedDeque} to determine if it is in a
  * valid state.
  *
  * @author ben.manes@gmail.com (Ben Manes)
  */
 public final class IsValidLinkedDeque<E>
-    extends TypeSafeDiagnosingMatcher<LinkedDeque<? extends E>> {
+    extends TypeSafeDiagnosingMatcher<AbstractLinkedDeque<? extends E>> {
 
   @Override
   public void describeTo(Description description) {
@@ -45,7 +44,7 @@ public final class IsValidLinkedDeque<E>
   }
 
   @Override
-  protected boolean matchesSafely(LinkedDeque<? extends E> deque, Description description) {
+  protected boolean matchesSafely(AbstractLinkedDeque<? extends E> deque, Description description) {
     DescriptionBuilder builder = new DescriptionBuilder(description);
 
     if (deque.isEmpty()) {
@@ -57,38 +56,38 @@ public final class IsValidLinkedDeque<E>
     return builder.matches();
   }
 
-  void checkEmpty(Deque<? extends Linked<? extends E>> deque, DescriptionBuilder builder) {
+  void checkEmpty(AbstractLinkedDeque<? extends E> deque, DescriptionBuilder builder) {
     builder.expectThat(deque, emptyCollection());
     builder.expectThat(deque.pollFirst(), is(nullValue()));
     builder.expectThat(deque.pollLast(), is(nullValue()));
     builder.expectThat(deque.poll(), is(nullValue()));
   }
 
-  void checkIterator(Deque<? extends Linked<? extends E>> deque,
-      Iterator<? extends Linked<? extends E>> iterator, DescriptionBuilder builder) {
-    Set<Linked<?>> seen = Sets.newIdentityHashSet();
+  @SuppressWarnings("unchecked")
+  void checkIterator(AbstractLinkedDeque<? extends E> deque, Iterator<? extends E> iterator,
+      DescriptionBuilder builder) {
+    Set<E> seen = Sets.newIdentityHashSet();
     while (iterator.hasNext()) {
-      Linked<?> element = iterator.next();
-      checkElement(deque, element, builder);
+      E element = iterator.next();
+      checkElement((AbstractLinkedDeque<E>) deque, element, builder);
       String errorMsg = String.format("Loop detected: %s in %s", element, seen);
       builder.expectThat(errorMsg, seen.add(element), is(true));
     }
     builder.expectThat(deque, hasSize(seen.size()));
   }
 
-  void checkElement(Deque<? extends Linked<? extends E>> deque, Linked<?> element,
-      DescriptionBuilder builder) {
-    Linked<?> first = deque.peekFirst();
-    Linked<?> last = deque.peekLast();
+  void checkElement(AbstractLinkedDeque<E> deque, E element, DescriptionBuilder builder) {
+    Object first = deque.peekFirst();
+    Object last = deque.peekLast();
     if (element == first) {
-      builder.expectThat("not null prev", element.getPrevious(), is(nullValue()));
+      builder.expectThat("not null prev", deque.getPrevious(element), is(nullValue()));
     }
     if (element == last) {
-      builder.expectThat("not null next", element.getNext(), is(nullValue()));
+      builder.expectThat("not null next", deque.getNext(element), is(nullValue()));
     }
     if ((element != first) && (element != last)) {
-      builder.expectThat(element.getPrevious(), is(not(nullValue())));
-      builder.expectThat(element.getNext(), is(not(nullValue())));
+      builder.expectThat(deque.getPrevious(element), is(not(nullValue())));
+      builder.expectThat(deque.getNext(element), is(not(nullValue())));
     }
   }
 

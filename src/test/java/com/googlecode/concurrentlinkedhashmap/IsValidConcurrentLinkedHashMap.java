@@ -101,11 +101,11 @@ public final class IsValidConcurrentLinkedHashMap<K, V>
 
   private void checkEvictionDeque(ConcurrentLinkedHashMap<? extends K, ? extends V> map,
       DescriptionBuilder builder) {
-    LinkedDeque<?> deque = map.evictionDeque;
+    AbstractLinkedDeque<?> deque = map.evictionDeque;
 
     checkLinks(map, builder);
     builder.expectThat(deque, hasSize(map.size()));
-    validLinkedDeque().matchesSafely(map.evictionDeque, builder.getDescription());
+    validLinkedDeque().matchesSafely((AbstractLinkedDeque<Object>) deque, builder.getDescription());
   }
 
   @SuppressWarnings("rawtypes")

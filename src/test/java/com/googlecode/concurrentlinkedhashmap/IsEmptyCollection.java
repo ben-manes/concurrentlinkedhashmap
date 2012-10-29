@@ -64,8 +64,8 @@ public final class IsEmptyCollection<E> extends TypeSafeDiagnosingMatcher<Collec
     if (c instanceof Deque<?>) {
       checkDeque((Deque<? extends E>) c, builder);
     }
-    if (c instanceof LinkedDeque<?>) {
-      checkLinkedDeque((LinkedDeque<? extends E>) c, builder);
+    if (c instanceof AbstractLinkedDeque<?>) {
+      checkLinkedDeque((AbstractLinkedDeque<? extends E>) c, builder);
     }
     return builder.matches();
   }
@@ -103,7 +103,7 @@ public final class IsEmptyCollection<E> extends TypeSafeDiagnosingMatcher<Collec
     builder.expectThat(deque.descendingIterator().hasNext(), is(false));
   }
 
-  private void checkLinkedDeque(LinkedDeque<?> deque, DescriptionBuilder builder) {
+  private void checkLinkedDeque(AbstractLinkedDeque<?> deque, DescriptionBuilder builder) {
     builder.expectThat(deque.first, is(nullValue()));
     builder.expectThat(deque.last, is(nullValue()));
   }

@@ -15,6 +15,18 @@
  */
 package com.googlecode.concurrentlinkedhashmap;
 
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Deque;
+import java.util.List;
+import java.util.NoSuchElementException;
+
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Lists;
+import org.testng.annotations.DataProvider;
+import org.testng.annotations.Test;
+
 import static com.google.common.collect.Iterators.elementsEqual;
 import static com.googlecode.concurrentlinkedhashmap.IsEmptyCollection.emptyCollection;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -23,21 +35,8 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Deque;
-import java.util.List;
-import java.util.NoSuchElementException;
-
-import org.testng.annotations.DataProvider;
-import org.testng.annotations.Test;
-
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
-
 /**
- * A unit-test for {@link LinkedDeque} methods.
+ * A unit-test for {@link AbstractLinkedDeque} methods.
  *
  * @author ben.manes@gmail.com (Ben Manes)
  */
@@ -88,7 +87,7 @@ public final class LinkedDequeTest extends AbstractTest {
   }
 
   @Test(dataProvider = "warmedDeque")
-  public void contains_whenNotFound(LinkedDeque<SimpleLinkedValue> deque) {
+  public void contains_whenNotFound(AbstractLinkedDeque<SimpleLinkedValue> deque) {
     SimpleLinkedValue unlinked = new SimpleLinkedValue(1);
     assertThat(deque.contains(unlinked), is(false));
   }
@@ -96,42 +95,42 @@ public final class LinkedDequeTest extends AbstractTest {
   /* ---------------- Move -------------- */
 
   @Test(dataProvider = "warmedDeque")
-  public void moveToFront_first(LinkedDeque<SimpleLinkedValue> deque) {
+  public void moveToFront_first(AbstractLinkedDeque<SimpleLinkedValue> deque) {
     checkMoveToFront(deque, deque.getFirst());
   }
 
   @Test(dataProvider = "warmedDeque")
-  public void moveToFront_middle(LinkedDeque<SimpleLinkedValue> deque) {
+  public void moveToFront_middle(AbstractLinkedDeque<SimpleLinkedValue> deque) {
     checkMoveToFront(deque, Iterables.get(deque, (int) capacity() / 2));
   }
 
   @Test(dataProvider = "warmedDeque")
-  public void moveToFront_last(LinkedDeque<SimpleLinkedValue> deque) {
+  public void moveToFront_last(AbstractLinkedDeque<SimpleLinkedValue> deque) {
     checkMoveToFront(deque, deque.getLast());
   }
 
-  private void checkMoveToFront(LinkedDeque<SimpleLinkedValue> deque, SimpleLinkedValue element) {
+  private void checkMoveToFront(AbstractLinkedDeque<SimpleLinkedValue> deque, SimpleLinkedValue element) {
     deque.moveToFront(element);
     assertThat(deque.peekFirst(), is(element));
     assertThat(deque.size(), is((int) capacity()));
   }
 
   @Test(dataProvider = "warmedDeque")
-  public void moveToBack_first(LinkedDeque<SimpleLinkedValue> deque) {
+  public void moveToBack_first(AbstractLinkedDeque<SimpleLinkedValue> deque) {
     checkMoveToBack(deque, deque.getFirst());
   }
 
   @Test(dataProvider = "warmedDeque")
-  public void moveToBack_middle(LinkedDeque<SimpleLinkedValue> deque) {
+  public void moveToBack_middle(AbstractLinkedDeque<SimpleLinkedValue> deque) {
     checkMoveToBack(deque, Iterables.get(deque, (int) capacity() / 2));
   }
 
   @Test(dataProvider = "warmedDeque")
-  public void moveToBack_last(LinkedDeque<SimpleLinkedValue> deque) {
+  public void moveToBack_last(AbstractLinkedDeque<SimpleLinkedValue> deque) {
     checkMoveToBack(deque, deque.getLast());
   }
 
-  private void checkMoveToBack(LinkedDeque<SimpleLinkedValue> deque, SimpleLinkedValue element) {
+  private void checkMoveToBack(AbstractLinkedDeque<SimpleLinkedValue> deque, SimpleLinkedValue element) {
     deque.moveToBack(element);
     assertThat(deque.size(), is((int) capacity()));
     assertThat(deque.getLast(), is(element));
@@ -145,7 +144,7 @@ public final class LinkedDequeTest extends AbstractTest {
   }
 
   @Test(dataProvider = "warmedDeque")
-  public void peek_whenPopulated(LinkedDeque<SimpleLinkedValue> deque) {
+  public void peek_whenPopulated(AbstractLinkedDeque<SimpleLinkedValue> deque) {
     SimpleLinkedValue first = deque.first;
     assertThat(deque.peek(), is(first));
     assertThat(deque.first, is(first));
@@ -159,7 +158,7 @@ public final class LinkedDequeTest extends AbstractTest {
   }
 
   @Test(dataProvider = "warmedDeque")
-  public void peekFirst_whenPopulated(LinkedDeque<SimpleLinkedValue> deque) {
+  public void peekFirst_whenPopulated(AbstractLinkedDeque<SimpleLinkedValue> deque) {
     SimpleLinkedValue first = deque.first;
     assertThat(deque.peekFirst(), is(first));
     assertThat(deque.first, is(first));
@@ -173,7 +172,7 @@ public final class LinkedDequeTest extends AbstractTest {
   }
 
   @Test(dataProvider = "warmedDeque")
-  public void peekLast_whenPopulated(LinkedDeque<SimpleLinkedValue> deque) {
+  public void peekLast_whenPopulated(AbstractLinkedDeque<SimpleLinkedValue> deque) {
     SimpleLinkedValue last = deque.last;
     assertThat(deque.peekLast(), is(last));
     assertThat(deque.last, is(last));
@@ -189,7 +188,7 @@ public final class LinkedDequeTest extends AbstractTest {
   }
 
   @Test(dataProvider = "warmedDeque")
-  public void getFirst_whenPopulated(LinkedDeque<SimpleLinkedValue> deque) {
+  public void getFirst_whenPopulated(AbstractLinkedDeque<SimpleLinkedValue> deque) {
     SimpleLinkedValue first = deque.first;
     assertThat(deque.getFirst(), is(first));
     assertThat(deque.first, is(first));
@@ -203,7 +202,7 @@ public final class LinkedDequeTest extends AbstractTest {
   }
 
   @Test(dataProvider = "warmedDeque")
-  public void getLast_whenPopulated(LinkedDeque<SimpleLinkedValue> deque) {
+  public void getLast_whenPopulated(AbstractLinkedDeque<SimpleLinkedValue> deque) {
     SimpleLinkedValue last = deque.last;
     assertThat(deque.getLast(), is(last));
     assertThat(deque.last, is(last));
@@ -219,7 +218,7 @@ public final class LinkedDequeTest extends AbstractTest {
   }
 
   @Test(dataProvider = "warmedDeque")
-  public void element_whenPopulated(LinkedDeque<SimpleLinkedValue> deque) {
+  public void element_whenPopulated(AbstractLinkedDeque<SimpleLinkedValue> deque) {
     SimpleLinkedValue first = deque.first;
     assertThat(deque.element(), is(first));
     assertThat(deque.first, is(first));
@@ -451,7 +450,7 @@ public final class LinkedDequeTest extends AbstractTest {
   }
 
   @Test(dataProvider = "warmedDeque")
-  public void pollLast_toEmpty(LinkedDeque<SimpleLinkedValue> deque) {
+  public void pollLast_toEmpty(AbstractLinkedDeque<SimpleLinkedValue> deque) {
     SimpleLinkedValue value;
     while ((value = deque.pollLast()) != null) {
       assertThat(deque.contains(value), is(false));
@@ -475,7 +474,7 @@ public final class LinkedDequeTest extends AbstractTest {
   }
 
   @Test(dataProvider = "warmedDeque")
-  public void remove_toEmpty(LinkedDeque<SimpleLinkedValue> deque) {
+  public void remove_toEmpty(AbstractLinkedDeque<SimpleLinkedValue> deque) {
     while (!deque.isEmpty()) {
       SimpleLinkedValue value = deque.remove();
       assertThat(deque.contains(value), is(false));
@@ -497,7 +496,7 @@ public final class LinkedDequeTest extends AbstractTest {
   }
 
   @Test(dataProvider = "warmedDeque")
-  public void removeElement_toEmpty(LinkedDeque<SimpleLinkedValue> deque) {
+  public void removeElement_toEmpty(AbstractLinkedDeque<SimpleLinkedValue> deque) {
     while (!deque.isEmpty()) {
       SimpleLinkedValue value = deque.peek();
       assertThat(deque.remove(value), is(true));
@@ -520,7 +519,7 @@ public final class LinkedDequeTest extends AbstractTest {
   }
 
   @Test(dataProvider = "warmedDeque")
-  public void removeFirst_toEmpty(LinkedDeque<SimpleLinkedValue> deque) {
+  public void removeFirst_toEmpty(AbstractLinkedDeque<SimpleLinkedValue> deque) {
     while (!deque.isEmpty()) {
       SimpleLinkedValue value = deque.removeFirst();
       assertThat(deque.contains(value), is(false));
@@ -542,7 +541,7 @@ public final class LinkedDequeTest extends AbstractTest {
   }
 
   @Test(dataProvider = "warmedDeque")
-  public void removeLast_toEmpty(LinkedDeque<SimpleLinkedValue> deque) {
+  public void removeLast_toEmpty(AbstractLinkedDeque<SimpleLinkedValue> deque) {
     while (!deque.isEmpty()) {
       SimpleLinkedValue value = deque.removeLast();
       assertThat(deque.contains(value), is(false));
@@ -564,7 +563,7 @@ public final class LinkedDequeTest extends AbstractTest {
   }
 
   @Test(dataProvider = "warmedDeque")
-  public void removeFirstOccurrence_toEmpty(LinkedDeque<SimpleLinkedValue> deque) {
+  public void removeFirstOccurrence_toEmpty(AbstractLinkedDeque<SimpleLinkedValue> deque) {
     while (!deque.isEmpty()) {
       SimpleLinkedValue value = deque.peek();
       assertThat(deque.removeFirstOccurrence(value), is(true));
@@ -587,7 +586,7 @@ public final class LinkedDequeTest extends AbstractTest {
   }
 
   @Test(dataProvider = "warmedDeque")
-  public void removeLastOccurrence_toEmpty(LinkedDeque<SimpleLinkedValue> deque) {
+  public void removeLastOccurrence_toEmpty(AbstractLinkedDeque<SimpleLinkedValue> deque) {
     while (!deque.isEmpty()) {
       SimpleLinkedValue value = deque.peek();
       assertThat(deque.removeLastOccurrence(value), is(true));
@@ -655,7 +654,7 @@ public final class LinkedDequeTest extends AbstractTest {
   }
 
   @Test(dataProvider = "warmedDeque")
-  public void pop_toEmpty(LinkedDeque<SimpleLinkedValue> deque) {
+  public void pop_toEmpty(AbstractLinkedDeque<SimpleLinkedValue> deque) {
     while (!deque.isEmpty()) {
       SimpleLinkedValue value = deque.pop();
       assertThat(deque.contains(value), is(false));
@@ -666,17 +665,17 @@ public final class LinkedDequeTest extends AbstractTest {
   /* ---------------- Iterators -------------- */
 
   @Test(dataProvider = "emptyDeque", expectedExceptions = NoSuchElementException.class)
-  public void iterator_noMoreElements(LinkedDeque<SimpleLinkedValue> deque) {
+  public void iterator_noMoreElements(AbstractLinkedDeque<SimpleLinkedValue> deque) {
     deque.iterator().next();
   }
 
   @Test(dataProvider = "emptyDeque")
-  public void iterator_whenEmpty(LinkedDeque<SimpleLinkedValue> deque) {
+  public void iterator_whenEmpty(AbstractLinkedDeque<SimpleLinkedValue> deque) {
     assertThat(deque.iterator().hasNext(), is(false));
   }
 
   @Test(dataProvider = "warmedDeque")
-  public void iterator_whenWarmed(LinkedDeque<SimpleLinkedValue> deque) {
+  public void iterator_whenWarmed(AbstractLinkedDeque<SimpleLinkedValue> deque) {
     List<SimpleLinkedValue> expected = Lists.newArrayList();
     warmUp(expected);
 
@@ -684,22 +683,22 @@ public final class LinkedDequeTest extends AbstractTest {
   }
 
   @Test(dataProvider = "warmedDeque", expectedExceptions = UnsupportedOperationException.class)
-  public void iterator_removal(LinkedDeque<SimpleLinkedValue> deque) {
+  public void iterator_removal(AbstractLinkedDeque<SimpleLinkedValue> deque) {
     deque.iterator().remove();
   }
 
   @Test(dataProvider = "emptyDeque", expectedExceptions = NoSuchElementException.class)
-  public void descendingIterator_noMoreElements(LinkedDeque<SimpleLinkedValue> deque) {
+  public void descendingIterator_noMoreElements(AbstractLinkedDeque<SimpleLinkedValue> deque) {
     deque.descendingIterator().next();
   }
 
   @Test(dataProvider = "emptyDeque")
-  public void descendingIterator_whenEmpty(LinkedDeque<SimpleLinkedValue> deque) {
+  public void descendingIterator_whenEmpty(AbstractLinkedDeque<SimpleLinkedValue> deque) {
     assertThat(deque.descendingIterator().hasNext(), is(false));
   }
 
   @Test(dataProvider = "warmedDeque")
-  public void descendingIterator_whenWarmed(LinkedDeque<SimpleLinkedValue> deque) {
+  public void descendingIterator_whenWarmed(AbstractLinkedDeque<SimpleLinkedValue> deque) {
     List<SimpleLinkedValue> expected = Lists.newArrayList();
     warmUp(expected);
     Collections.reverse(expected);
@@ -708,7 +707,7 @@ public final class LinkedDequeTest extends AbstractTest {
   }
 
   @Test(dataProvider = "warmedDeque", expectedExceptions = UnsupportedOperationException.class)
-  public void descendingIterator_removal(LinkedDeque<SimpleLinkedValue> deque) {
+  public void descendingIterator_removal(AbstractLinkedDeque<SimpleLinkedValue> deque) {
     deque.descendingIterator().remove();
   }
 
@@ -716,16 +715,24 @@ public final class LinkedDequeTest extends AbstractTest {
 
   @DataProvider(name = "emptyDeque")
   public Object[][] providesEmptyDeque() {
-    return new Object[][] {{
-      new LinkedDeque<SimpleLinkedValue>()
-    }};
+    return new Object[][] {
+        new Object[] { new LirsQueue<SimpleLinkedValue>() },
+        new Object[] { new LirsStack<SimpleLinkedValue>() },
+        new Object[] { new EvictionDeque<SimpleLinkedValue>() }};
   }
 
   @DataProvider(name = "warmedDeque")
   public Object[][] providesWarmedDeque() {
-    LinkedDeque<SimpleLinkedValue> deque = new LinkedDeque<SimpleLinkedValue>();
-    warmUp(deque);
-    return new Object[][] {{ deque }};
+    LirsQueue<SimpleLinkedValue> lirsQueue = new LirsQueue<SimpleLinkedValue>();
+    LirsStack<SimpleLinkedValue> lirsStack = new LirsStack<SimpleLinkedValue>();
+    EvictionDeque<SimpleLinkedValue> evictionDeque = new EvictionDeque<SimpleLinkedValue>();
+    warmUp(lirsQueue);
+    warmUp(lirsStack);
+    warmUp(evictionDeque);
+    return new Object[][] {
+        new Object[] { lirsQueue },
+        new Object[] { lirsStack },
+        new Object[] { evictionDeque }};
   }
 
   void warmUp(Collection<SimpleLinkedValue> collection) {
@@ -734,9 +741,15 @@ public final class LinkedDequeTest extends AbstractTest {
     }
   }
 
-  static final class SimpleLinkedValue implements Linked<SimpleLinkedValue> {
-    SimpleLinkedValue prev;
-    SimpleLinkedValue next;
+  static final class SimpleLinkedValue implements LinkedOnEvictionDeque<SimpleLinkedValue>,
+      LinkedOnLirsQueue<SimpleLinkedValue>, LinkedOnLirsStack<SimpleLinkedValue> {
+    SimpleLinkedValue prevOnEvictionDeque;
+    SimpleLinkedValue nextOnEvictionDeque;
+    SimpleLinkedValue prevOnLirsQueue;
+    SimpleLinkedValue nextOnLirsQueue;
+    SimpleLinkedValue prevOnLirsStack;
+    SimpleLinkedValue nextOnLirsStack;
+
     final int value;
 
     SimpleLinkedValue(int value) {
@@ -744,23 +757,63 @@ public final class LinkedDequeTest extends AbstractTest {
     }
 
     @Override
-    public SimpleLinkedValue getPrevious() {
-      return prev;
+    public SimpleLinkedValue getPreviousOnEvictionDeque() {
+      return prevOnEvictionDeque;
     }
 
     @Override
-    public void setPrevious(SimpleLinkedValue prev) {
-      this.prev = prev;
+    public void setPreviousOnEvictionDeque(SimpleLinkedValue prev) {
+      prevOnEvictionDeque = prev;
     }
 
     @Override
-    public SimpleLinkedValue getNext() {
-      return next;
+    public SimpleLinkedValue getNextOnEvictionDeque() {
+      return nextOnEvictionDeque;
     }
 
     @Override
-    public void setNext(SimpleLinkedValue next) {
-      this.next = next;
+    public void setNextOnEvictionDeque(SimpleLinkedValue next) {
+      nextOnEvictionDeque = next;
+    }
+
+    @Override
+    public SimpleLinkedValue getPreviousOnLirsQueue() {
+      return prevOnLirsQueue;
+    }
+
+    @Override
+    public void setPreviousOnLirsQueue(SimpleLinkedValue prev) {
+      prevOnLirsQueue = prev;
+    }
+
+    @Override
+    public SimpleLinkedValue getNextOnLirsQueue() {
+      return nextOnLirsQueue;
+    }
+
+    @Override
+    public void setNextOnLirsQueue(SimpleLinkedValue next) {
+      nextOnLirsQueue = next;
+    }
+
+    @Override
+    public SimpleLinkedValue getPreviousOnLirsStack() {
+      return prevOnLirsStack;
+    }
+
+    @Override
+    public void setPreviousOnLirsStack(SimpleLinkedValue prev) {
+      prevOnLirsStack = prev;
+    }
+
+    @Override
+    public SimpleLinkedValue getNextOnLirsStack() {
+      return nextOnLirsStack;
+    }
+
+    @Override
+    public void setNextOnLirsStack(SimpleLinkedValue next) {
+      nextOnLirsStack = next;
     }
 
     @Override
@@ -778,9 +831,17 @@ public final class LinkedDequeTest extends AbstractTest {
 
     @Override
     public String toString() {
-      return String.format("value=%s prev=%s, next=%s]", value,
-          (prev == null) ? null : prev.value,
-          (next == null) ? null : next.value);
+      return String.format("[value=%s "
+          + "prevOnEvictionDeque=%s, nextOnEvictionDeque=%s, "
+          + "prevOnLirsQueue=%s, nextOnLirsQueue=%s, "
+          + "prevOnLirsStack=%s, nextOnLirsStack=%s]",
+          value,
+          (prevOnEvictionDeque == null) ? null : prevOnEvictionDeque.value,
+          (nextOnEvictionDeque == null) ? null : nextOnEvictionDeque.value,
+          (prevOnLirsQueue == null) ? null : prevOnLirsQueue.value,
+          (nextOnLirsQueue == null) ? null : nextOnLirsQueue.value,
+          (prevOnLirsStack == null) ? null : prevOnLirsStack.value,
+          (nextOnLirsStack == null) ? null : nextOnLirsStack.value);
     }
   }
 }

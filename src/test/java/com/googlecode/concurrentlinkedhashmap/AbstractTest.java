@@ -15,17 +15,10 @@
  */
 package com.googlecode.concurrentlinkedhashmap;
 
-import static com.googlecode.concurrentlinkedhashmap.IsValidConcurrentLinkedHashMap.valid;
-import static com.googlecode.concurrentlinkedhashmap.IsValidLinkedDeque.validLinkedDeque;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.MockitoAnnotations.initMocks;
-
 import java.util.Map;
 import java.util.concurrent.ScheduledExecutorService;
 
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
@@ -38,7 +31,13 @@ import org.testng.annotations.DataProvider;
 import org.testng.annotations.Optional;
 import org.testng.annotations.Parameters;
 
-import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
+import static com.googlecode.concurrentlinkedhashmap.IsValidConcurrentLinkedHashMap.valid;
+import static com.googlecode.concurrentlinkedhashmap.IsValidLinkedDeque.validLinkedDeque;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.MockitoAnnotations.initMocks;
 
 /**
  * A testing harness for simplifying the unit tests.
@@ -106,11 +105,12 @@ public abstract class AbstractTest {
   }
 
   /** Validates the state of the injected parameter. */
+  @SuppressWarnings("unchecked")
   private static void validate(Object param) {
     if (param instanceof ConcurrentLinkedHashMap<?, ?>) {
       assertThat((ConcurrentLinkedHashMap<?, ?>) param, is(valid()));
-    } else if (param instanceof LinkedDeque<?>) {
-      assertThat((LinkedDeque<?>) param, is(validLinkedDeque()));
+    } else if (param instanceof AbstractLinkedDeque<?>) {
+      assertThat((AbstractLinkedDeque<Object>) param, is(validLinkedDeque()));
     }
   }
 
