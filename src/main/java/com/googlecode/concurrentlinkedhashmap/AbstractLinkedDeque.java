@@ -31,8 +31,12 @@ import javax.annotation.concurrent.NotThreadSafe;
  * concurrent access by multiple threads. Null elements are prohibited.
  * <p>
  * Most <tt>LinkedDeque</tt> operations run in constant time by assuming that
- * the {@link Linked} parameter is associated with the deque instance. Any usage
- * that violates this assumption will result in non-deterministic behavior.
+ * the element parameter is associated with the deque instance. Any usage that
+ * violates this assumption will result in non-deterministic behavior.
+ * <p>
+ * An element can exist in only one instance of a deque implementation, but may
+ * exist in multiple implementations. Each implementation may define unique
+ * names for accessing and modifying its link pointers.
  * <p>
  * The iterators returned by this class are <em>not</em> <i>fail-fast</i>: If
  * the deque is modified at any time after the iterator is created, the iterator
@@ -60,32 +64,32 @@ abstract class AbstractLinkedDeque<E> extends AbstractCollection<E> implements D
    * Invariant: (first == null && last == null) ||
    *            (first.prev == null)
    */
-  E first;
+  protected E first;
 
   /**
    * Pointer to last node.
    * Invariant: (first == null && last == null) ||
    *            (last.next == null)
    */
-  E last;
+  protected E last;
 
   /**
    * Retrieves the previous element or <tt>null</tt> if either the element is
    * unlinked or the first element on the deque.
    */
-  abstract E getPrevious(E e);
+  protected abstract E getPrevious(E e);
 
   /** Sets the previous element or <tt>null</tt> if there is no link. */
-  abstract void setPrevious(E e, E prev);
+  protected abstract void setPrevious(E e, E prev);
 
   /**
    * Retrieves the next element or <tt>null</tt> if either the element is
    * unlinked or the last element on the deque.
    */
-  abstract E getNext(E e);
+  protected abstract E getNext(E e);
 
   /** Sets the next element or <tt>null</tt> if there is no link. */
-  abstract void setNext(E e, E next);
+  protected abstract void setNext(E e, E next);
 
   /**
    * Links the element to the front of the deque so that it becomes the first

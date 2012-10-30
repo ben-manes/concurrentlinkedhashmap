@@ -57,22 +57,22 @@ final class LirsStack<E extends LinkedOnLirsStack<E>> extends AbstractLinkedDequ
   }
 
   @Override
-  E getPrevious(E e) {
+  protected E getPrevious(E e) {
     return e.getPreviousOnLirsStack();
   }
 
   @Override
-  void setPrevious(E e, E prev) {
+  protected void setPrevious(E e, E prev) {
     e.setPreviousOnLirsStack(prev);
   }
 
   @Override
-  E getNext(E e) {
+  protected E getNext(E e) {
     return e.getNextOnLirsStack();
   }
 
   @Override
-  void setNext(E e, E next) {
+  protected void setNext(E e, E next) {
     e.setNextOnLirsStack(next);
   }
 }
