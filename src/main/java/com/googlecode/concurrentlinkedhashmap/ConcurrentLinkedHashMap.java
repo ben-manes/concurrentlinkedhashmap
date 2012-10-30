@@ -138,10 +138,22 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * Dead: The entry is not in the hash-table and is not in the page replacement
    * policy. This is represented by a weight of zero.
    *
-   * The Least Recently Used page replacement algorithm was chosen due to its
-   * simplicity, high hit rate, and ability to be implemented with O(1) time
-   * complexity.
+   * The Low Inter-reference Recency Set (LIRS) was chosen as the default page
+   * replacement algorithm due to its high hit rate, ability to track both the
+   * recency and frequency, and be implemented with O(1) time complexity. This
+   * algorithm is described in [1] and was evaluated against other algorithms
+   * in [2].
+   *
+   * [1] LIRS: An Efficient Low Inter-reference Recency Set Replacement to
+   *     Improve Buffer Cache Performance
+   *     http://www.cse.ohio-state.edu/hpcs/WWW/HTML/publications/abs02-6.html
+   * [2] The Performance Impact of Kernel Prefetching on Buffer Cache
+   *     Replacement Algorithms
+   *     http://www.cs.arizona.edu/~gniady/papers/sigm05_prefetch.pdf
    */
+
+  // EXPERIMENTAL
+  // This class is being migrated from LRU to a LIRS policy.
 
   /** The maximum weighted capacity of the map. */
   static final long MAXIMUM_CAPACITY = Long.MAX_VALUE - Integer.MAX_VALUE;
@@ -181,7 +193,9 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
   // These fields provide support to bound the map by a maximum capacity
   @GuardedBy("evictionLock")
-  final EvictionDeque<Node<K, V>> evictionDeque;
+  final LirsQueue<Node<K, V>> lirsQueue;
+  @GuardedBy("evictionLock")
+  final LirsStack<Node<K, V>> lirsStack;
 
   @GuardedBy("evictionLock") // must write under lock
   final AtomicLong weightedSize;
@@ -223,8 +237,9 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     nextOrder = Integer.MIN_VALUE;
     weightedSize = new AtomicLong();
     drainedOrder = Integer.MIN_VALUE;
+    lirsQueue = new LirsQueue<Node<K, V>>();
+    lirsStack = new LirsStack<Node<K, V>>();
     evictionLock = new ReentrantLock();
-    evictionDeque = new EvictionDeque<Node<K, V>>();
     drainStatus = new AtomicReference<DrainStatus>(IDLE);
 
     bufferLengths = new AtomicIntegerArray(NUMBER_OF_BUFFERS);
@@ -314,7 +329,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     // that if an eviction is still required then a new victim will be chosen
     // for removal.
     while (hasOverflowed()) {
-      Node<K, V> node = evictionDeque.poll();
+      Node<K, V> node = lirsQueue.poll();
 
       // If weighted values are used, then the pending operations will adjust
       // the size to reflect the correct weight
@@ -584,6 +599,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       WeightedValue<V> dead = new WeightedValue<V>(current.value, 0);
       if (node.compareAndSet(current, dead)) {
         weightedSize.lazySet(weightedSize.get() - Math.abs(current.weight));
+        node.weight = 0;
         return;
       }
     }
@@ -612,8 +628,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       // This can occur when the entry was concurrently read while a writer was
       // removing it. If the entry is no longer linked then it does not need to
       // be processed.
-      if (evictionDeque.contains(node)) {
-        evictionDeque.moveToBack(node);
+      if (lirsQueue.contains(node)) {
+        lirsQueue.moveToBack(node);
       }
     }
 
@@ -640,7 +656,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
       // ignore out-of-order write operations
       if (node.get().isAlive()) {
-        evictionDeque.add(node);
+        lirsQueue.add(node);
         evict();
       }
     }
@@ -663,7 +679,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     @GuardedBy("evictionLock")
     public void run() {
       // add may not have been processed yet
-      evictionDeque.remove(node);
+      lirsQueue.remove(node);
       makeDead(node);
     }
 
@@ -686,6 +702,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     @GuardedBy("evictionLock")
     public void run() {
       weightedSize.lazySet(weightedSize.get() + weightDifference);
+      node.weight += weightDifference;
       super.run();
       evict();
     }
@@ -724,7 +741,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     evictionLock.lock();
     try {
       Node<K, V> node;
-      while ((node = evictionDeque.poll()) != null) {
+      while ((node = lirsQueue.poll()) != null) {
         data.remove(node.key, node);
         makeDead(node);
       }
@@ -1031,8 +1048,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
           : 16;
       Set<K> keys = new LinkedHashSet<K>(initialCapacity);
       Iterator<Node<K, V>> iterator = ascending
-          ? evictionDeque.iterator()
-          : evictionDeque.descendingIterator();
+          ? lirsQueue.iterator()
+          : lirsQueue.descendingIterator();
       while (iterator.hasNext() && (limit > keys.size())) {
         keys.add(iterator.next().key);
       }
@@ -1141,8 +1158,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
           : 16;
       Map<K, V> map = new LinkedHashMap<K, V>(initialCapacity);
       Iterator<Node<K, V>> iterator = ascending
-          ? evictionDeque.iterator()
-          : evictionDeque.descendingIterator();
+          ? lirsQueue.iterator()
+          : lirsQueue.descendingIterator();
       while (iterator.hasNext() && (limit > map.size())) {
         Node<K, V> node = iterator.next();
         map.put(node.key, node.getValue());
@@ -1231,41 +1248,74 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    */
   @SuppressWarnings("serial")
   static final class Node<K, V> extends AtomicReference<WeightedValue<V>>
-      implements LinkedOnEvictionDeque<Node<K, V>> {
+      implements LinkedOnLirsQueue<Node<K, V>>, LinkedOnLirsStack<Node<K, V>> {
     final K key;
+
     @GuardedBy("evictionLock")
-    Node<K, V> prev;
+    Node<K, V> prevOnLirsQueue;
     @GuardedBy("evictionLock")
-    Node<K, V> next;
+    Node<K, V> nextOnLirsQueue;
+    @GuardedBy("evictionLock")
+    Node<K, V> prevOnLirsStack;
+    @GuardedBy("evictionLock")
+    Node<K, V> nextOnLirsStack;
+
+    @GuardedBy("evictionLock")
+    int weight;
 
     /** Creates a new, unlinked node. */
     Node(K key, WeightedValue<V> weightedValue) {
       super(weightedValue);
       this.key = key;
+      this.weight = weightedValue.weight;
     }
 
     @Override
     @GuardedBy("evictionLock")
-    public Node<K, V> getPreviousOnEvictionDeque() {
-      return prev;
+    public Node<K, V> getPreviousOnLirsQueue() {
+      return prevOnLirsQueue;
     }
 
     @Override
     @GuardedBy("evictionLock")
-    public void setPreviousOnEvictionDeque(Node<K, V> prev) {
-      this.prev = prev;
+    public void setPreviousOnLirsQueue(Node<K, V> prev) {
+      this.prevOnLirsQueue = prev;
     }
 
     @Override
     @GuardedBy("evictionLock")
-    public Node<K, V> getNextOnEvictionDeque() {
-      return next;
+    public Node<K, V> getNextOnLirsQueue() {
+      return nextOnLirsQueue;
     }
 
     @Override
     @GuardedBy("evictionLock")
-    public void setNextOnEvictionDeque(Node<K, V> next) {
-      this.next = next;
+    public void setNextOnLirsQueue(Node<K, V> next) {
+      this.nextOnLirsQueue = next;
+    }
+
+    @Override
+    @GuardedBy("evictionLock")
+    public Node<K, V> getPreviousOnLirsStack() {
+      return prevOnLirsStack;
+    }
+
+    @Override
+    @GuardedBy("evictionLock")
+    public void setPreviousOnLirsStack(Node<K, V> prev) {
+      this.prevOnLirsStack = prev;
+    }
+
+    @Override
+    @GuardedBy("evictionLock")
+    public Node<K, V> getNextOnLirsStack() {
+      return nextOnLirsStack;
+    }
+
+    @Override
+    @GuardedBy("evictionLock")
+    public void setNextOnLirsStack(Node<K, V> next) {
+      this.nextOnLirsStack = next;
     }
 
     /** Retrieves the value held by the current <tt>WeightedValue</tt>. */

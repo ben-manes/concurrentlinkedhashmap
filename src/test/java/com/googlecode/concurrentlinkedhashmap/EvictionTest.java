@@ -306,7 +306,7 @@ public final class EvictionTest extends AbstractTest {
       Integer... expect) {
     map.drainBuffers();
     List<Integer> evictionList = Lists.newArrayList();
-    for (Node<Integer, Integer> node : map.evictionDeque) {
+    for (Node<Integer, Integer> node : map.lirsQueue) {
       evictionList.add(node.key);
     }
     assertThat(map.size(), is(equalTo(expect.length)));
@@ -335,7 +335,7 @@ public final class EvictionTest extends AbstractTest {
 
   @Test(dataProvider = "warmedMap")
   public void updateRecency_onGet(final ConcurrentLinkedHashMap<Integer, Integer> map) {
-    final Node<Integer, Integer> first = map.evictionDeque.peek();
+    final Node<Integer, Integer> first = map.lirsQueue.peek();
     updateRecency(map, new Runnable() {
       @Override public void run() {
         map.get(first.key);
@@ -345,20 +345,20 @@ public final class EvictionTest extends AbstractTest {
 
   @Test(dataProvider = "warmedMap")
   public void updateRecency_onGetQuietly(final ConcurrentLinkedHashMap<Integer, Integer> map) {
-    final Node<Integer, Integer> first = map.evictionDeque.peek();
-    final Node<Integer, Integer> last = map.evictionDeque.peekLast();
+    final Node<Integer, Integer> first = map.lirsQueue.peek();
+    final Node<Integer, Integer> last = map.lirsQueue.peekLast();
 
     map.getQuietly(first.key);
     int maxTaskIndex = map.moveTasksFromBuffers(new Task[AMORTIZED_DRAIN_THRESHOLD]);
 
-    assertThat(map.evictionDeque.peekFirst(), is(first));
-    assertThat(map.evictionDeque.peekLast(), is(last));
+    assertThat(map.lirsQueue.peekFirst(), is(first));
+    assertThat(map.lirsQueue.peekLast(), is(last));
     assertThat(maxTaskIndex, is(-1));
   }
 
   @Test(dataProvider = "warmedMap")
   public void updateRecency_onPutIfAbsent(final ConcurrentLinkedHashMap<Integer, Integer> map) {
-    final Node<Integer, Integer> first = map.evictionDeque.peek();
+    final Node<Integer, Integer> first = map.lirsQueue.peek();
     updateRecency(map, new Runnable() {
       @Override public void run() {
         map.putIfAbsent(first.key, first.key);
@@ -368,7 +368,7 @@ public final class EvictionTest extends AbstractTest {
 
   @Test(dataProvider = "warmedMap")
   public void updateRecency_onPut(final ConcurrentLinkedHashMap<Integer, Integer> map) {
-    final Node<Integer, Integer> first = map.evictionDeque.peek();
+    final Node<Integer, Integer> first = map.lirsQueue.peek();
     updateRecency(map, new Runnable() {
       @Override public void run() {
         map.put(first.key, first.key);
@@ -378,7 +378,7 @@ public final class EvictionTest extends AbstractTest {
 
   @Test(dataProvider = "warmedMap")
   public void updateRecency_onReplace(final ConcurrentLinkedHashMap<Integer, Integer> map) {
-    final Node<Integer, Integer> first = map.evictionDeque.peek();
+    final Node<Integer, Integer> first = map.lirsQueue.peek();
     updateRecency(map, new Runnable() {
       @Override public void run() {
         map.replace(first.key, first.key);
@@ -389,7 +389,7 @@ public final class EvictionTest extends AbstractTest {
   @Test(dataProvider = "warmedMap")
   public void updateRecency_onReplaceConditionally(
       final ConcurrentLinkedHashMap<Integer, Integer> map) {
-    final Node<Integer, Integer> first = map.evictionDeque.peek();
+    final Node<Integer, Integer> first = map.lirsQueue.peek();
     updateRecency(map, new Runnable() {
       @Override public void run() {
         map.replace(first.key, first.key, first.key);
@@ -398,13 +398,13 @@ public final class EvictionTest extends AbstractTest {
   }
 
   private void updateRecency(ConcurrentLinkedHashMap<Integer, Integer> map, Runnable operation) {
-    Node<Integer, Integer> first = map.evictionDeque.peek();
+    Node<Integer, Integer> first = map.lirsQueue.peek();
 
     operation.run();
     map.drainBuffers();
 
-    assertThat(map.evictionDeque.peekFirst(), is(not(first)));
-    assertThat(map.evictionDeque.peekLast(), is(first));
+    assertThat(map.lirsQueue.peekFirst(), is(not(first)));
+    assertThat(map.lirsQueue.peekLast(), is(first));
     assertThat(map, is(valid()));
   }
 

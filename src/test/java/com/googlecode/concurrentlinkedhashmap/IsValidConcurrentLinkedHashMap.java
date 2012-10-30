@@ -101,11 +101,11 @@ public final class IsValidConcurrentLinkedHashMap<K, V>
 
   private void checkEvictionDeque(ConcurrentLinkedHashMap<? extends K, ? extends V> map,
       DescriptionBuilder builder) {
-    AbstractLinkedDeque<?> deque = map.evictionDeque;
+    AbstractLinkedDeque<?> deque = map.lirsQueue;
 
     checkLinks(map, builder);
     builder.expectThat(deque, hasSize(map.size()));
-    validLinkedDeque().matchesSafely((AbstractLinkedDeque<Object>) deque, builder.getDescription());
+    validLinkedDeque().matchesSafely(deque, builder.getDescription());
   }
 
   @SuppressWarnings("rawtypes")
@@ -113,7 +113,7 @@ public final class IsValidConcurrentLinkedHashMap<K, V>
       DescriptionBuilder builder) {
     long weightedSize = 0;
     Set<Node> seen = Sets.newIdentityHashSet();
-    for (Node node : map.evictionDeque) {
+    for (Node node : map.lirsQueue) {
       String errorMsg = String.format("Loop detected: %s, saw %s in %s", node, seen, map);
       builder.expectThat(errorMsg, seen.add(node), is(true));
       weightedSize += ((WeightedValue) node.get()).weight;

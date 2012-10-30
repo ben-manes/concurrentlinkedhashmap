@@ -717,22 +717,18 @@ public final class LinkedDequeTest extends AbstractTest {
   public Object[][] providesEmptyDeque() {
     return new Object[][] {
         new Object[] { new LirsQueue<SimpleLinkedValue>() },
-        new Object[] { new LirsStack<SimpleLinkedValue>() },
-        new Object[] { new EvictionDeque<SimpleLinkedValue>() }};
+        new Object[] { new LirsStack<SimpleLinkedValue>() }};
   }
 
   @DataProvider(name = "warmedDeque")
   public Object[][] providesWarmedDeque() {
     LirsQueue<SimpleLinkedValue> lirsQueue = new LirsQueue<SimpleLinkedValue>();
     LirsStack<SimpleLinkedValue> lirsStack = new LirsStack<SimpleLinkedValue>();
-    EvictionDeque<SimpleLinkedValue> evictionDeque = new EvictionDeque<SimpleLinkedValue>();
     warmUp(lirsQueue);
     warmUp(lirsStack);
-    warmUp(evictionDeque);
     return new Object[][] {
         new Object[] { lirsQueue },
-        new Object[] { lirsStack },
-        new Object[] { evictionDeque }};
+        new Object[] { lirsStack }};
   }
 
   void warmUp(Collection<SimpleLinkedValue> collection) {
@@ -741,10 +737,8 @@ public final class LinkedDequeTest extends AbstractTest {
     }
   }
 
-  static final class SimpleLinkedValue implements LinkedOnEvictionDeque<SimpleLinkedValue>,
-      LinkedOnLirsQueue<SimpleLinkedValue>, LinkedOnLirsStack<SimpleLinkedValue> {
-    SimpleLinkedValue prevOnEvictionDeque;
-    SimpleLinkedValue nextOnEvictionDeque;
+  static final class SimpleLinkedValue implements LinkedOnLirsQueue<SimpleLinkedValue>,
+      LinkedOnLirsStack<SimpleLinkedValue> {
     SimpleLinkedValue prevOnLirsQueue;
     SimpleLinkedValue nextOnLirsQueue;
     SimpleLinkedValue prevOnLirsStack;
@@ -754,26 +748,6 @@ public final class LinkedDequeTest extends AbstractTest {
 
     SimpleLinkedValue(int value) {
       this.value = value;
-    }
-
-    @Override
-    public SimpleLinkedValue getPreviousOnEvictionDeque() {
-      return prevOnEvictionDeque;
-    }
-
-    @Override
-    public void setPreviousOnEvictionDeque(SimpleLinkedValue prev) {
-      prevOnEvictionDeque = prev;
-    }
-
-    @Override
-    public SimpleLinkedValue getNextOnEvictionDeque() {
-      return nextOnEvictionDeque;
-    }
-
-    @Override
-    public void setNextOnEvictionDeque(SimpleLinkedValue next) {
-      nextOnEvictionDeque = next;
     }
 
     @Override
@@ -832,12 +806,9 @@ public final class LinkedDequeTest extends AbstractTest {
     @Override
     public String toString() {
       return String.format("[value=%s "
-          + "prevOnEvictionDeque=%s, nextOnEvictionDeque=%s, "
           + "prevOnLirsQueue=%s, nextOnLirsQueue=%s, "
           + "prevOnLirsStack=%s, nextOnLirsStack=%s]",
           value,
-          (prevOnEvictionDeque == null) ? null : prevOnEvictionDeque.value,
-          (nextOnEvictionDeque == null) ? null : nextOnEvictionDeque.value,
           (prevOnLirsQueue == null) ? null : prevOnLirsQueue.value,
           (nextOnLirsQueue == null) ? null : nextOnLirsQueue.value,
           (prevOnLirsStack == null) ? null : prevOnLirsStack.value,
