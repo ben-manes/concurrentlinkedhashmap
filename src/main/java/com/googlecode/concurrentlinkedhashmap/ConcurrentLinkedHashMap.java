@@ -202,6 +202,12 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   @GuardedBy("evictionLock") // must write under lock
   volatile long capacity;
 
+  // How many other item are to be moved to the top of the stack before the current item is moved
+  final int stackMoveDistance = 0;
+
+  final EntryWeigher<? super K, ? super V> weigher;
+
+  // These fields provide concurrency management above the eviction policy
   volatile int nextOrder;
   @GuardedBy("evictionLock")
   int drainedOrder;
@@ -212,7 +218,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   final Queue<Task>[] buffers;
   final AtomicIntegerArray bufferLengths;
   final AtomicReference<DrainStatus> drainStatus;
-  final EntryWeigher<? super K, ? super V> weigher;
 
   // These fields provide support for notifying a listener.
   final Queue<Node<K, V>> pendingNotifications;

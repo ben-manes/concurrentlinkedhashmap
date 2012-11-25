@@ -1,0 +1,9 @@
+# This is the official list of ConcurrentLinkedHashMap authors for copyright
+# purposes.
+
+# Author and primary developer
+Ben Manes (ben.manes@gmail.com)
+
+# Reassignment was a requirement for continued development while the author was
+# an employee and to allow code contributions to Google Guava.
+Google Inc.

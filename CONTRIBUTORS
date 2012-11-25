@@ -1,0 +1,19 @@
+# This is the official list of people who have contributed code to the
+# ConcurrentLinkedHashMap repository. The AUTHORS file lists the copyright
+# holders; this file lists people.  For example, Google employees are listed
+# here but not in AUTHORS, because Google holds the copyright.
+
+# Author and primary developer
+Ben Manes (ben.manes@gmail.com)
+
+# Original Ant build, code reviews, brainstorming
+Adam Zell (zellster@gmail.com)
+
+# YCSB distribution generators
+Brian Cooper (cooperb@google com)
+
+# LIRS prototype, Guava integration
+Charles Fry (fry@google.com)
+
+# LIRS prototype
+Thomas Mueller (thomas.tom.mueller@gmail.com)
