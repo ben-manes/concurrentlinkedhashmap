@@ -18,9 +18,9 @@
     </license>
   </licenses>
   <scm>
-    <url>http://concurrentlinkedhashmap.googlecode.com/svn/trunk</url>
-    <connection>scm:svn:http://concurrentlinkedhashmap.googlecode.com/svn/trunk</connection>
-    <developerConnection>scm:svn:https://concurrentlinkedhashmap.googlecode.com/svn/trunk</developerConnection>
+    <url>http://code.google.com/p/concurrentlinkedhashmap/source/browse</url>
+    <connection>scm:git:https://code.google.com/p/concurrentlinkedhashmap</connection>
+    <developerConnection>scm:git:https://code.google.com/p/concurrentlinkedhashmap</developerConnection>
   </scm>
   <issueManagement>
     <system>code.google.com</system>
