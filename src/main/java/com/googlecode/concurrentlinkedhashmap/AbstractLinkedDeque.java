@@ -400,7 +400,7 @@ abstract class AbstractLinkedDeque<E> extends AbstractCollection<E> implements D
   }
 
   @Override
-  public Iterator<E> iterator() {
+  public PeekingIterator<E> iterator() {
     return new AbstractLinkedIterator(first) {
       @Override E computeNext() {
         return getNext(cursor);
@@ -409,7 +409,7 @@ abstract class AbstractLinkedDeque<E> extends AbstractCollection<E> implements D
   }
 
   @Override
-  public Iterator<E> descendingIterator() {
+  public PeekingIterator<E> descendingIterator() {
     return new AbstractLinkedIterator(last) {
       @Override E computeNext() {
         return getPrevious(cursor);
@@ -417,7 +417,13 @@ abstract class AbstractLinkedDeque<E> extends AbstractCollection<E> implements D
     };
   }
 
-  abstract class AbstractLinkedIterator implements Iterator<E> {
+  interface PeekingIterator<E> extends Iterator<E> {
+
+    /** Returns the next element in the iteration, without advancing the iteration. */
+    E peek();
+  }
+
+  abstract class AbstractLinkedIterator implements PeekingIterator<E> {
     E cursor;
 
     /**
@@ -435,11 +441,16 @@ abstract class AbstractLinkedDeque<E> extends AbstractCollection<E> implements D
     }
 
     @Override
-    public E next() {
+    public E peek() {
       if (!hasNext()) {
         throw new NoSuchElementException();
       }
-      E e = cursor;
+      return cursor;
+    }
+
+    @Override
+    public E next() {
+      E e = peek();
       cursor = computeNext();
       return e;
     }

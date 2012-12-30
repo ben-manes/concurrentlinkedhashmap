@@ -28,6 +28,7 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -42,6 +43,8 @@ import java.util.concurrent.locks.ReentrantLock;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
+
+import com.googlecode.concurrentlinkedhashmap.AbstractLinkedDeque.PeekingIterator;
 
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.DrainStatus.IDLE;
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.DrainStatus.PROCESSING;
@@ -1354,16 +1357,19 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     }
 
     @Override
+    @GuardedBy("evictionLock")
     Node<K, V> evict() {
       return evictionQueue.poll();
     }
 
     @Override
+    @GuardedBy("evictionLock")
     void onAdd(Node<K, V> node) {
       evictionQueue.add(node);
     }
 
     @Override
+    @GuardedBy("evictionLock")
     void onAccess(Node<K, V> node) {
       // An entry may scheduled for reordering despite having been previously
       // removed. This can occur when the entry was concurrently read while a
@@ -1375,21 +1381,25 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     }
 
     @Override
+    @GuardedBy("evictionLock")
     void onRemove(Node<K, V> node) {
       evictionQueue.remove(node);
     }
 
     @Override
+    @GuardedBy("evictionLock")
     LirsQueue<Node<K, V>> evictionQueue() {
       return evictionQueue;
     }
 
     @Override
+    @GuardedBy("evictionLock")
     Iterator<Node<K, V>> ascendingIterator() {
       return evictionQueue.iterator();
     }
 
     @Override
+    @GuardedBy("evictionLock")
     Iterator<Node<K, V>> descendingIterator() {
       return evictionQueue.descendingIterator();
     }
@@ -1437,6 +1447,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     }
 
     @Override
+    @GuardedBy("evictionLock")
     Node<K, V> evict() {
       throw new UnsupportedOperationException();
     }
@@ -1455,11 +1466,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       } else {
         onColdAccess(node);
       }
-    }
-
-    @Override
-    void onRemove(Node<K, V> node) {
-      throw new UnsupportedOperationException();
     }
 
     @GuardedBy("evictionLock")
@@ -1497,7 +1503,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       recencyStack.addFirst(node);
     }
 
-    private void convertOldestHotToCold() {
+    @GuardedBy("evictionLock")
+    void convertOldestHotToCold() {
       // the last entry of the stack is known to be hot and should be removed from stack
       // This is done anyway in the stack pruning, but we can do it here as well
       Node<K, V> node = recencyStack.removeLast();
@@ -1507,7 +1514,30 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       pruneStack();
     }
 
+    @Override
+    @GuardedBy("evictionLock")
+    void onRemove(Node<K, V> node) {
+      LirsQueue<Node<K, V>> queue = getQueueFor(node);
+      recencyStack.remove(node);
+
+      if (isHot(node)) {
+        // when removing a hot entry the newest cold entry becomes hot so that
+        // the number of hot entries does not change
+        if (!queue.isLast(node)) {
+          Node<K, V> next = node.getNextOnLirsQueue();
+          queue.unlink(next);
+          if (!recencyStack.contains(next)) {
+            recencyStack.addLast(node);
+          }
+        }
+      } else {
+        queue.remove(node);
+      }
+      pruneStack();
+    }
+
     /** Ensure the last entry of the stack is cold. */
+    @GuardedBy("evictionLock")
     void pruneStack() {
       for (;;) {
         Node<K, V> node = recencyStack.peekLast();
@@ -1519,29 +1549,82 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       }
     }
 
+    @GuardedBy("evictionLock")
     LirsQueue<Node<K, V>> getQueueFor(Node<K, V> node) {
       return (node.lirsStatus & Node.RESIDENCY_MASK) == 0
-          ? residentQueue
-          : nonResidentQueue;
+          ? nonResidentQueue
+          : residentQueue;
     }
 
+    @GuardedBy("evictionLock")
     int getStackCountFor(Node<K, V> node) {
       return (node.lirsStatus & Node.STACK_COUNT_MASK);
     }
 
     @Override
+    @GuardedBy("evictionLock")
     LirsQueue<Node<K, V>> evictionQueue() {
       throw new UnsupportedOperationException();
     }
 
     @Override
+    @GuardedBy("evictionLock")
     Iterator<Node<K, V>> ascendingIterator() {
-      throw new UnsupportedOperationException();
+      return new LirsIterator(true);
     }
 
     @Override
+    @GuardedBy("evictionLock")
     Iterator<Node<K, V>> descendingIterator() {
-      throw new UnsupportedOperationException();
+      return new LirsIterator(false);
+    }
+
+    // TODO(ben): Filter duplicates due to a node being in both the stack and queue
+    final class LirsIterator implements Iterator<Node<K, V>> {
+      final PeekingIterator<Node<K, V>> first;
+      final PeekingIterator<Node<K, V>> second;
+      final PeekingIterator<Node<K, V>> third;
+      PeekingIterator<Node<K, V>> current;
+
+      LirsIterator(boolean ascending) {
+        if (ascending) {
+          this.first = recencyStack.iterator();
+          this.second = residentQueue.iterator();
+          this.third = nonResidentQueue.iterator();
+        } else {
+          this.first = recencyStack.descendingIterator();
+          this.second = residentQueue.descendingIterator();
+          this.third = nonResidentQueue.descendingIterator();
+        }
+        this.current = first;
+      }
+
+      @Override
+      public boolean hasNext() {
+        if (current.hasNext()) {
+          return true;
+        } else if (current == first) {
+          current = second;
+        } else if (current == second) {
+          current = third;
+        } else {
+          return false;
+        }
+        return hasNext();
+      }
+
+      @Override
+      public Node<K, V> next() {
+        if (!hasNext()) {
+          throw new NoSuchElementException();
+        }
+        return current.next();
+      }
+
+      @Override
+      public void remove() {
+        throw new UnsupportedOperationException();
+      }
     }
   }
 
