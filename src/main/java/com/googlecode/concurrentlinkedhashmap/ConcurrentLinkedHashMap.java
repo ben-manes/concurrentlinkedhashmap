@@ -234,13 +234,13 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     data = new ConcurrentHashMap<K, Node<K, V>>(builder.initialCapacity, 0.75f, concurrencyLevel);
 
     // The eviction support
-    policy = new LruPolicy();
     weigher = builder.weigher;
     nextOrder = Integer.MIN_VALUE;
     weightedSize = new AtomicLong();
     drainedOrder = Integer.MIN_VALUE;
     evictionLock = new ReentrantLock();
     drainStatus = new AtomicReference<DrainStatus>(IDLE);
+    policy = builder.lirs ? new LirsPolicy() : new LruPolicy();
 
     bufferLengths = new AtomicIntegerArray(NUMBER_OF_BUFFERS);
     buffers = (Queue<Task>[]) new Queue[NUMBER_OF_BUFFERS];
@@ -1247,6 +1247,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   @SuppressWarnings("serial")
   static final class Node<K, V> extends AtomicReference<WeightedValue<V>>
       implements LinkedOnLirsQueue<Node<K, V>>, LinkedOnLirsStack<Node<K, V>> {
+
     /*
      * The per-node LIRS status flags are encoded as,
      *  - 31st bit: the queue that the node may be located in
@@ -1344,7 +1345,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     abstract void onAdd(Node<K, V> node);
     abstract void onAccess(Node<K, V> node);
     abstract void onRemove(Node<K, V> node);
-    abstract LirsQueue<Node<K, V>> evictionQueue();
     abstract Iterator<Node<K, V>> ascendingIterator();
     abstract Iterator<Node<K, V>> descendingIterator();
   }
@@ -1384,12 +1384,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     @GuardedBy("evictionLock")
     void onRemove(Node<K, V> node) {
       evictionQueue.remove(node);
-    }
-
-    @Override
-    @GuardedBy("evictionLock")
-    LirsQueue<Node<K, V>> evictionQueue() {
-      return evictionQueue;
     }
 
     @Override
@@ -1559,12 +1553,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     @GuardedBy("evictionLock")
     int getStackCountFor(Node<K, V> node) {
       return (node.lirsStatus & Node.STACK_COUNT_MASK);
-    }
-
-    @Override
-    @GuardedBy("evictionLock")
-    LirsQueue<Node<K, V>> evictionQueue() {
-      throw new UnsupportedOperationException();
     }
 
     @Override
@@ -1979,6 +1967,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     int initialCapacity;
     long capacity;
 
+    boolean lirs;
+
     @SuppressWarnings("unchecked")
     public Builder() {
       capacity = -1;
@@ -1986,6 +1976,12 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       initialCapacity = DEFAULT_INITIAL_CAPACITY;
       concurrencyLevel = DEFAULT_CONCURRENCY_LEVEL;
       listener = (EvictionListener<K, V>) DiscardingListener.INSTANCE;
+    }
+
+    /** Experimental */
+    Builder<K, V> lirsPolicy(boolean lirs) {
+      this.lirs = lirs;
+      return this;
     }
 
     /**

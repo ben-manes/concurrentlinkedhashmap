@@ -23,6 +23,8 @@ import org.hamcrest.Description;
 import org.hamcrest.Factory;
 import org.hamcrest.TypeSafeDiagnosingMatcher;
 
+import static com.googlecode.concurrentlinkedhashmap.AbstractTest.getLruPolicy;
+import static com.googlecode.concurrentlinkedhashmap.AbstractTest.isLruPolicy;
 import static com.googlecode.concurrentlinkedhashmap.IsEmptyCollection.emptyCollection;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.is;
@@ -67,9 +69,27 @@ public final class IsEmptyMap<K, V>
     builder.expectThat("Internal size != 0", map.data.size(), is(0));
     builder.expectThat("Weighted size != 0", map.weightedSize(), is(0L));
     builder.expectThat("Internal weighted size != 0", map.weightedSize.get(), is(0L));
-    builder.expectThat("first not null: " + map.policy.evictionQueue(),
-        map.policy.evictionQueue().peekFirst(), is(nullValue()));
-    builder.expectThat("last not null", map.policy.evictionQueue().peekLast(), is(nullValue()));
+
+    checkPolicy(map, builder);
+  }
+
+  private void checkPolicy(ConcurrentLinkedHashMap<?, ?> map, DescriptionBuilder builder) {
+    if (isLruPolicy(map)) {
+      checkLruPolicy(map, builder);
+    } else {
+      checkLirsPolicy(map, builder);
+    }
+  }
+
+  private void checkLruPolicy(ConcurrentLinkedHashMap<?, ?> map, DescriptionBuilder builder) {
+    ConcurrentLinkedHashMap<?, ?>.LruPolicy policy = getLruPolicy(map);
+    builder.expectThat("first not null: " + policy.evictionQueue,
+        policy.evictionQueue.peekFirst(), is(nullValue()));
+    builder.expectThat("last not null", policy.evictionQueue.peekLast(), is(nullValue()));
+  }
+
+  private void checkLirsPolicy(ConcurrentLinkedHashMap<?, ?> map, DescriptionBuilder builder) {
+    throw new UnsupportedOperationException();
   }
 
   @Factory

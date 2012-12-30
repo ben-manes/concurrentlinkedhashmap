@@ -26,6 +26,8 @@ import org.hamcrest.Description;
 import org.hamcrest.Factory;
 import org.hamcrest.TypeSafeDiagnosingMatcher;
 
+import static com.googlecode.concurrentlinkedhashmap.AbstractTest.getLruPolicy;
+import static com.googlecode.concurrentlinkedhashmap.AbstractTest.isLruPolicy;
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.AMORTIZED_DRAIN_THRESHOLD;
 import static com.googlecode.concurrentlinkedhashmap.IsEmptyMap.emptyMap;
 import static com.googlecode.concurrentlinkedhashmap.IsValidLinkedDeque.validLinkedDeque;
@@ -62,7 +64,7 @@ public final class IsValidConcurrentLinkedHashMap<K, V>
 
     drain(map);
     checkMap(map, builder);
-    checkEvictionDeque(map, builder);
+    checkPolicy(map, builder);
     return builder.matches();
   }
 
@@ -99,9 +101,18 @@ public final class IsValidConcurrentLinkedHashMap<K, V>
     }
   }
 
-  private void checkEvictionDeque(ConcurrentLinkedHashMap<? extends K, ? extends V> map,
+  private void checkPolicy(ConcurrentLinkedHashMap<? extends K, ? extends V> map,
       DescriptionBuilder builder) {
-    AbstractLinkedDeque<?> deque = map.policy.evictionQueue();
+    if (isLruPolicy(map)) {
+      checkLruPolicy(map, builder);
+    } else {
+      checkLirsPolicy(map, builder);
+    }
+  }
+
+  private void checkLruPolicy(ConcurrentLinkedHashMap<? extends K, ? extends V> map,
+      DescriptionBuilder builder) {
+    AbstractLinkedDeque<?> deque = getLruPolicy(map).evictionQueue;
 
     checkLinks(map, builder);
     builder.expectThat(deque, hasSize(map.size()));
@@ -113,7 +124,7 @@ public final class IsValidConcurrentLinkedHashMap<K, V>
       DescriptionBuilder builder) {
     long weightedSize = 0;
     Set<Node> seen = Sets.newIdentityHashSet();
-    for (Node node : map.policy.evictionQueue()) {
+    for (Node node : getLruPolicy(map).evictionQueue) {
       String errorMsg = String.format("Loop detected: %s, saw %s in %s", node, seen, map);
       builder.expectThat(errorMsg, seen.add(node), is(true));
       weightedSize += ((WeightedValue) node.get()).weight;
@@ -139,6 +150,10 @@ public final class IsValidConcurrentLinkedHashMap<K, V>
     builder.expectThat("inconsistent", map, hasKey(node.key));
     builder.expectThat("Could not find value: " + node.getValue(), map, hasValue(node.getValue()));
     builder.expectThat("found wrong node", map.data, hasEntry(node.key, node));
+  }
+
+  private void checkLirsPolicy(ConcurrentLinkedHashMap<?, ?> map, DescriptionBuilder builder) {
+    throw new UnsupportedOperationException();
   }
 
   @Factory

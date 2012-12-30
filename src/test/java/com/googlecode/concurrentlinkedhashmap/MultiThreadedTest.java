@@ -31,6 +31,8 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import com.google.common.base.Predicate;
+import com.google.common.collect.Iterators;
 import com.google.common.collect.Sets;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Node;
@@ -369,22 +371,22 @@ public final class MultiThreadedTest extends AbstractTest {
   }
 
   static String ascendingToString(ConcurrentLinkedHashMap<?, ?> map) {
-    return dequeToString(map, true);
+    return policyToString(map, true);
   }
 
   static String descendingToString(ConcurrentLinkedHashMap<?, ?> map) {
-    return dequeToString(map, false);
+    return policyToString(map, false);
   }
 
   @SuppressWarnings("rawtypes")
-  private static String dequeToString(ConcurrentLinkedHashMap<?, ?> map, boolean ascending) {
+  private static String policyToString(ConcurrentLinkedHashMap<?, ?> map, boolean ascending) {
     map.evictionLock.lock();
     try {
       StringBuilder buffer = new StringBuilder("\n");
       Set<Object> seen = Sets.newIdentityHashSet();
       Iterator<? extends Node> iterator = ascending
-          ? map.policy.evictionQueue().iterator()
-          : map.policy.evictionQueue().descendingIterator();
+          ? map.policy.ascendingIterator()
+          : map.policy.descendingIterator();
       while (iterator.hasNext()) {
         Node node = iterator.next();
         buffer.append(nodeToString(node)).append("\n");
@@ -406,16 +408,16 @@ public final class MultiThreadedTest extends AbstractTest {
   }
 
   /** Finds the node in the map by walking the list. Returns null if not found. */
-  static Node<Integer, Integer> findNode(
-      Object key, ConcurrentLinkedHashMap<Integer, Integer> map) {
+  static Node<Integer, Integer> findNode(final Object key,
+      ConcurrentLinkedHashMap<Integer, Integer> map) {
     map.evictionLock.lock();
     try {
-      for (Node<Integer, Integer> node : map.policy.evictionQueue()) {
-        if (node.key.equals(key)) {
-          return node;
+      Predicate<Node<Integer, Integer>> forKey = new Predicate<Node<Integer, Integer>>() {
+        @Override public boolean apply(Node<Integer, Integer> node) {
+          return node.key.equals(key);
         }
-      }
-      return null;
+      };
+      return Iterators.tryFind(map.policy.ascendingIterator(), forKey).orNull();
     } finally {
       map.evictionLock.unlock();
     }

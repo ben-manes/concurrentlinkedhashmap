@@ -105,8 +105,8 @@ public final class ConcurrentMapTest extends AbstractTest {
   }
 
   @Test(dataProvider = "warmedMap")
-  public void equals_whenPopulated(Map<Integer, Integer> map) {
-    Map<Integer, Integer> expected = ImmutableMap.copyOf(newWarmedMap());
+  public void equals_whenPopulated(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    Map<Integer, Integer> expected = ImmutableMap.copyOf(newWarmedMap(isLirsPolicy(map)));
     assertThat(map.equals(expected), is(true));
     assertThat(expected.equals(map), is(true));
   }
@@ -128,22 +128,22 @@ public final class ConcurrentMapTest extends AbstractTest {
     assertThat(map.hashCode(), is(equalTo(other.hashCode())));
   }
 
-  @Test
-  public void equalsAndHashCodeFails() {
+  @Test(dataProvider = "policies")
+  public void equalsAndHashCodeFails(boolean lirs) {
     Map<Integer, Integer> empty = ImmutableMap.of();
     Map<Integer, Integer> data1 = newHashMap();
     Map<Integer, Integer> data2 = newHashMap();
     warmUp(data1, 0, 50);
     warmUp(data2, 50, 100);
 
-    checkEqualsAndHashCodeNotEqual(empty, data2, "empty CLHM, populated other");
-    checkEqualsAndHashCodeNotEqual(data1, empty, "populated CLHM, empty other");
-    checkEqualsAndHashCodeNotEqual(data1, data2, "both populated");
+    checkEqualsAndHashCodeNotEqual(lirs, empty, data2, "empty CLHM, populated other");
+    checkEqualsAndHashCodeNotEqual(lirs, data1, empty, "populated CLHM, empty other");
+    checkEqualsAndHashCodeNotEqual(lirs, data1, data2, "both populated");
   }
 
-  private void checkEqualsAndHashCodeNotEqual(
+  private void checkEqualsAndHashCodeNotEqual(boolean lirs,
       Map<Integer, Integer> first, Map<Integer, Integer> second, String errorMsg) {
-    Map<Integer, Integer> map = newGuarded();
+    Map<Integer, Integer> map = newGuarded(lirs);
     Map<Integer, Integer> other = newHashMap();
     map.putAll(first);
     other.putAll(second);

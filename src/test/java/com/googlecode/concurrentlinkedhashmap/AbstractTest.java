@@ -119,48 +119,72 @@ public abstract class AbstractTest {
   /** Provides a builder with the capacity set. */
   @DataProvider(name = "builder")
   public Object[][] providesBuilder() {
-    return new Object[][] {{
-      new Builder<Object, Object>().maximumWeightedCapacity(capacity())
-    }};
+    return new Object[][] {
+      { new Builder<Object, Object>().maximumWeightedCapacity(capacity()) },
+//      { new Builder<Object, Object>().maximumWeightedCapacity(capacity()).lirsPolicy(true) }
+    };
+  }
+
+  @DataProvider(name = "policies")
+  public Object[][] providesPolicies() {
+    return new Object[][] {{ false }, { true }};
   }
 
   /** Provides an empty map for test methods. */
   @DataProvider(name = "emptyMap")
   public Object[][] providesEmptyMap() {
-    return new Object[][] {{ newEmptyMap() }};
+    return new Object[][] {{ newEmptyMap(false) }, { newEmptyMap(true) }};
   }
 
   /** Creates a map with the default capacity. */
-  protected <K, V> ConcurrentLinkedHashMap<K, V> newEmptyMap() {
+  protected <K, V> ConcurrentLinkedHashMap<K, V> newEmptyMap(boolean lirs) {
     return new Builder<K, V>()
         .maximumWeightedCapacity(capacity())
+        .lirsPolicy(lirs)
         .build();
   }
 
   /** Provides a guarded map for test methods. */
   @DataProvider(name = "guardedMap")
   public Object[][] providesGuardedMap() {
-    return new Object[][] {{ newGuarded() }};
+    return new Object[][] {
+      { newGuarded(false) },
+//      { newGuarded(true) }
+    };
+  }
+
+  @DataProvider(name = "guardedMap_lru")
+  public Object[][] providesGuardedMap_lru() {
+    return new Object[][] {{ newGuarded(false) }};
   }
 
   /** Creates a map that fails if an eviction occurs. */
-  protected <K, V> ConcurrentLinkedHashMap<K, V> newGuarded() {
+  protected <K, V> ConcurrentLinkedHashMap<K, V> newGuarded(boolean lirs) {
     EvictionListener<K, V> guardingListener = guardingListener();
     return new Builder<K, V>()
         .maximumWeightedCapacity(capacity())
         .listener(guardingListener)
+        .lirsPolicy(lirs)
         .build();
   }
 
   /** Provides a warmed map for test methods. */
   @DataProvider(name = "warmedMap")
   public Object[][] providesWarmedMap() {
-    return new Object[][] {{ newWarmedMap() }};
+    return new Object[][] {
+        { newWarmedMap(false) },
+//        { newWarmedMap(true) }
+    };
+  }
+
+  @DataProvider(name = "warmedMap_lru")
+  public Object[][] providesWarmedMap_lru() {
+    return new Object[][] {{ newWarmedMap(false) }};
   }
 
   /** Creates a map with warmed to capacity. */
-  protected ConcurrentLinkedHashMap<Integer, Integer> newWarmedMap() {
-    ConcurrentLinkedHashMap<Integer, Integer> map = newEmptyMap();
+  protected ConcurrentLinkedHashMap<Integer, Integer> newWarmedMap(boolean lirs) {
+    ConcurrentLinkedHashMap<Integer, Integer> map = newEmptyMap(lirs);
     warmUp(map, 0, capacity());
     return map;
   }
@@ -251,5 +275,25 @@ public abstract class AbstractTest {
     for (Integer i = start; i < end; i++) {
       assertThat(map.put(i, -i), is(nullValue()));
     }
+  }
+
+  protected static boolean isLruPolicy(ConcurrentLinkedHashMap<?, ?> map) {
+    return (map.policy instanceof ConcurrentLinkedHashMap.LruPolicy);
+  }
+
+  protected static boolean isLirsPolicy(ConcurrentLinkedHashMap<?, ?> map) {
+    return (map.policy instanceof ConcurrentLinkedHashMap.LirsPolicy);
+  }
+
+  @SuppressWarnings({"unchecked", "rawtypes"})
+  protected static <K, V> ConcurrentLinkedHashMap<K, V>.LruPolicy getLruPolicy(
+      ConcurrentLinkedHashMap<K, V> map) {
+    return (ConcurrentLinkedHashMap.LruPolicy) map.policy;
+  }
+
+  @SuppressWarnings({"unchecked", "rawtypes"})
+  protected static <K, V> ConcurrentLinkedHashMap<K, V>.LirsPolicy getLirsPolicy(
+      ConcurrentLinkedHashMap<K, V> map) {
+    return (ConcurrentLinkedHashMap.LirsPolicy) map.policy;
   }
 }
