@@ -596,7 +596,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       WeightedValue<V> dead = new WeightedValue<V>(current.value, 0);
       if (node.compareAndSet(current, dead)) {
         weightedSize.lazySet(weightedSize.get() - Math.abs(current.weight));
-        node.weight = 0;
+        node.lirsWeight = 0;
         return;
       }
     }
@@ -699,7 +699,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     @GuardedBy("evictionLock")
     public void run() {
       weightedSize.lazySet(weightedSize.get() + weightDifference);
-      node.weight += weightDifference;
+      node.lirsWeight += weightDifference;
       super.run();
       evict();
     }
@@ -1246,8 +1246,18 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   @SuppressWarnings("serial")
   static final class Node<K, V> extends AtomicReference<WeightedValue<V>>
       implements LinkedOnLirsQueue<Node<K, V>>, LinkedOnLirsStack<Node<K, V>> {
-    final K key;
+    /*
+     * The per-node LIRS status flags are encoded as,
+     *  - 31st bit: the queue that the node may be located in
+     *  - 30..0 bits: the stack count when the node was last moved to the top
+     */
+    static final int RESIDENCY_MASK = 1 >> 31;
+    static final int STACK_COUNT_MASK = 0x7FFF;
 
+    @GuardedBy("evictionLock")
+    int lirsStatus;
+
+    // The LIRS stack and queue links
     @GuardedBy("evictionLock")
     Node<K, V> prevOnLirsQueue;
     @GuardedBy("evictionLock")
@@ -1257,18 +1267,20 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     @GuardedBy("evictionLock")
     Node<K, V> nextOnLirsStack;
 
-    /** When the item was last moved to the top of the stack. */
+    // The LIRS weight is used for sizing the stack and queue, and evicting
+    // when the maximum weight threshold is reached. The weight is updated
+    // when tasks are replayed on the policy, making it eventually consistent
+    // with the latest weight assigned to on the value.
     @GuardedBy("evictionLock")
-    int topMove;
+    int lirsWeight;
 
-    @GuardedBy("evictionLock")
-    int weight;
+    final K key;
 
     /** Creates a new, unlinked node. */
     Node(K key, WeightedValue<V> weightedValue) {
       super(weightedValue);
       this.key = key;
-      this.weight = weightedValue.weight;
+      this.lirsWeight = weightedValue.weight;
     }
 
     @Override
@@ -1350,7 +1362,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     final int stackMoveDistance;
 
     /** The number of times any item was moved to the top of the stack. */
-    private int stackMoveCounter;
+    @GuardedBy("evictionLock")
+    int stackMoveCounter;
 
     LirsPolicy() {
       stackMoveDistance = 0;
@@ -1359,13 +1372,11 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       nonResidentQueue = new LirsQueue<Node<K, V>>();
     }
 
-    /** Returns whether this entry is hot. Cold entries are in one of the two queues. */
+    /** Returns whether this entry is hot. */
     @GuardedBy("evictionLock")
     boolean isHot(Node<K, V> node) {
-      return (node.getPreviousOnLirsQueue() != null)
-          || (node.getNextOnLirsQueue() != null)
-          || nonResidentQueue.isFirst(node)
-          || residentQueue.isFirst(node);
+      // A cold entry is in one of the two queues
+      return getQueueFor(node).contains(node);
     }
 
     @GuardedBy("evictionLock")
@@ -1383,7 +1394,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
         return;
       }
       boolean reorder = (stackMoveDistance == 0)
-          || ((stackMoveCounter - node.topMove) > stackMoveDistance);
+          || ((stackMoveCounter - getStackCountFor(node)) > stackMoveDistance);
       if (reorder) {
         boolean wasLast = recencyStack.isLast(node);
         recencyStack.unlink(node);
@@ -1398,14 +1409,14 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
     @GuardedBy("evictionLock")
     void coldAccess(Node<K, V> node) {
-      removeFromQueue(node);
+      getQueueFor(node).unlink(node);
 
       if (recencyStack.remove(node)) {
-          // resident cold entries become hot if they are on the stack
-          // which means a hot entry needs to become cold
-          convertOldestHotToCold();
+        // resident cold entries become hot if they are on the stack
+        // which means a hot entry needs to become cold
+        convertOldestHotToCold();
       } else {
-          // cold entries that are not on the stack; move to the front of the queue
+        // cold entries that are not on the stack; move to the front of the queue
         residentQueue.addFirst(node);
       }
       // in any case, the cold entry is moved to the top of the stack
@@ -1435,8 +1446,14 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       }
     }
 
-    void removeFromQueue(Node<K, V> node) {
-      // Need a way to determine which queue the node is in - encode in topMove field?
+    LirsQueue<Node<K, V>> getQueueFor(Node<K, V> node) {
+      return (node.lirsStatus & Node.RESIDENCY_MASK) == 0
+          ? residentQueue
+          : nonResidentQueue;
+    }
+
+    int getStackCountFor(Node<K, V> node) {
+      return (node.lirsStatus & Node.STACK_COUNT_MASK);
     }
   }
 
