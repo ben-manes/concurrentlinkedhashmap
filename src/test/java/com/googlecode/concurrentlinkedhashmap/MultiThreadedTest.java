@@ -383,8 +383,8 @@ public final class MultiThreadedTest extends AbstractTest {
       StringBuilder buffer = new StringBuilder("\n");
       Set<Object> seen = Sets.newIdentityHashSet();
       Iterator<? extends Node> iterator = ascending
-          ? map.lirsQueue.iterator()
-          : map.lirsQueue.descendingIterator();
+          ? map.policy.residentQueue.iterator()
+          : map.policy.residentQueue.descendingIterator();
       while (iterator.hasNext()) {
         Node node = iterator.next();
         buffer.append(nodeToString(node)).append("\n");
@@ -410,7 +410,7 @@ public final class MultiThreadedTest extends AbstractTest {
       Object key, ConcurrentLinkedHashMap<Integer, Integer> map) {
     map.evictionLock.lock();
     try {
-      for (Node<Integer, Integer> node : map.lirsQueue) {
+      for (Node<Integer, Integer> node : map.policy.residentQueue) {
         if (node.key.equals(key)) {
           return node;
         }

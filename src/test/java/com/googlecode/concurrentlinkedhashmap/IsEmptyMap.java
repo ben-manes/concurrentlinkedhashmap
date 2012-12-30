@@ -67,9 +67,9 @@ public final class IsEmptyMap<K, V>
     builder.expectThat("Internal size != 0", map.data.size(), is(0));
     builder.expectThat("Weighted size != 0", map.weightedSize(), is(0L));
     builder.expectThat("Internal weighted size != 0", map.weightedSize.get(), is(0L));
-    builder.expectThat("first not null: " + map.lirsQueue,
-        map.lirsQueue.peekFirst(), is(nullValue()));
-    builder.expectThat("last not null", map.lirsQueue.peekLast(), is(nullValue()));
+    builder.expectThat("first not null: " + map.policy.residentQueue,
+        map.policy.residentQueue.peekFirst(), is(nullValue()));
+    builder.expectThat("last not null", map.policy.residentQueue.peekLast(), is(nullValue()));
   }
 
   @Factory
