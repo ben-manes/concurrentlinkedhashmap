@@ -1567,7 +1567,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       return new LirsIterator(false);
     }
 
-    // TODO(ben): Filter duplicates due to a node being in both the stack and queue
     final class LirsIterator implements Iterator<Node<K, V>> {
       final PeekingIterator<Node<K, V>> first;
       final PeekingIterator<Node<K, V>> second;
@@ -1589,10 +1588,22 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
       @Override
       public boolean hasNext() {
+        // handle the stack iteration
+        if (current == first) {
+          if (current.hasNext()) {
+            return true;
+          }
+          current = second;
+        }
+
+        // skip nodes already provided during the stack iteration
+        while (current.hasNext() && recencyStack.contains(current.peek())) {
+          current.next();
+        }
+
+        // handle queue iteration
         if (current.hasNext()) {
           return true;
-        } else if (current == first) {
-          current = second;
         } else if (current == second) {
           current = third;
         } else {
