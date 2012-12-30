@@ -555,10 +555,10 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     @Override
     @GuardedBy("evictionLock")
     public void run() {
-      // An entry may scheduled for reordering despite having been previously
-      // removed. This can occur when the entry was concurrently read while a
-      // writer was removing it. If the entry is no longer linked then it does
-      // not need to be processed.
+      // An entry may be scheduled for reordering despite having been removed.
+      // This can occur when the entry was concurrently read while a writer was
+      // removing it. If the entry is no longer linked then it does not need to
+      // be processed.
       if (evictionDeque.contains(node)) {
         evictionDeque.moveToBack(node);
       }
