@@ -89,7 +89,7 @@ public final class IsEmptyMap<K, V>
   }
 
   private void checkLirsPolicy(ConcurrentLinkedHashMap<?, ?> map, DescriptionBuilder builder) {
-    throw new UnsupportedOperationException();
+    // TBD
   }
 
   @Factory

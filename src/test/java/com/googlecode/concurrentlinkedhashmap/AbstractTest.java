@@ -149,7 +149,7 @@ public abstract class AbstractTest {
   public Object[][] providesGuardedMap() {
     return new Object[][] {
       { newGuarded(false) },
-//      { newGuarded(true) }
+      { newGuarded(true) }
     };
   }
 

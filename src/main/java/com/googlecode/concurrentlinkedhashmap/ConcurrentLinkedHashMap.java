@@ -1439,7 +1439,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     @Override
     @GuardedBy("evictionLock")
     Node<K, V> evict() {
-      throw new UnsupportedOperationException();
+      return null;
     }
 
     @Override
@@ -1495,6 +1495,11 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
     @GuardedBy("evictionLock")
     void convertOldestHotToCold() {
+      // FIXME: A hack due to LIRS not being fully implemented yet
+      if (recencyStack.isEmpty()) {
+        return;
+      }
+
       // the last entry of the stack is known to be hot and should be removed from stack
       // This is done anyway in the stack pruning, but we can do it here as well
       Node<K, V> node = recencyStack.removeLast();

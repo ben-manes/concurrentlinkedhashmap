@@ -153,7 +153,7 @@ public final class IsValidConcurrentLinkedHashMap<K, V>
   }
 
   private void checkLirsPolicy(ConcurrentLinkedHashMap<?, ?> map, DescriptionBuilder builder) {
-    throw new UnsupportedOperationException();
+    // TBD
   }
 
   @Factory
