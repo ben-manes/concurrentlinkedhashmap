@@ -27,6 +27,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Node;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Task;
 import com.googlecode.concurrentlinkedhashmap.benchmark.Benchmarks.EfficiencyRun;
 import com.googlecode.concurrentlinkedhashmap.caches.Cache;
@@ -225,8 +226,8 @@ public final class EvictionTest extends AbstractTest {
     map.put(0, 0);
     map.evictionLock.lock();
     try {
-      ConcurrentLinkedHashMap<?, ?>.Node node = map.data.get(0);
-      checkStatus(node, ALIVE);
+      Node<Integer, Integer> node = map.data.get(0);
+      checkStatus(map, node, ALIVE);
       new Thread() {
         @Override public void run() {
           map.put(1, 1);
@@ -234,10 +235,10 @@ public final class EvictionTest extends AbstractTest {
         }
       }.start();
       await().untilCall(to((Map<?, ?>) map).containsKey(0), is(false));
-      checkStatus(node, RETIRED);
+      checkStatus(map, node, RETIRED);
       map.drainBuffers();
 
-      checkStatus(node, DEAD);
+      checkStatus(map, node, DEAD);
       assertThat(map.containsKey(1), is(true));
       verify(listener, never()).onEviction(anyInt(), anyInt());
     } finally {
@@ -247,16 +248,17 @@ public final class EvictionTest extends AbstractTest {
 
   enum Status { ALIVE, RETIRED, DEAD }
 
-  private static void checkStatus(ConcurrentLinkedHashMap<?, ?>.Node node, Status expected) {
+  private static void checkStatus(ConcurrentLinkedHashMap<Integer, Integer> map,
+      Node<Integer, Integer> node, Status expected) {
     assertThat(node.get().isAlive(), is(expected == ALIVE));
     assertThat(node.get().isRetired(), is(expected == RETIRED));
     assertThat(node.get().isDead(), is(expected == DEAD));
 
     if (node.get().isRetired() || node.get().isDead()) {
-      assertThat(node.tryToRetire(node.get()), is(false));
+      assertThat(map.tryToRetire(node, node.get()), is(false));
     }
     if (node.get().isDead()) {
-      node.makeRetired();
+      map.makeRetired(node);
       assertThat(node.get().isRetired(), is(false));
     }
   }
@@ -304,7 +306,7 @@ public final class EvictionTest extends AbstractTest {
       Integer... expect) {
     map.drainBuffers();
     List<Integer> evictionList = Lists.newArrayList();
-    for (ConcurrentLinkedHashMap<Integer, Integer>.Node node : map.evictionDeque) {
+    for (Node<Integer, Integer> node : map.evictionDeque) {
       evictionList.add(node.key);
     }
     assertThat(map.size(), is(equalTo(expect.length)));
@@ -333,7 +335,7 @@ public final class EvictionTest extends AbstractTest {
 
   @Test(dataProvider = "warmedMap")
   public void updateRecency_onGet(final ConcurrentLinkedHashMap<Integer, Integer> map) {
-    final ConcurrentLinkedHashMap<Integer, Integer>.Node first = map.evictionDeque.peek();
+    final Node<Integer, Integer> first = map.evictionDeque.peek();
     updateRecency(map, new Runnable() {
       @Override public void run() {
         map.get(first.key);
@@ -343,8 +345,8 @@ public final class EvictionTest extends AbstractTest {
 
   @Test(dataProvider = "warmedMap")
   public void updateRecency_onGetQuietly(final ConcurrentLinkedHashMap<Integer, Integer> map) {
-    final ConcurrentLinkedHashMap<Integer, Integer>.Node first = map.evictionDeque.peek();
-    final ConcurrentLinkedHashMap<Integer, Integer>.Node last = map.evictionDeque.peekLast();
+    final Node<Integer, Integer> first = map.evictionDeque.peek();
+    final Node<Integer, Integer> last = map.evictionDeque.peekLast();
 
     map.getQuietly(first.key);
     int maxTaskIndex = map.moveTasksFromBuffers(new Task[AMORTIZED_DRAIN_THRESHOLD]);
@@ -356,7 +358,7 @@ public final class EvictionTest extends AbstractTest {
 
   @Test(dataProvider = "warmedMap")
   public void updateRecency_onPutIfAbsent(final ConcurrentLinkedHashMap<Integer, Integer> map) {
-    final ConcurrentLinkedHashMap<Integer, Integer>.Node first = map.evictionDeque.peek();
+    final Node<Integer, Integer> first = map.evictionDeque.peek();
     updateRecency(map, new Runnable() {
       @Override public void run() {
         map.putIfAbsent(first.key, first.key);
@@ -366,7 +368,7 @@ public final class EvictionTest extends AbstractTest {
 
   @Test(dataProvider = "warmedMap")
   public void updateRecency_onPut(final ConcurrentLinkedHashMap<Integer, Integer> map) {
-    final ConcurrentLinkedHashMap<Integer, Integer>.Node first = map.evictionDeque.peek();
+    final Node<Integer, Integer> first = map.evictionDeque.peek();
     updateRecency(map, new Runnable() {
       @Override public void run() {
         map.put(first.key, first.key);
@@ -376,7 +378,7 @@ public final class EvictionTest extends AbstractTest {
 
   @Test(dataProvider = "warmedMap")
   public void updateRecency_onReplace(final ConcurrentLinkedHashMap<Integer, Integer> map) {
-    final ConcurrentLinkedHashMap<Integer, Integer>.Node first = map.evictionDeque.peek();
+    final Node<Integer, Integer> first = map.evictionDeque.peek();
     updateRecency(map, new Runnable() {
       @Override public void run() {
         map.replace(first.key, first.key);
@@ -387,7 +389,7 @@ public final class EvictionTest extends AbstractTest {
   @Test(dataProvider = "warmedMap")
   public void updateRecency_onReplaceConditionally(
       final ConcurrentLinkedHashMap<Integer, Integer> map) {
-    final ConcurrentLinkedHashMap<Integer, Integer>.Node first = map.evictionDeque.peek();
+    final Node<Integer, Integer> first = map.evictionDeque.peek();
     updateRecency(map, new Runnable() {
       @Override public void run() {
         map.replace(first.key, first.key, first.key);
@@ -395,8 +397,8 @@ public final class EvictionTest extends AbstractTest {
     });
   }
 
-  private void updateRecency(ConcurrentLinkedHashMap<?, ?> map, Runnable operation) {
-    ConcurrentLinkedHashMap<?, ?>.Node first = map.evictionDeque.peek();
+  private void updateRecency(ConcurrentLinkedHashMap<Integer, Integer> map, Runnable operation) {
+    Node<Integer, Integer> first = map.evictionDeque.peek();
 
     operation.run();
     map.drainBuffers();

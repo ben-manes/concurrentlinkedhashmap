@@ -15,18 +15,6 @@
  */
 package com.googlecode.concurrentlinkedhashmap;
 
-import static com.google.common.base.Preconditions.checkNotNull;
-import static com.google.common.base.Preconditions.checkState;
-import static com.google.common.collect.Lists.newArrayList;
-import static com.googlecode.concurrentlinkedhashmap.ConcurrentTestHarness.timeTasks;
-import static com.googlecode.concurrentlinkedhashmap.IsValidConcurrentLinkedHashMap.valid;
-import static com.googlecode.concurrentlinkedhashmap.benchmark.Benchmarks.shuffle;
-import static java.util.concurrent.TimeUnit.NANOSECONDS;
-import static java.util.concurrent.TimeUnit.SECONDS;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.is;
-import static org.testng.Assert.fail;
-
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
@@ -43,14 +31,25 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import com.google.common.collect.Sets;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Node;
 import org.apache.commons.lang.SerializationUtils;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.Parameters;
 import org.testng.annotations.Test;
 
-import com.google.common.collect.Sets;
-import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
-import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Node;
+import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.base.Preconditions.checkState;
+import static com.google.common.collect.Lists.newArrayList;
+import static com.googlecode.concurrentlinkedhashmap.ConcurrentTestHarness.timeTasks;
+import static com.googlecode.concurrentlinkedhashmap.IsValidConcurrentLinkedHashMap.valid;
+import static com.googlecode.concurrentlinkedhashmap.benchmark.Benchmarks.shuffle;
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
+import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.is;
+import static org.testng.Assert.fail;
 
 /**
  * A unit-test to assert basic concurrency characteristics by validating the
@@ -407,12 +406,11 @@ public final class MultiThreadedTest extends AbstractTest {
   }
 
   /** Finds the node in the map by walking the list. Returns null if not found. */
-  @SuppressWarnings("rawtypes")
-  static ConcurrentLinkedHashMap<?, ?>.Node findNode(
-      Object key, ConcurrentLinkedHashMap<?, ?> map) {
+  static Node<Integer, Integer> findNode(
+      Object key, ConcurrentLinkedHashMap<Integer, Integer> map) {
     map.evictionLock.lock();
     try {
-      for (Node node : map.evictionDeque) {
+      for (Node<Integer, Integer> node : map.evictionDeque) {
         if (node.key.equals(key)) {
           return node;
         }
