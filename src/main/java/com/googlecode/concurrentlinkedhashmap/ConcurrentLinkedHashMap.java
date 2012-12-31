@@ -147,13 +147,16 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * The Low Inter-reference Recency Set (LIRS) was chosen as the default page
    * replacement algorithm due to its high hit rate, ability to track both the
    * recency and frequency, and be implemented with O(1) time complexity. This
-   * algorithm is described in [1] and was evaluated against other algorithms
-   * in [2].
+   * algorithm is described in [1,2] and was evaluated against other algorithms
+   * in [3].
    *
    * [1] LIRS: An Efficient Low Inter-reference Recency Set Replacement to
    *     Improve Buffer Cache Performance
    *     http://www.cse.ohio-state.edu/hpcs/WWW/HTML/publications/abs02-6.html
-   * [2] The Performance Impact of Kernel Prefetching on Buffer Cache
+   * [2] Making LRU Friendly to Weak Locality Workloads: A Novel Replacement
+   *     Algorithm to Improve Buffer Cache Performance
+   *     http://www.ece.eng.wayne.edu/~sjiang/pubs/papers/jiang05_LIRS.pdf
+   * [3] The Performance Impact of Kernel Prefetching on Buffer Cache
    *     Replacement Algorithms
    *     http://www.cs.arizona.edu/~gniady/papers/sigm05_prefetch.pdf
    */
