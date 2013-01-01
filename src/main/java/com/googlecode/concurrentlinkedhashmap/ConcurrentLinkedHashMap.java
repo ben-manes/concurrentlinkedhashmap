@@ -1252,6 +1252,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
      *  - 31st bit: the queue that the node may be located in
      *  - 30..0 bits: the stack count when the node was last moved to the top
      */
+    // TODO: Go back to the null value approach instead of mask, but clone the Node when being
+    // moved into the non-resident queue to avoid iterators seeing a null value and NPE'ing
     static final int RESIDENCY_MASK = 1 >> 31;
     static final int STACK_COUNT_MASK = 0x7FFF;
 
@@ -1633,16 +1635,15 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
   /** An adapter to safely externalize the keys. */
   final class KeySet extends AbstractSet<K> {
-    final ConcurrentLinkedHashMap<K, V> map = ConcurrentLinkedHashMap.this;
 
     @Override
     public int size() {
-      return map.size();
+      return ConcurrentLinkedHashMap.this.size();
     }
 
     @Override
     public void clear() {
-      map.clear();
+      ConcurrentLinkedHashMap.this.clear();
     }
 
     @Override
@@ -1657,17 +1658,17 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
     @Override
     public boolean remove(Object obj) {
-      return (map.remove(obj) != null);
+      return (ConcurrentLinkedHashMap.this.remove(obj) != null);
     }
 
     @Override
     public Object[] toArray() {
-      return map.data.keySet().toArray();
+      return ConcurrentLinkedHashMap.this.data.keySet().toArray();
     }
 
     @Override
     public <T> T[] toArray(T[] array) {
-      return map.data.keySet().toArray(array);
+      return ConcurrentLinkedHashMap.this.data.keySet().toArray(array);
     }
   }
 
@@ -1745,16 +1746,15 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
   /** An adapter to safely externalize the entries. */
   final class EntrySet extends AbstractSet<Entry<K, V>> {
-    final ConcurrentLinkedHashMap<K, V> map = ConcurrentLinkedHashMap.this;
 
     @Override
     public int size() {
-      return map.size();
+      return ConcurrentLinkedHashMap.this.size();
     }
 
     @Override
     public void clear() {
-      map.clear();
+      ConcurrentLinkedHashMap.this.clear();
     }
 
     @Override
@@ -1768,13 +1768,13 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
         return false;
       }
       Entry<?, ?> entry = (Entry<?, ?>) obj;
-      Node<K, V> node = map.data.get(entry.getKey());
+      Node<K, V> node = ConcurrentLinkedHashMap.this.data.get(entry.getKey());
       return (node != null) && (node.getValue().equals(entry.getValue()));
     }
 
     @Override
     public boolean add(Entry<K, V> entry) {
-      return (map.putIfAbsent(entry.getKey(), entry.getValue()) == null);
+      return (ConcurrentLinkedHashMap.this.putIfAbsent(entry.getKey(), entry.getValue()) == null);
     }
 
     @Override
@@ -1783,7 +1783,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
         return false;
       }
       Entry<?, ?> entry = (Entry<?, ?>) obj;
-      return map.remove(entry.getKey(), entry.getValue());
+      return ConcurrentLinkedHashMap.this.remove(entry.getKey(), entry.getValue());
     }
   }
 
