@@ -1237,11 +1237,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     boolean isDead() {
       return weight == 0;
     }
-
-    /** If the entry was made a non-resident HIRS. */
-    boolean isNonResident() {
-      return value == null;
-    }
   }
 
   /**
@@ -1332,6 +1327,11 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     /** Retrieves the value held by the current <tt>WeightedValue</tt>. */
     V getValue() {
       return get().value;
+    }
+
+    /** If the entry is a resident HIRS. */
+    boolean isResident() {
+      return lirsWeight > 0;
     }
   }
 
@@ -1546,7 +1546,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
     @GuardedBy("evictionLock")
     LirsQueue<Node<K, V>> getQueueFor(Node<K, V> node) {
-      return node.get().isNonResident() ? nonResidentQueue : residentQueue;
+      return node.isResident() ? residentQueue : nonResidentQueue;
     }
 
     Node<K, V> replaceWithNonResident(Node<K, V> node) {
