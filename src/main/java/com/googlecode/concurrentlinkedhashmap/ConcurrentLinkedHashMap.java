@@ -649,6 +649,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     @Override
     @GuardedBy("evictionLock")
     public void run() {
+      node.lirsWeight += weight;
       weightedSize.lazySet(weightedSize.get() + weight);
 
       // ignore out-of-order write operations
@@ -1239,6 +1240,13 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     }
   }
 
+  /** The status of a cache entry. */
+  private enum Status {
+    HOT,         // resident LIRS, in stack, never in queue
+    COLD,        // resident HIRS, always in queue, sometimes in stack
+    NON_RESIDENT // non-resident HIRS, may be in stack, never in queue
+  }
+
   /**
    * A node contains the key, the weighted value, and the linkage pointers on
    * the page-replacement algorithm's data structures.
@@ -1249,6 +1257,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
     @GuardedBy("evictionLock")
     int topStackCount;
+    Status status;
 
     // The LIRS stack and queue links
     @GuardedBy("evictionLock")
@@ -1273,6 +1282,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     Node(K key, WeightedValue<V> weightedValue) {
       super(weightedValue);
       this.key = key;
+      this.status = Status.NON_RESIDENT;
       this.lirsWeight = weightedValue.weight;
     }
 
@@ -1404,42 +1414,48 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     @GuardedBy("evictionLock")
     final LirsStack<Node<K, V>> recencyStack;
 
-    /** The queue of resident cold entries */
+    /** The queue of resident and non-resident cold entries */
     @GuardedBy("evictionLock")
-    final LirsQueue<Node<K, V>> residentQueue;
+    final LirsQueue<Node<K, V>> coldQueue;
 
-    /** The queue of non-resident cold entries */
     @GuardedBy("evictionLock")
-    final LirsQueue<Node<K, V>> nonResidentQueue;
-
-    /**
-     * How many other item are to be moved to the top of the stack before the
-     * current item is moved.
-     */
-    final int stackMoveDistance;
-
-    /** The number of times any item was moved to the top of the stack. */
+    int hotWeightedSize;
     @GuardedBy("evictionLock")
-    int stackMoveCounter;
+    int maximumHotWeightedSize;
+
+    // TODO: Should be the outer class's; duplicated to follow LirsMap more strictly for now
+    @GuardedBy("evictionLock")
+    int maximumWeightedSize; // aka 'capacity'
+    @GuardedBy("evictionLock")
+    int weightedSize;
 
     LirsPolicy() {
-      stackMoveDistance = 0;
+      coldQueue = new LirsQueue<Node<K, V>>();
       recencyStack = new LirsStack<Node<K, V>>();
-      residentQueue = new LirsQueue<Node<K, V>>();
-      nonResidentQueue = new LirsQueue<Node<K, V>>();
-    }
-
-    /** Returns whether this entry is hot. */
-    @GuardedBy("evictionLock")
-    boolean isHot(Node<K, V> node) {
-      // A cold entry is in one of the two queues
-      return getQueueFor(node).contains(node);
     }
 
     @Override
     @GuardedBy("evictionLock")
     public Node<K, V> evict() {
       return null;
+    }
+
+    /**
+     * Evicts this entry, removing it from the queue and setting its status to
+     * cold non-resident. If the entry is already absent from the stack, it is
+     * removed from the backing map; otherwise it remains in order for its
+     * recency to be maintained.
+     */
+    @GuardedBy("evictionLock")
+    void evict(Node<K, V> node) {
+      coldQueue.remove(node);
+
+      if (!recencyStack.remove(node)) {
+        // TOOD: store a tombstone to revive non-resident entries and don't modify the node
+        // backingMap.remove(key, this);
+        // node.value = null
+        makeNonResident(node);
+      }
     }
 
     @Override
@@ -1451,111 +1467,195 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     @Override
     @GuardedBy("evictionLock")
     public void onAccess(Node<K, V> node) {
-      if (isHot(node)) {
-        onHotAccess(node);
+      if (node.isResident()) {
+        onHit(node);
       } else {
-        onColdAccess(node);
+        onMiss(node);
       }
     }
 
     @GuardedBy("evictionLock")
-    void onHotAccess(Node<K, V> node) {
-      if (recencyStack.isFirst(node)) {
-        return;
+    void onHit(Node<K, V> node) {
+      switch (node.status) {
+        case HOT:
+          hotHit(node);
+          break;
+        case COLD:
+          coldHit(node);
+          break;
+        case NON_RESIDENT:
+          // throw new IllegalStateException("Can't hit a non-resident entry!");
+          break; // FIXME
+        default:
+          throw new AssertionError("Hit with unknown status: " + node.status);
       }
-      boolean reorder = (stackMoveDistance == 0)
-          || ((stackMoveCounter - node.topStackCount) > stackMoveDistance);
-      if (reorder) {
-        boolean wasLast = recencyStack.isLast(node);
-        recencyStack.unlink(node);
-        if (wasLast) {
-          // if moving the last entry then the last entry could not be cold,
-          // which is not allowed
-          pruneStack();
-        }
+    }
+
+    /** Records a cache hit on a hot block. */
+    @GuardedBy("evictionLock")
+    void hotHit(Node<K, V> node) {
+      // See section 3.3 case 1:
+      // "Upon accessing an LIR block X: This access is guaranteed to be a hit in the cache."
+
+      // "We move it to the top of stack S."
+      boolean onBottom = recencyStack.isLast(node);
+      recencyStack.moveToFront(node);
+
+      // "If the LIR block is originally located in the bottom of the stack,
+      // we conduct a stack pruning."
+      if (onBottom) {
+        pruneStack();
+      }
+    }
+
+    /** Records a cache hit on a cold block. */
+    @GuardedBy("evictionLock")
+    void coldHit(Node<K, V> node) {
+      // See section 3.3 case 2:
+      // "Upon accessing an HIR resident block X: This is a hit in the cache."
+
+      // "We move it to the top of stack S."
+      // "There are two cases for block X:"
+      if (recencyStack.contains(node)) {
+        // "(1) If X is in the stack S, we change its status to LIR."
+        makeHot(node);
+
+        // "This block is also removed from list Q."
+        coldQueue.remove(node);
+
+        // "The LIR block in the bottom of S is moved to the end of list Q
+        // with its status changed to HIR."
+        migrateToQueue(recencyStack.getLast());
+
+        // "A stack pruning is then conducted."
+        pruneStack();
+      } else {
+        // "(2) If X is not in stack S, we leave its status in HIR and move
+        // it to the end of list Q."
         recencyStack.linkFirst(node);
+        coldQueue.moveToBack(node);
       }
     }
 
+    /**
+     * Records a cache miss. This is how new entries join the LIRS stack and
+     * queue. This is called both when a new entry is first created, and when a
+     * non-resident entry is re-computed.
+     */
     @GuardedBy("evictionLock")
-    void onColdAccess(Node<K, V> node) {
-      getQueueFor(node).unlink(node);
-
-      if (recencyStack.remove(node)) {
-        // resident cold entries become hot if they are on the stack
-        // which means a hot entry needs to become cold
-        convertOldestHotToCold();
+    void onMiss(Node<K, V> node) {
+      if (hotWeightedSize < maximumHotWeightedSize) {
+        warmupMiss(node);
       } else {
-        // cold entries that are not on the stack; move to the front of the queue
-        residentQueue.addFirst(node);
+        fullMiss(node);
       }
-      // in any case, the cold entry is moved to the top of the stack
-      recencyStack.addFirst(node);
+
+      // now the missed item is in the cache
+      weightedSize += node.lirsWeight;
     }
 
+    /** Records a miss when the hot entry set is not full. */
     @GuardedBy("evictionLock")
-    void convertOldestHotToCold() {
-      // FIXME: A hack due to LIRS not being fully implemented yet
-      if (recencyStack.isEmpty()) {
-        return;
+    void warmupMiss(Node<K, V> node) {
+      // See section 3.3:
+      // "When LIR block set is not full, all the referenced blocks are
+      // given an LIR status until its size reaches L_lirs."
+      makeHot(node);
+    }
+
+    // TODO: Appears to have duplicate code with coldHit(node)
+    /** Records a miss when the hot entry set is full. */
+    @GuardedBy("evictionLock")
+    private void fullMiss(Node<K, V> node) {
+      // See section 3.3 case 3:
+      // "Upon accessing an HIR non-resident block X:
+      // This is a miss."
+
+      // This condition is unspecified in the paper, but appears to be
+      // necessary.
+      if (weightedSize >= maximumWeightedSize) {
+        // "We remove the HIR resident block at the front of list Q (it then
+        // becomes a non-resident block), and replace it out of the cache."
+        evict();
       }
 
-      // the last entry of the stack is known to be hot and should be removed from stack
-      // This is done anyway in the stack pruning, but we can do it here as well
-      Node<K, V> node = recencyStack.removeLast();
+      // "Then we load the requested block X into the freed buffer and place
+      // it on the top of stack S."
+      // "There are two cases for block X:"
+      if (recencyStack.contains(node)) {
+        // "(1) If X is in stack S, we change its status to LIR and move the
+        // LIR block in the bottom of stack S to the end of list Q with its
+        // status changed to HIR. A stack pruning is then conducted.
+        makeHot(node);
+        migrateToQueue(recencyStack.getLast());
+        pruneStack();
+      } else {
+        // "(2) If X is not in stack S, we leave its status in HIR and place
+        // it in the end of list Q."
+        recencyStack.linkFirst(node);
+        makeCold(node);
+      }
+    }
 
-      // adding an entry to the queue will make it cold
-      residentQueue.addFirst(node);
-      pruneStack();
+    /**  Marks this entry as hot. */
+    @GuardedBy("evictionLock")
+    void makeHot(Node<K, V> node) {
+      if (node.status != Status.HOT) {
+        hotWeightedSize += Math.abs(node.lirsWeight);
+        recencyStack.linkFirst(node);
+        node.status = Status.HOT;
+      } else {
+        recencyStack.moveToFront(node);
+      }
+    }
+
+    /** Marks this entry as cold. */
+    @GuardedBy("evictionLock")
+    void makeCold(Node<K, V> node) {
+      if (node.status == Status.HOT) {
+        hotWeightedSize -= Math.abs(node.lirsWeight);
+      }
+      node.status = Status.COLD;
+      coldQueue.remove(node);
+      coldQueue.linkLast(node);
+    }
+
+    /**  Marks this entry as non-resident. */
+    @GuardedBy("evictionLock")
+    @SuppressWarnings("fallthrough")
+    void makeNonResident(Node<K, V> node) {
+      switch (node.status) {
+        case HOT:
+          hotWeightedSize -= Math.abs(node.lirsWeight);
+        case COLD:
+          weightedSize -= Math.abs(node.lirsWeight);
+        default:
+          node.status = Status.NON_RESIDENT;
+      }
+    }
+
+    /**
+     * Moves this entry from the stack to the queue, marking it cold
+     * (as hot entries must remain in the stack). This should only be called
+     * on resident entries, as non-resident entries should not be made resident.
+     * The bottom entry on the queue is always hot due to stack pruning.
+     */
+    @GuardedBy("evictionLock")
+    void migrateToQueue(Node<K, V> node) {
+      recencyStack.remove(node);
+      makeCold(node);
     }
 
     @Override
     @GuardedBy("evictionLock")
     public void onRemove(Node<K, V> node) {
-      LirsQueue<Node<K, V>> queue = getQueueFor(node);
-      recencyStack.remove(node);
 
-      if (isHot(node)) {
-        // when removing a hot entry the newest cold entry becomes hot so that
-        // the number of hot entries does not change
-        if (!queue.isLast(node)) {
-          Node<K, V> next = node.getNextOnLirsQueue();
-          queue.unlink(next);
-          if (!recencyStack.contains(next)) {
-            recencyStack.addLast(node);
-          }
-        }
-      } else {
-        queue.remove(node);
-      }
-      pruneStack();
     }
 
     /** Ensure the last entry of the stack is cold. */
     @GuardedBy("evictionLock")
     void pruneStack() {
-      for (;;) {
-        Node<K, V> node = recencyStack.peekLast();
-        if (recencyStack.isFirst(node) || isHot(node)) {
-          break;
-        }
-        // the cold entry is still in the queue
-        recencyStack.unlink(node);
-      }
-    }
 
-    @GuardedBy("evictionLock")
-    LirsQueue<Node<K, V>> getQueueFor(Node<K, V> node) {
-      return node.isResident() ? residentQueue : nonResidentQueue;
-    }
-
-    Node<K, V> replaceWithNonResident(Node<K, V> node) {
-      Node<K, V> nonResident = new Node<K, V>(node.key,
-          new WeightedValue<V>(null, node.get().weight));
-      nonResidentQueue.add(node);
-      residentQueue.remove(node);
-      recencyStack.remove(node);
-      return nonResident;
     }
 
     @Override
@@ -1571,48 +1671,31 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     }
 
     final class LirsIterator implements Iterator<Node<K, V>> {
-      final PeekingIterator<Node<K, V>> first;
-      final PeekingIterator<Node<K, V>> second;
-      final PeekingIterator<Node<K, V>> third;
-      PeekingIterator<Node<K, V>> current;
+      final PeekingIterator<Node<K, V>> stackIterator;
+      final PeekingIterator<Node<K, V>> queueIterator;
 
       LirsIterator(boolean ascending) {
         if (ascending) {
-          this.first = recencyStack.iterator();
-          this.second = residentQueue.iterator();
-          this.third = nonResidentQueue.iterator();
+          queueIterator = coldQueue.iterator();
+          stackIterator = recencyStack.iterator();
         } else {
-          this.first = recencyStack.descendingIterator();
-          this.second = residentQueue.descendingIterator();
-          this.third = nonResidentQueue.descendingIterator();
+          queueIterator = coldQueue.descendingIterator();
+          stackIterator = recencyStack.descendingIterator();
         }
-        this.current = first;
       }
 
       @Override
       public boolean hasNext() {
         // handle the stack iteration
-        if (current == first) {
-          if (current.hasNext()) {
-            return true;
-          }
-          current = second;
+        if (stackIterator.hasNext()) {
+          return true;
         }
 
         // skip nodes already provided during the stack iteration
-        while (current.hasNext() && recencyStack.contains(current.peek())) {
-          current.next();
+        while (queueIterator.hasNext() && recencyStack.contains(queueIterator.peek())) {
+          queueIterator.next();
         }
-
-        // handle queue iteration
-        if (current.hasNext()) {
-          return true;
-        } else if (current == second) {
-          current = third;
-        } else {
-          return false;
-        }
-        return hasNext();
+        return queueIterator.hasNext();
       }
 
       @Override
@@ -1620,7 +1703,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
         if (!hasNext()) {
           throw new NoSuchElementException();
         }
-        return current.next();
+        return stackIterator.hasNext() ? stackIterator.next() : queueIterator.next();
       }
 
       @Override

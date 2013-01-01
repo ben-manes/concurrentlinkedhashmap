@@ -35,7 +35,7 @@ import javax.annotation.concurrent.NotThreadSafe;
  * violates this assumption will result in non-deterministic behavior.
  * <p>
  * An element can exist in only one instance of a deque implementation, but may
- * exist in multiple implementations. Each implementation may define unique
+ * exist in multiple implementations. Each implementation must define unique
  * names for accessing and modifying its link pointers.
  * <p>
  * The iterators returned by this class are <em>not</em> <i>fail-fast</i>: If
