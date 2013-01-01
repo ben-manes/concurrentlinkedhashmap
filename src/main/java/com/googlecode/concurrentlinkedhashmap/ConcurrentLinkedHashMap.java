@@ -203,7 +203,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   @GuardedBy("evictionLock") // must write under lock
   volatile long capacity;
 
-  final Policy policy;
+  final Policy<K, V> policy;
   final EntryWeigher<? super K, ? super V> weigher;
 
   // These fields provide concurrency management above the eviction policy
@@ -243,7 +243,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     drainedOrder = Integer.MIN_VALUE;
     evictionLock = new ReentrantLock();
     drainStatus = new AtomicReference<DrainStatus>(IDLE);
-    policy = builder.lirs ? new LirsPolicy() : new LruPolicy();
+    policy = builder.lirs ? new LirsPolicy<K, V>() : new LruPolicy<K, V>();
 
     bufferLengths = new AtomicIntegerArray(NUMBER_OF_BUFFERS);
     buffers = (Queue<Task>[]) new Queue[NUMBER_OF_BUFFERS];
@@ -1339,16 +1339,16 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   }
 
   // Used to gradually transition over to LIRS without breaking tests
-  abstract class Policy {
-    abstract Node<K, V> evict();
-    abstract void onAdd(Node<K, V> node);
-    abstract void onAccess(Node<K, V> node);
-    abstract void onRemove(Node<K, V> node);
-    abstract Iterator<Node<K, V>> ascendingIterator();
-    abstract Iterator<Node<K, V>> descendingIterator();
+  interface Policy<K, V> {
+    Node<K, V> evict();
+    void onAdd(Node<K, V> node);
+    void onAccess(Node<K, V> node);
+    void onRemove(Node<K, V> node);
+    Iterator<Node<K, V>> ascendingIterator();
+    Iterator<Node<K, V>> descendingIterator();
   }
 
-  final class LruPolicy extends Policy {
+  static final class LruPolicy<K, V> implements Policy<K, V> {
     final LirsQueue<Node<K, V>> evictionQueue;
 
     LruPolicy() {
@@ -1357,19 +1357,19 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
     @Override
     @GuardedBy("evictionLock")
-    Node<K, V> evict() {
+    public Node<K, V> evict() {
       return evictionQueue.poll();
     }
 
     @Override
     @GuardedBy("evictionLock")
-    void onAdd(Node<K, V> node) {
+    public void onAdd(Node<K, V> node) {
       evictionQueue.add(node);
     }
 
     @Override
     @GuardedBy("evictionLock")
-    void onAccess(Node<K, V> node) {
+    public void onAccess(Node<K, V> node) {
       // An entry may be scheduled for reordering despite having been removed.
       // This can occur when the entry was concurrently read while a writer was
       // removing it. If the entry is no longer linked then it does not need to
@@ -1381,24 +1381,24 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
     @Override
     @GuardedBy("evictionLock")
-    void onRemove(Node<K, V> node) {
+    public void onRemove(Node<K, V> node) {
       evictionQueue.remove(node);
     }
 
     @Override
     @GuardedBy("evictionLock")
-    Iterator<Node<K, V>> ascendingIterator() {
+    public Iterator<Node<K, V>> ascendingIterator() {
       return evictionQueue.iterator();
     }
 
     @Override
     @GuardedBy("evictionLock")
-    Iterator<Node<K, V>> descendingIterator() {
+    public Iterator<Node<K, V>> descendingIterator() {
       return evictionQueue.descendingIterator();
     }
   }
 
-  final class LirsPolicy extends Policy {
+  static final class LirsPolicy<K, V> implements Policy<K, V> {
 
     /**
      * The stack of recently referenced elements includes all hot entries, the
@@ -1441,19 +1441,19 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
     @Override
     @GuardedBy("evictionLock")
-    Node<K, V> evict() {
+    public Node<K, V> evict() {
       return null;
     }
 
     @Override
     @GuardedBy("evictionLock")
-    void onAdd(Node<K, V> node) {
+    public void onAdd(Node<K, V> node) {
       recencyStack.add(node);
     }
 
     @Override
     @GuardedBy("evictionLock")
-    void onAccess(Node<K, V> node) {
+    public void onAccess(Node<K, V> node) {
       if (isHot(node)) {
         onHotAccess(node);
       } else {
@@ -1514,7 +1514,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
     @Override
     @GuardedBy("evictionLock")
-    void onRemove(Node<K, V> node) {
+    public void onRemove(Node<K, V> node) {
       LirsQueue<Node<K, V>> queue = getQueueFor(node);
       recencyStack.remove(node);
 
@@ -1561,13 +1561,13 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
     @Override
     @GuardedBy("evictionLock")
-    Iterator<Node<K, V>> ascendingIterator() {
+    public Iterator<Node<K, V>> ascendingIterator() {
       return new LirsIterator(true);
     }
 
     @Override
     @GuardedBy("evictionLock")
-    Iterator<Node<K, V>> descendingIterator() {
+    public Iterator<Node<K, V>> descendingIterator() {
       return new LirsIterator(false);
     }
 

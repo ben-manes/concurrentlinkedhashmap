@@ -24,6 +24,7 @@ import java.util.concurrent.locks.ReentrantLock;
 
 import com.google.common.collect.ImmutableMap;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.LruPolicy;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Node;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Task;
 import org.testng.annotations.Test;
@@ -69,7 +70,8 @@ public final class EvictionTest extends AbstractTest {
 
   @Test(dataProvider = "warmedMap")
   public void capacity_increase(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    Map<Integer, Integer> expected = ImmutableMap.copyOf(newWarmedMap(isLirsPolicy(map)));
+    Map<Integer, Integer> expected = ImmutableMap.copyOf(
+        newWarmedMap(map.policy instanceof LruPolicy));
     long newMaxCapacity = 2 * capacity();
 
     map.setCapacity(newMaxCapacity);

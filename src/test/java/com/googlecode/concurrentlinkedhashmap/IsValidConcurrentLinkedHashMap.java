@@ -19,6 +19,7 @@ import java.util.Set;
 import java.util.concurrent.locks.ReentrantLock;
 
 import com.google.common.collect.Sets;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.LruPolicy;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Node;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Task;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.WeightedValue;
@@ -26,8 +27,6 @@ import org.hamcrest.Description;
 import org.hamcrest.Factory;
 import org.hamcrest.TypeSafeDiagnosingMatcher;
 
-import static com.googlecode.concurrentlinkedhashmap.AbstractTest.getLruPolicy;
-import static com.googlecode.concurrentlinkedhashmap.AbstractTest.isLruPolicy;
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.AMORTIZED_DRAIN_THRESHOLD;
 import static com.googlecode.concurrentlinkedhashmap.IsEmptyMap.emptyMap;
 import static com.googlecode.concurrentlinkedhashmap.IsValidLinkedDeque.validLinkedDeque;
@@ -103,7 +102,7 @@ public final class IsValidConcurrentLinkedHashMap<K, V>
 
   private void checkPolicy(ConcurrentLinkedHashMap<? extends K, ? extends V> map,
       DescriptionBuilder builder) {
-    if (isLruPolicy(map)) {
+    if (map.policy instanceof LruPolicy) {
       checkLruPolicy(map, builder);
     } else {
       checkLirsPolicy(map, builder);
@@ -112,19 +111,20 @@ public final class IsValidConcurrentLinkedHashMap<K, V>
 
   private void checkLruPolicy(ConcurrentLinkedHashMap<? extends K, ? extends V> map,
       DescriptionBuilder builder) {
-    AbstractLinkedDeque<?> deque = getLruPolicy(map).evictionQueue;
+    LruPolicy<?, ?> policy = (LruPolicy<?, ?>) map.policy;
+    AbstractLinkedDeque<?> deque = policy.evictionQueue;
 
-    checkLinks(map, builder);
+    checkLinks(map, policy, builder);
     builder.expectThat(deque, hasSize(map.size()));
     validLinkedDeque().matchesSafely(deque, builder.getDescription());
   }
 
   @SuppressWarnings("rawtypes")
   private void checkLinks(ConcurrentLinkedHashMap<? extends K, ? extends V> map,
-      DescriptionBuilder builder) {
+      LruPolicy<?, ?> policy, DescriptionBuilder builder) {
     long weightedSize = 0;
     Set<Node> seen = Sets.newIdentityHashSet();
-    for (Node node : getLruPolicy(map).evictionQueue) {
+    for (Node node : policy.evictionQueue) {
       String errorMsg = String.format("Loop detected: %s, saw %s in %s", node, seen, map);
       builder.expectThat(errorMsg, seen.add(node), is(true));
       weightedSize += ((WeightedValue) node.get()).weight;

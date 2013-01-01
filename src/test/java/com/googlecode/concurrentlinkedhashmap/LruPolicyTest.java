@@ -21,6 +21,7 @@ import java.util.Queue;
 
 import com.google.common.collect.Lists;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.LruPolicy;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Node;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Task;
 import com.googlecode.concurrentlinkedhashmap.benchmark.Benchmarks.EfficiencyRun;
@@ -98,7 +99,8 @@ public class LruPolicyTest extends AbstractTest {
       Integer... expect) {
     map.drainBuffers();
     List<Integer> evictionList = Lists.newArrayList();
-    for (Node<Integer, Integer> node : getLruPolicy(map).evictionQueue) {
+    LruPolicy<Integer, Integer> policy = (LruPolicy<Integer, Integer>) map.policy;
+    for (Node<Integer, Integer> node : policy.evictionQueue) {
       evictionList.add(node.key);
     }
     assertThat(map.size(), is(equalTo(expect.length)));
@@ -126,9 +128,10 @@ public class LruPolicyTest extends AbstractTest {
   }
 
   @Test(dataProvider = "warmedMap_lru")
-  public void updateRecency_onGet(final ConcurrentLinkedHashMap<Integer, Integer> map) {
-    final Node<Integer, Integer> first = getLruPolicy(map).evictionQueue.peek();
-    updateRecency(map, new Runnable() {
+  public void updateRecency_onGet(final ConcurrentLinkedHashMap<Integer, Integer> map,
+      LruPolicy<Integer, Integer> policy) {
+    final Node<Integer, Integer> first = policy.evictionQueue.peek();
+    updateRecency(map, policy, new Runnable() {
       @Override public void run() {
         map.get(first.key);
       }
@@ -136,22 +139,24 @@ public class LruPolicyTest extends AbstractTest {
   }
 
   @Test(dataProvider = "warmedMap_lru")
-  public void updateRecency_onGetQuietly(final ConcurrentLinkedHashMap<Integer, Integer> map) {
-    final Node<Integer, Integer> first = getLruPolicy(map).evictionQueue.peek();
-    final Node<Integer, Integer> last = getLruPolicy(map).evictionQueue.peekLast();
+  public void updateRecency_onGetQuietly(final ConcurrentLinkedHashMap<Integer, Integer> map,
+      LruPolicy<Integer, Integer> policy) {
+    final Node<Integer, Integer> first = policy.evictionQueue.peek();
+    final Node<Integer, Integer> last = policy.evictionQueue.peekLast();
 
     map.getQuietly(first.key);
     int maxTaskIndex = map.moveTasksFromBuffers(new Task[AMORTIZED_DRAIN_THRESHOLD]);
 
-    assertThat(getLruPolicy(map).evictionQueue.peekFirst(), is(first));
-    assertThat(getLruPolicy(map).evictionQueue.peekLast(), is(last));
+    assertThat(policy.evictionQueue.peekFirst(), is(first));
+    assertThat(policy.evictionQueue.peekLast(), is(last));
     assertThat(maxTaskIndex, is(-1));
   }
 
   @Test(dataProvider = "warmedMap_lru")
-  public void updateRecency_onPutIfAbsent(final ConcurrentLinkedHashMap<Integer, Integer> map) {
-    final Node<Integer, Integer> first = getLruPolicy(map).evictionQueue.peek();
-    updateRecency(map, new Runnable() {
+  public void updateRecency_onPutIfAbsent(final ConcurrentLinkedHashMap<Integer, Integer> map,
+      LruPolicy<Integer, Integer> policy) {
+    final Node<Integer, Integer> first = policy.evictionQueue.peek();
+    updateRecency(map, policy, new Runnable() {
       @Override public void run() {
         map.putIfAbsent(first.key, first.key);
       }
@@ -159,9 +164,10 @@ public class LruPolicyTest extends AbstractTest {
   }
 
   @Test(dataProvider = "warmedMap_lru")
-  public void updateRecency_onPut(final ConcurrentLinkedHashMap<Integer, Integer> map) {
-    final Node<Integer, Integer> first = getLruPolicy(map).evictionQueue.peek();
-    updateRecency(map, new Runnable() {
+  public void updateRecency_onPut(final ConcurrentLinkedHashMap<Integer, Integer> map,
+      LruPolicy<Integer, Integer> policy) {
+    final Node<Integer, Integer> first = policy.evictionQueue.peek();
+    updateRecency(map, policy, new Runnable() {
       @Override public void run() {
         map.put(first.key, first.key);
       }
@@ -169,9 +175,10 @@ public class LruPolicyTest extends AbstractTest {
   }
 
   @Test(dataProvider = "warmedMap_lru")
-  public void updateRecency_onReplace(final ConcurrentLinkedHashMap<Integer, Integer> map) {
-    final Node<Integer, Integer> first = getLruPolicy(map).evictionQueue.peek();
-    updateRecency(map, new Runnable() {
+  public void updateRecency_onReplace(final ConcurrentLinkedHashMap<Integer, Integer> map,
+      LruPolicy<Integer, Integer> policy) {
+    final Node<Integer, Integer> first = policy.evictionQueue.peek();
+    updateRecency(map, policy, new Runnable() {
       @Override public void run() {
         map.replace(first.key, first.key);
       }
@@ -180,23 +187,24 @@ public class LruPolicyTest extends AbstractTest {
 
   @Test(dataProvider = "warmedMap_lru")
   public void updateRecency_onReplaceConditionally(
-      final ConcurrentLinkedHashMap<Integer, Integer> map) {
-    final Node<Integer, Integer> first = getLruPolicy(map).evictionQueue.peek();
-    updateRecency(map, new Runnable() {
+      final ConcurrentLinkedHashMap<Integer, Integer> map, LruPolicy<Integer, Integer> policy) {
+    final Node<Integer, Integer> first = policy.evictionQueue.peek();
+    updateRecency(map, policy, new Runnable() {
       @Override public void run() {
         map.replace(first.key, first.key, first.key);
       }
     });
   }
 
-  private void updateRecency(ConcurrentLinkedHashMap<Integer, Integer> map, Runnable operation) {
-    Node<Integer, Integer> first = getLruPolicy(map).evictionQueue.peek();
+  private void updateRecency(ConcurrentLinkedHashMap<Integer, Integer> map,
+      LruPolicy<Integer, Integer> policy, Runnable operation) {
+    Node<Integer, Integer> first = policy.evictionQueue.peek();
 
     operation.run();
     map.drainBuffers();
 
-    assertThat(getLruPolicy(map).evictionQueue.peekFirst(), is(not(first)));
-    assertThat(getLruPolicy(map).evictionQueue.peekLast(), is(first));
+    assertThat(policy.evictionQueue.peekFirst(), is(not(first)));
+    assertThat(policy.evictionQueue.peekLast(), is(first));
     assertThat(map, is(valid()));
   }
 

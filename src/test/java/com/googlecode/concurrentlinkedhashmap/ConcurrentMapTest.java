@@ -26,6 +26,7 @@ import java.util.concurrent.ConcurrentMap;
 
 import com.google.common.collect.ImmutableMap;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.LruPolicy;
 import org.testng.annotations.Test;
 
 import static com.google.common.collect.Maps.immutableEntry;
@@ -106,7 +107,8 @@ public final class ConcurrentMapTest extends AbstractTest {
 
   @Test(dataProvider = "warmedMap")
   public void equals_whenPopulated(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    Map<Integer, Integer> expected = ImmutableMap.copyOf(newWarmedMap(isLirsPolicy(map)));
+    Map<Integer, Integer> expected = ImmutableMap.copyOf(
+        newWarmedMap(map.policy instanceof LruPolicy));
     assertThat(map.equals(expected), is(true));
     assertThat(expected.equals(map), is(true));
   }

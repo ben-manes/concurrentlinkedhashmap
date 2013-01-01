@@ -19,12 +19,11 @@ import java.util.Collections;
 import java.util.Map;
 
 import com.google.common.collect.ImmutableMap;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.LruPolicy;
 import org.hamcrest.Description;
 import org.hamcrest.Factory;
 import org.hamcrest.TypeSafeDiagnosingMatcher;
 
-import static com.googlecode.concurrentlinkedhashmap.AbstractTest.getLruPolicy;
-import static com.googlecode.concurrentlinkedhashmap.AbstractTest.isLruPolicy;
 import static com.googlecode.concurrentlinkedhashmap.IsEmptyCollection.emptyCollection;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.is;
@@ -74,7 +73,7 @@ public final class IsEmptyMap<K, V>
   }
 
   private void checkPolicy(ConcurrentLinkedHashMap<?, ?> map, DescriptionBuilder builder) {
-    if (isLruPolicy(map)) {
+    if (map.policy instanceof LruPolicy) {
       checkLruPolicy(map, builder);
     } else {
       checkLirsPolicy(map, builder);
@@ -82,7 +81,7 @@ public final class IsEmptyMap<K, V>
   }
 
   private void checkLruPolicy(ConcurrentLinkedHashMap<?, ?> map, DescriptionBuilder builder) {
-    ConcurrentLinkedHashMap<?, ?>.LruPolicy policy = getLruPolicy(map);
+    LruPolicy<?, ?> policy = (LruPolicy<?, ?>) map.policy;
     builder.expectThat("first not null: " + policy.evictionQueue,
         policy.evictionQueue.peekFirst(), is(nullValue()));
     builder.expectThat("last not null", policy.evictionQueue.peekLast(), is(nullValue()));

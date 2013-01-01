@@ -179,7 +179,8 @@ public abstract class AbstractTest {
 
   @DataProvider(name = "warmedMap_lru")
   public Object[][] providesWarmedMap_lru() {
-    return new Object[][] {{ newWarmedMap(false) }};
+    ConcurrentLinkedHashMap<Integer, Integer> map = newWarmedMap(false);
+    return new Object[][] {{ map, map.policy }};
   }
 
   /** Creates a map with warmed to capacity. */
@@ -275,25 +276,5 @@ public abstract class AbstractTest {
     for (Integer i = start; i < end; i++) {
       assertThat(map.put(i, -i), is(nullValue()));
     }
-  }
-
-  protected static boolean isLruPolicy(ConcurrentLinkedHashMap<?, ?> map) {
-    return (map.policy instanceof ConcurrentLinkedHashMap.LruPolicy);
-  }
-
-  protected static boolean isLirsPolicy(ConcurrentLinkedHashMap<?, ?> map) {
-    return (map.policy instanceof ConcurrentLinkedHashMap.LirsPolicy);
-  }
-
-  @SuppressWarnings({"unchecked", "rawtypes"})
-  protected static <K, V> ConcurrentLinkedHashMap<K, V>.LruPolicy getLruPolicy(
-      ConcurrentLinkedHashMap<K, V> map) {
-    return (ConcurrentLinkedHashMap.LruPolicy) map.policy;
-  }
-
-  @SuppressWarnings({"unchecked", "rawtypes"})
-  protected static <K, V> ConcurrentLinkedHashMap<K, V>.LirsPolicy getLirsPolicy(
-      ConcurrentLinkedHashMap<K, V> map) {
-    return (ConcurrentLinkedHashMap.LirsPolicy) map.policy;
   }
 }
