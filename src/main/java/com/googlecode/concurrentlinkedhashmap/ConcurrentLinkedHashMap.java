@@ -1460,7 +1460,13 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     @Override
     @GuardedBy("evictionLock")
     public Node<K, V> evict() {
-      return null;
+      Node<K, V> node = coldQueue.isEmpty()
+          ? recencyStack.peekFirst()
+          : coldQueue.peekFirst();
+      if (node != null) {
+        onRemove(node);
+      }
+      return node;
     }
 
     /**
@@ -1677,7 +1683,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     @GuardedBy("evictionLock")
     public void onRemove(Node<K, V> node) {
       boolean wasHot = (node.status == Status.HOT);
-      evict();
+      evict(node);
 
       // attempt to maintain a constant number of hot entries
       if (wasHot) {
@@ -1688,7 +1694,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
           if (!recencyStack.contains(last)) {
             recencyStack.linkFirst(last);
           }
-          makeHot(node);
+          makeHot(last);
         }
       }
     }
