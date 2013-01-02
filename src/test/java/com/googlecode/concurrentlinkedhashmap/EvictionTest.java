@@ -49,7 +49,9 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.Matchers.anyInt;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -180,7 +182,7 @@ public final class EvictionTest extends AbstractTest {
 
     // evict (1)
     map.put(4, asList(11));
-    assertThat(map.containsKey(1), is(false));
+    assertThat(map, not(hasKey(1)));
     assertThat(map.weightedSize(), is(9L));
 
     // evict (2, 3)
