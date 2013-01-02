@@ -243,7 +243,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     drainedOrder = Integer.MIN_VALUE;
     evictionLock = new ReentrantLock();
     drainStatus = new AtomicReference<DrainStatus>(IDLE);
-    policy = builder.lirs ? new LirsPolicy<K, V>() : new LruPolicy<K, V>();
+    policy = builder.lirs ? new LirsPolicy<K, V>(capacity) : new LruPolicy<K, V>();
 
     bufferLengths = new AtomicIntegerArray(NUMBER_OF_BUFFERS);
     buffers = (Queue<Task>[]) new Queue[NUMBER_OF_BUFFERS];
@@ -1405,7 +1405,14 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     }
   }
 
+  // TODO: Weights aren't properly handled yet; assumes all entries have the same weight
   static final class LirsPolicy<K, V> implements Policy<K, V> {
+
+    /**
+     * The percentage of the cache which is dedicated to hot blocks.
+     * See section 5.1
+     */
+    static final float HOT_RATE = 0.99f;
 
     /**
      * The stack of recently referenced elements includes all hot entries, the
@@ -1419,19 +1426,35 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     final LirsQueue<Node<K, V>> coldQueue;
 
     @GuardedBy("evictionLock")
-    int hotWeightedSize;
+    long hotWeightedSize;
     @GuardedBy("evictionLock")
-    int maximumHotWeightedSize;
+    long maximumHotWeightedSize;
 
     // TODO: Should be the outer class's; duplicated to follow LirsMap more strictly for now
     @GuardedBy("evictionLock")
-    int maximumWeightedSize; // aka 'capacity'
+    long maximumWeightedSize; // aka 'capacity'
     @GuardedBy("evictionLock")
-    int weightedSize;
+    long weightedSize;
 
-    LirsPolicy() {
-      coldQueue = new LirsQueue<Node<K, V>>();
-      recencyStack = new LirsStack<Node<K, V>>();
+    LirsPolicy(long maximumWeightedSize) {
+      this.coldQueue = new LirsQueue<Node<K, V>>();
+      this.recencyStack = new LirsStack<Node<K, V>>();
+      this.maximumWeightedSize = maximumWeightedSize;
+      this.maximumHotWeightedSize = calculateMaxWeightedSize(maximumWeightedSize);
+    }
+
+    /**
+     * Returns the maximum hot size as a function of the maximum size. This is
+     * defined to be the a percentage of the maximum size. When the maximum hot
+     * size is equal to the maximum size the eviction algorithm reduces to LRU;
+     * to avoid this we decrease the maximum hot size by one when it equals the
+     * maximum size (and the maximum size is greater than one).
+     */
+    static long calculateMaxWeightedSize(long maximumWeightedSize) {
+      long calculated = (long) (HOT_RATE * maximumWeightedSize);
+      return (calculated == maximumWeightedSize)
+          ? (maximumWeightedSize - 1)
+          : calculated;
     }
 
     @Override
@@ -1461,7 +1484,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     @Override
     @GuardedBy("evictionLock")
     public void onAdd(Node<K, V> node) {
-      recencyStack.add(node);
+      onMiss(node);
     }
 
     @Override
@@ -1646,16 +1669,57 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       makeCold(node);
     }
 
+    /**
+     * Removes this entry from the cache. This operation is not specified in
+     * the paper, which does not account for forced eviction.
+     */
     @Override
     @GuardedBy("evictionLock")
     public void onRemove(Node<K, V> node) {
+      boolean wasHot = (node.status == Status.HOT);
+      evict();
 
+      // attempt to maintain a constant number of hot entries
+      if (wasHot) {
+        // Moves the last entry from the queue to the stack, marking it hot (as cold
+        // resident entries must remain in the queue).
+        if (!coldQueue.isEmpty()) {
+          Node<K, V> last = coldQueue.unlinkLast();
+          if (!recencyStack.contains(last)) {
+            recencyStack.linkFirst(last);
+          }
+          makeHot(node);
+        }
+      }
     }
 
-    /** Ensure the last entry of the stack is cold. */
+    /**
+     * Prunes HIR blocks in the bottom of the stack until an HOT block sits in
+     * the stack bottom. If pruned blocks were resident, then they
+     * remain in the queue; otherwise they are no longer referenced, and are thus
+     * removed from the backing map.
+     */
     @GuardedBy("evictionLock")
     void pruneStack() {
-
+      // See section 3.3:
+      // "We define an operation called "stack pruning" on the LIRS
+      // stack S, which removes the HIR blocks in the bottom of
+      // the stack until an LIR block sits in the stack bottom. This
+      // operation serves for two purposes: (1) We ensure the block in
+      // the bottom of the stack always belongs to the LIR block set.
+      // (2) After the LIR block in the bottom is removed, those HIR
+      // blocks contiguously located above it will not have chances to
+      // change their status from HIR to LIR, because their recencies
+      // are larger than the new maximum recency of LIR blocks."
+      Node<K, V> bottom = recencyStack.peekLast();
+      while ((bottom != null) && (bottom.status != Status.HOT)) {
+        recencyStack.unlinkLast();
+        if (bottom.status == Status.NON_RESIDENT) {
+          // map only needs to hold non-resident entries that are on the stack
+          // TODO: See evict in outer class for remove from map
+        }
+        bottom = recencyStack.peekLast();
+      }
     }
 
     @Override
