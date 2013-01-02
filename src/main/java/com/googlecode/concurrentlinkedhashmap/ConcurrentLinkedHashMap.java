@@ -649,7 +649,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     @Override
     @GuardedBy("evictionLock")
     public void run() {
-      node.lirsWeight += weight;
       weightedSize.lazySet(weightedSize.get() + weight);
 
       // ignore out-of-order write operations
@@ -1256,7 +1255,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       implements LinkedOnLirsQueue<Node<K, V>>, LinkedOnLirsStack<Node<K, V>> {
 
     @GuardedBy("evictionLock")
-    int topStackCount;
     Status status;
 
     // The LIRS stack and queue links
@@ -1629,12 +1627,12 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     /**  Marks this entry as hot. */
     @GuardedBy("evictionLock")
     void makeHot(Node<K, V> node) {
-      if (node.status != Status.HOT) {
+      if (node.status == Status.HOT) {
+        recencyStack.moveToFront(node);
+      } else {
         hotWeightedSize += Math.abs(node.lirsWeight);
         recencyStack.linkFirst(node);
         node.status = Status.HOT;
-      } else {
-        recencyStack.moveToFront(node);
       }
     }
 

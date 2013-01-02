@@ -84,7 +84,7 @@ public abstract class AbstractTest {
 
   @Parameters("capacity")
   @BeforeClass(alwaysRun = true)
-  public void initClass(long capacity) {
+  public void initClass(@Optional("100") long capacity) {
     this.capacity = capacity;
     initMocks(this);
   }
