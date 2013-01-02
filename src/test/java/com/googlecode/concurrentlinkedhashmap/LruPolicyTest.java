@@ -56,9 +56,9 @@ import static org.mockito.Mockito.when;
 @Test(groups = "development")
 public class LruPolicyTest extends AbstractTest {
 
-  @Test(dataProvider = "builder")
-  public void evict(Builder<Integer, Integer> builder) {
-    ConcurrentLinkedHashMap<Integer, Integer> map = builder
+  @Test
+  public void evict() {
+    ConcurrentLinkedHashMap<Integer, Integer> map = new Builder<Integer, Integer>()
         .maximumWeightedCapacity(10)
         .build();
     warmUp(map, 0, 10);

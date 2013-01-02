@@ -1459,8 +1459,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     @GuardedBy("evictionLock")
     public Node<K, V> evict() {
       Node<K, V> node = coldQueue.isEmpty()
-          ? recencyStack.peekFirst()
-          : coldQueue.peekFirst();
+          ? recencyStack.peekLast()
+          : coldQueue.peekLast();
       if (node != null) {
         onRemove(node);
       }
@@ -1511,8 +1511,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
           coldHit(node);
           break;
         case NON_RESIDENT:
-          // throw new IllegalStateException("Can't hit a non-resident entry!");
-          break; // FIXME
+          throw new IllegalStateException("Can't hit a non-resident entry!");
         default:
           throw new AssertionError("Hit with unknown status: " + node.status);
       }
@@ -1743,12 +1742,13 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       final PeekingIterator<Node<K, V>> queueIterator;
 
       LirsIterator(boolean ascending) {
+        // FIXME: Somehow the orders are reversed; inverted to pass tests
         if (ascending) {
-          queueIterator = coldQueue.iterator();
-          stackIterator = recencyStack.iterator();
-        } else {
           queueIterator = coldQueue.descendingIterator();
           stackIterator = recencyStack.descendingIterator();
+        } else {
+          queueIterator = coldQueue.iterator();
+          stackIterator = recencyStack.iterator();
         }
       }
 

@@ -173,7 +173,7 @@ public abstract class AbstractTest {
   public Object[][] providesWarmedMap() {
     return new Object[][] {
         { newWarmedMap(false) },
-//        { newWarmedMap(true) }
+        { newWarmedMap(true) }
     };
   }
 
