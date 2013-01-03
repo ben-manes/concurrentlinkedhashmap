@@ -1646,6 +1646,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
         // "(2) If X is not in stack S, we leave its status in HIR and place
         // it in the end of list Q."
         recencyStack.linkFirst(node);
+        node.status = Status.COLD;
         //makeCold(node);
       }
     }
@@ -2183,7 +2184,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     }
 
     /** Experimental */
-    Builder<K, V> lirsPolicy(boolean lirs) {
+    Builder<K, V> lirs(boolean lirs) {
       this.lirs = lirs;
       return this;
     }

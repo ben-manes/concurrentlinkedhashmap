@@ -121,7 +121,7 @@ public abstract class AbstractTest {
   public Object[][] providesBuilder() {
     return new Object[][] {
       { new Builder<Object, Object>().maximumWeightedCapacity(capacity()) },
-//      { new Builder<Object, Object>().maximumWeightedCapacity(capacity()).lirsPolicy(true) }
+//      { new Builder<Object, Object>().maximumWeightedCapacity(capacity()).lirs(true) }
     };
   }
 
@@ -140,7 +140,7 @@ public abstract class AbstractTest {
   protected <K, V> ConcurrentLinkedHashMap<K, V> newEmptyMap(boolean lirs) {
     return new Builder<K, V>()
         .maximumWeightedCapacity(capacity())
-        .lirsPolicy(lirs)
+        .lirs(lirs)
         .build();
   }
 
@@ -164,7 +164,7 @@ public abstract class AbstractTest {
     return new Builder<K, V>()
         .maximumWeightedCapacity(capacity())
         .listener(guardingListener)
-        .lirsPolicy(lirs)
+        .lirs(lirs)
         .build();
   }
 

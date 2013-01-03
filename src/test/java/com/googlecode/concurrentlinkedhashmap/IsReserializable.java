@@ -15,13 +15,10 @@
  */
 package com.googlecode.concurrentlinkedhashmap;
 
-import static com.google.common.collect.Maps.newHashMap;
-import static com.googlecode.concurrentlinkedhashmap.IsEmptyMap.emptyMap;
-import static com.googlecode.concurrentlinkedhashmap.IsValidConcurrentLinkedHashMap.valid;
-
 import java.io.Serializable;
 import java.util.Map;
 
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.BoundedEntryWeigher;
 import org.apache.commons.lang.SerializationUtils;
 import org.apache.commons.lang.builder.EqualsBuilder;
 import org.hamcrest.Description;
@@ -29,7 +26,9 @@ import org.hamcrest.Factory;
 import org.hamcrest.Matcher;
 import org.hamcrest.TypeSafeMatcher;
 
-import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.BoundedEntryWeigher;
+import static com.google.common.collect.Maps.newLinkedHashMap;
+import static com.googlecode.concurrentlinkedhashmap.IsEmptyMap.emptyMap;
+import static com.googlecode.concurrentlinkedhashmap.IsValidConcurrentLinkedHashMap.valid;
 
 /**
  * A matcher that evaluates an object by creating a serialized copy and checking
@@ -51,23 +50,23 @@ public final class IsReserializable<T> extends TypeSafeMatcher<T> {
 
     EqualsBuilder builder = new EqualsBuilder()
         .append(item.hashCode(), copy.hashCode())
-        .append(item, copy)
-        .append(copy, item);
+        .append(item, copy);
+    builder.append(copy, item);
     if (item instanceof ConcurrentLinkedHashMap<?, ?>) {
-      return matchesSafely((ConcurrentLinkedHashMap<?, ?>) item,
+      matchesSafely((ConcurrentLinkedHashMap<?, ?>) item,
           (ConcurrentLinkedHashMap<?, ?>) copy, builder);
     }
     return builder.isEquals();
   }
 
-  private boolean matchesSafely(ConcurrentLinkedHashMap<?, ?> original,
+  private void matchesSafely(ConcurrentLinkedHashMap<?, ?> original,
       ConcurrentLinkedHashMap<?, ?> copy, EqualsBuilder builder) {
     if (original.weigher instanceof BoundedEntryWeigher<?, ?>) {
       builder.append(((BoundedEntryWeigher<?, ?>) original.weigher).weigher.getClass(),
           ((BoundedEntryWeigher<?, ?>) copy.weigher).weigher.getClass());
     }
-    Map<?, ?> data = newHashMap(original);
-    return builder
+    Map<?, ?> data = newLinkedHashMap(original);
+    builder
         .append(valid().matches(original), true)
         .append(valid().matches(copy), true)
         .append(data.isEmpty(), emptyMap().matches(original))
@@ -77,8 +76,7 @@ public final class IsReserializable<T> extends TypeSafeMatcher<T> {
         .append(original.concurrencyLevel, copy.concurrencyLevel)
         .append(original.hashCode(), copy.hashCode())
         .append(original.capacity, copy.capacity)
-        .append(original, data)
-        .isEquals();
+        .append(original, data);
   }
 
   @SuppressWarnings("unchecked")

@@ -489,7 +489,7 @@ public class LirsMap<K, V> extends AbstractMap<K, V> {
 
       // This condition is unspecified in the paper, but appears to be
       // necessary.
-      if (size >= maximumSize) {
+      if (size > maximumSize) {
         // "We remove the HIR resident block at the front of list Q (it then
         // becomes a non-resident block), and replace it out of the cache."
         queueFront().evict();

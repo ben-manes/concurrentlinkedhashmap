@@ -43,10 +43,10 @@ public class LirsPolicyTest extends AbstractTest {
   public void efficiency() {
     Map<String, String> expected = new CacheBuilder()
         .maximumCapacity((int) capacity())
-        .makeCache(Cache.ConcurrentLirs);
+        .makeCache(Cache.Lirs);
     Map<String, String> actual = new Builder<String, String>()
         .maximumWeightedCapacity(capacity())
-        .lirsPolicy(true)
+        .lirs(true)
         .build();
 
     Generator generator = new ScrambledZipfianGenerator(10 * capacity());
