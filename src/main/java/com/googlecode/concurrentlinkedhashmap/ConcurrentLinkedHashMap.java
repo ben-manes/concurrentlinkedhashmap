@@ -148,7 +148,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * replacement algorithm due to its high hit rate, ability to track both the
    * recency and frequency, and be implemented with O(1) time complexity. This
    * algorithm is described in [1,2] and was evaluated against other algorithms
-   * in [3].
+   * in [3,4].
    *
    * [1] LIRS: An Efficient Low Inter-reference Recency Set Replacement to
    *     Improve Buffer Cache Performance
@@ -159,6 +159,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * [3] The Performance Impact of Kernel Prefetching on Buffer Cache
    *     Replacement Algorithms
    *     http://www.cs.arizona.edu/~gniady/papers/sigm05_prefetch.pdf
+   * [4] Workload Analysis of a Large-Scale Key-Value Store
+   *     http://www.ece.eng.wayne.edu/~sjiang/pubs/papers/atikoglu12-memcached.pdf
    */
 
   /** The maximum weighted capacity of the map. */
