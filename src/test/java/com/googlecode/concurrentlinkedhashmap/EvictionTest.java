@@ -24,6 +24,7 @@ import java.util.concurrent.locks.ReentrantLock;
 
 import com.google.common.collect.ImmutableMap;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.LirsPolicy;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.LruPolicy;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Node;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Task;
@@ -200,6 +201,13 @@ public final class EvictionTest extends AbstractTest {
     map.put(1, 2);
     map.capacity = MAXIMUM_CAPACITY;
     map.weightedSize.set(MAXIMUM_CAPACITY);
+
+    if (map.policy instanceof LirsPolicy<?, ?>) {
+      LirsPolicy<?, ?> policy = (LirsPolicy<?, ?>) map.policy;
+      policy.maximumHotWeightedSize = LirsPolicy.calculateMaxHotWeightedSize(MAXIMUM_CAPACITY);
+      policy.hotWeightedSize = policy.maximumHotWeightedSize;
+      policy.weightedSize = MAXIMUM_CAPACITY;
+    }
 
     map.put(2, 3);
     assertThat(map.weightedSize(), is(MAXIMUM_CAPACITY));

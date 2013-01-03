@@ -26,6 +26,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.LirsPolicy;
 import org.mockito.Mock;
 import org.testng.annotations.Test;
 
@@ -163,6 +164,13 @@ public final class WeigherTest extends AbstractTest {
     doReturn(Integer.MAX_VALUE).when(weigher).weightOf(anyInt());
     map.putAll(ImmutableMap.of(1, 1, 2, 2));
     map.weightedSize.set(MAXIMUM_CAPACITY);
+
+    if (map.policy instanceof LirsPolicy<?, ?>) {
+      LirsPolicy<?, ?> policy = (LirsPolicy<?, ?>) map.policy;
+      policy.maximumHotWeightedSize = LirsPolicy.calculateMaxHotWeightedSize(MAXIMUM_CAPACITY);
+      policy.hotWeightedSize = policy.maximumHotWeightedSize;
+      policy.weightedSize = MAXIMUM_CAPACITY;
+    }
 
     map.put(3, 3);
     assertThat(map.size(), is(2));

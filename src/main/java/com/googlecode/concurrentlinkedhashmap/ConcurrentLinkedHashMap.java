@@ -243,7 +243,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     drainedOrder = Integer.MIN_VALUE;
     evictionLock = new ReentrantLock();
     drainStatus = new AtomicReference<DrainStatus>(IDLE);
-    policy = builder.lirs ? new LirsPolicy<K, V>(this, capacity) : new LruPolicy<K, V>(this);
+    policy = builder.lirs ? new LirsPolicy<K, V>(this) : new LruPolicy<K, V>(this);
 
     bufferLengths = new AtomicIntegerArray(NUMBER_OF_BUFFERS);
     buffers = (Queue<Task>[]) new Queue[NUMBER_OF_BUFFERS];
@@ -1453,11 +1453,11 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     @GuardedBy("evictionLock")
     final ConcurrentLinkedHashMap<K, V> map;
 
-    LirsPolicy(ConcurrentLinkedHashMap<K, V> map, long maximumWeightedSize) {
+    LirsPolicy(ConcurrentLinkedHashMap<K, V> map) {
       this.map = map;
       this.coldQueue = new LirsQueue<Node<K, V>>();
       this.recencyStack = new LirsStack<Node<K, V>>();
-      this.maximumWeightedSize = maximumWeightedSize;
+      this.maximumWeightedSize = map.capacity;
       this.maximumHotWeightedSize = calculateMaxHotWeightedSize(maximumWeightedSize);
     }
 
