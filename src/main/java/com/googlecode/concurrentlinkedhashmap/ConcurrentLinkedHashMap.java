@@ -1470,7 +1470,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
      */
     static long calculateMaxHotWeightedSize(long maximumWeightedSize) {
       long calculated = (long) (HOT_RATE * maximumWeightedSize);
-      return (calculated == maximumWeightedSize)
+      return (calculated > 0) && (calculated == maximumWeightedSize)
           ? (maximumWeightedSize - 1)
           : calculated;
     }
@@ -1624,14 +1624,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       // "Upon accessing an HIR non-resident block X:
       // This is a miss."
 
-      // This condition is unspecified in the paper, but appears to be
-      // necessary.
-      while (weightedSize > maximumWeightedSize) {
-        // "We remove the HIR resident block at the front of list Q (it then
-        // becomes a non-resident block), and replace it out of the cache."
-        evict();
-      }
-
       // "Then we load the requested block X into the freed buffer and place
       // it on the top of stack S."
       // "There are two cases for block X:"
@@ -1648,6 +1640,14 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
         recencyStack.linkFirst(node);
         node.status = Status.COLD;
         //makeCold(node);
+      }
+
+      // This condition is unspecified in the paper, but appears to be
+      // necessary.
+      while (weightedSize > maximumWeightedSize) {
+        // "We remove the HIR resident block at the front of list Q (it then
+        // becomes a non-resident block), and replace it out of the cache."
+        evict();
       }
     }
 
