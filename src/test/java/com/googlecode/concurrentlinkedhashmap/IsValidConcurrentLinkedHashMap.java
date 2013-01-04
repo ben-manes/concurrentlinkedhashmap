@@ -27,10 +27,18 @@ import org.hamcrest.Factory;
 import org.hamcrest.TypeSafeDiagnosingMatcher;
 
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.AMORTIZED_DRAIN_THRESHOLD;
+import static com.googlecode.concurrentlinkedhashmap.IsEmptyMap.emptyMap;
 import static com.googlecode.concurrentlinkedhashmap.IsValidLinkedDeque.validLinkedDeque;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.hasValue;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * A matcher that evaluates a {@link ConcurrentLinkedHashMap} to determine if it
@@ -74,18 +82,18 @@ public final class IsValidConcurrentLinkedHashMap
 
   private void checkMap(ConcurrentLinkedHashMap<?, ?> map, DescriptionBuilder builder) {
     for (int i = 0; i < map.buffers.length; i++) {
-      builder.expect(map.buffers[i].isEmpty(), "recencyQueue not empty");
-      builder.expect(map.bufferLengths.get(i) == 0, "recencyQueueLength != 0");
+      builder.expectThat("recencyQueue not empty", map.buffers[i].isEmpty(), is(true));
+      builder.expectThat("recencyQueueLength != 0", map.bufferLengths.get(i), is(0));
     }
-    builder.expect(map.pendingNotifications.isEmpty(), "listenerQueue");
-    builder.expectEqual(map.data.size(), map.size(), "Inconsistent size");
-    builder.expectEqual(map.weightedSize(), map.weightedSize.get(), "weightedSize");
-    builder.expectEqual(map.capacity(), map.capacity, "capacity");
-    builder.expect(map.capacity >= map.weightedSize(), "overflow");
-    builder.expectNot(((ReentrantLock) map.evictionLock).isLocked());
+    builder.expectThat("listenerQueue", map.pendingNotifications.isEmpty(), is(true));
+    builder.expectThat("Inconsistent size", map.data.size(), is(map.size()));
+    builder.expectThat("weightedSize", map.weightedSize(), is(map.weightedSize.get()));
+    builder.expectThat("capacity", map.capacity(), is(map.capacity));
+    builder.expectThat("overflow", map.capacity, is(greaterThanOrEqualTo(map.weightedSize())));
+    builder.expectThat(((ReentrantLock) map.evictionLock).isLocked(), is(false));
 
     if (map.isEmpty()) {
-      builder.expect(IsEmptyMap.emptyMap().matchesSafely(map, builder.getDescription()));
+      builder.expectThat(map, emptyMap());
     }
   }
 
@@ -93,7 +101,7 @@ public final class IsValidConcurrentLinkedHashMap
     LinkedDeque<?> deque = map.evictionDeque;
 
     checkLinks(map, builder);
-    builder.expectEqual(deque.size(), map.size());
+    builder.expectThat(deque, hasSize(map.size()));
     validLinkedDeque().matchesSafely(map.evictionDeque, builder.getDescription());
   }
 
@@ -102,30 +110,31 @@ public final class IsValidConcurrentLinkedHashMap
     long weightedSize = 0;
     Set<Node> seen = Sets.newIdentityHashSet();
     for (Node node : map.evictionDeque) {
-      builder.expect(seen.add(node), "Loop detected: %s, saw %s in %s", node, seen, map);
+      String errorMsg = String.format("Loop detected: %s, saw %s in %s", node, seen, map);
+      builder.expectThat(errorMsg, seen.add(node), is(true));
       weightedSize += ((WeightedValue) node.get()).weight;
       checkNode(map, node, builder);
     }
 
-    builder.expectEqual(map.size(), seen.size(), "Size != list length");
-    builder.expectEqual(map.weightedSize(), weightedSize, "WeightedSize != link weights"
+    builder.expectThat("Size != list length", map.size(), is(seen.size()));
+    builder.expectThat("WeightedSize != link weights"
         + " [" + map.weightedSize() + " vs. " + weightedSize + "]"
-        + " {size: " + map.size() + " vs. " + seen.size() + "}");
+        + " {size: " + map.size() + " vs. " + seen.size() + "}",
+        map.weightedSize(), is(weightedSize));
   }
 
   @SuppressWarnings("rawtypes")
   private void checkNode(ConcurrentLinkedHashMap<?, ?> map, Node node,
       DescriptionBuilder builder) {
-    builder.expectNotEqual(node.key, null, "null key");
-    builder.expectNotEqual(node.get(), null, "null weighted value");
-    builder.expectNotEqual(node.getValue(), null, "null value");
-    builder.expectEqual(((WeightedValue) node.get()).weight,
-        ((EntryWeigher) map.weigher).weightOf(node.key, node.getValue()), "weight");
+    builder.expectThat(node.key, is(not(nullValue())));
+    builder.expectThat(node.get(), is(not(nullValue())));
+    builder.expectThat(node.getValue(), is(not(nullValue())));
+    builder.expectThat("weight", ((WeightedValue) node.get()).weight,
+        is(((EntryWeigher) map.weigher).weightOf(node.key, node.getValue())));
 
-    builder.expect(map.containsKey(node.key), "inconsistent");
-    builder.expect(map.containsValue(node.getValue()),
-        "Could not find value: %s", node.getValue());
-    builder.expectEqual(map.data.get(node.key), node, "found wrong node");
+    builder.expectThat("inconsistent", map, hasKey(node.key));
+    builder.expectThat("Could not find value: " + node.getValue(), map, hasValue(node.getValue()));
+    builder.expectThat("found wrong node", map.data, hasEntry(node.key, node));
   }
 
   @Factory

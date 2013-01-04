@@ -15,18 +15,23 @@
  */
 package com.googlecode.concurrentlinkedhashmap;
 
-import static java.util.Collections.emptyList;
-import static java.util.Collections.emptySet;
-
-import org.hamcrest.Description;
-import org.hamcrest.Factory;
-import org.hamcrest.TypeSafeDiagnosingMatcher;
-
 import java.util.Collection;
 import java.util.Deque;
 import java.util.List;
 import java.util.Queue;
 import java.util.Set;
+
+import org.hamcrest.Description;
+import org.hamcrest.Factory;
+import org.hamcrest.TypeSafeDiagnosingMatcher;
+
+import static java.util.Collections.emptyList;
+import static java.util.Collections.emptySet;
+import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * A matcher that performs an exhaustive empty check throughout the
@@ -66,38 +71,41 @@ public final class IsEmptyCollection extends TypeSafeDiagnosingMatcher<Collectio
   }
 
   private void checkCollection(Collection<?> c, DescriptionBuilder builder) {
-    builder.expect(c.isEmpty(), "not empty");
-    builder.expectEqual(c.size(), 0, "size = " + c.size());
-    builder.expect(!c.iterator().hasNext(), "iterator has data");
-    builder.expectEqual(c.toArray().length, 0, "toArray has data");
-    builder.expectEqual(c.toArray(new Object[0]).length, 0, "toArray has data");
+    builder.expectThat(c, hasSize(0));
+    builder.expectThat("not empty", c.isEmpty(), is(true));
+    builder.expectThat("iterator has data", c.iterator().hasNext(), is(false));
+    builder.expectThat("toArray has data", c.toArray(), is(arrayWithSize(0)));
+    builder.expectThat("toArray has data", c.toArray(new Object[0]), is(arrayWithSize(0)));
   }
 
+  @SuppressWarnings("unchecked")
   private void checkSet(Set<?> set, DescriptionBuilder builder) {
-    builder.expectEqual(set.hashCode(), emptySet().hashCode(), "hashcode");
-    builder.expectEqual(set, emptySet(), "collection not equal to empty set");
-    builder.expectEqual(emptySet(), set, "empty set not equal to collection");
+    builder.expectThat("hashcode", set.hashCode(), is(equalTo(emptySet().hashCode())));
+    builder.expectThat("collection not equal to empty set", (Set<Object>) set, is(emptySet()));
+    builder.expectThat("empty set not equal to collection", emptySet(), is((Set<Object>) set));
   }
 
+  @SuppressWarnings("unchecked")
   private void checkList(List<?> list, DescriptionBuilder builder) {
-    builder.expectEqual(list.hashCode(), emptyList().hashCode(), "hashcode");
-    builder.expectEqual(list, emptyList(), "collection not equal to empty list");
-    builder.expectEqual(emptyList(), list, "empty list not equal to collection");
+    builder.expectThat("hashcode", list.hashCode(), is(equalTo(emptyList().hashCode())));
+    builder.expectThat("collection not equal to empty list", (List<Object>) list, is(emptyList()));
+    builder.expectThat("empty list not equal to collection", emptyList(), is((List<Object>) list));
   }
 
   private void checkQueue(Queue<?> queue, DescriptionBuilder builder) {
-    builder.expectEqual(queue.peek(), null);
+    builder.expectThat(queue.peek(), is(nullValue()));
   }
 
   private void checkDeque(Deque<?> deque, DescriptionBuilder builder) {
-    builder.expectEqual(deque.peekFirst(), null);
-    builder.expectEqual(deque.peekLast(), null);
-    builder.expect(!deque.descendingIterator().hasNext());
+    builder.expectThat(deque.peekFirst(), is(nullValue()));
+    builder.expectThat(deque.peekLast(), is(nullValue()));
+    builder.expectThat(deque.iterator().hasNext(), is(false));
+    builder.expectThat(deque.descendingIterator().hasNext(), is(false));
   }
 
   private void checkLinkedDeque(LinkedDeque<?> deque, DescriptionBuilder builder) {
-    builder.expectEqual(deque.first, null);
-    builder.expectEqual(deque.last, null);
+    builder.expectThat(deque.first, is(nullValue()));
+    builder.expectThat(deque.last, is(nullValue()));
   }
 
   @Factory

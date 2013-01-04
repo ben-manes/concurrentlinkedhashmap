@@ -15,9 +15,8 @@
  */
 package com.googlecode.concurrentlinkedhashmap;
 
-import com.google.common.base.Objects;
-
 import org.hamcrest.Description;
+import org.hamcrest.Matcher;
 
 /**
  * Assists in implementing {@link org.hamcrest.Matcher}s.
@@ -33,36 +32,19 @@ public final class DescriptionBuilder {
     this.matches = true;
   }
 
-  public void expectEqual(Object o1, Object o2) {
-    expect(Objects.equal(o1, o2));
+  public <T> void expectThat(T actual, Matcher<? super T> matcher) {
+    expectThat("", actual, matcher);
   }
 
-  public void expectEqual(Object o1, Object o2, String message, Object... args) {
-    expect(Objects.equal(o1, o2), message, args);
-  }
-
-  public void expectNotEqual(Object o1, Object o2, String message, Object... args) {
-    expectNot(Objects.equal(o1, o2), message, args);
-  }
-
-  public void expectNot(boolean expression, String message, Object... args) {
-    expect(!expression, message, args);
-  }
-
-  public void expectNot(boolean expression) {
-    expect(!expression);
-  }
-
-  public void expect(boolean expression, String message, Object... args) {
-    if (!expression) {
-      String separator = matches ? "" : ", ";
-      description.appendText(separator + String.format(message, args));
+  public <T> void expectThat(String reason, T actual, Matcher<? super T> matcher) {
+    if (!matcher.matches(actual)) {
+      description.appendText(reason)
+        .appendText("\nExpected: ")
+        .appendDescriptionOf(matcher)
+        .appendText("\n     but: ");
+      matches = false;
+      matcher.describeMismatch(actual, description);
     }
-    expect(expression);
-  }
-
-  public void expect(boolean expression) {
-    matches &= expression;
   }
 
   public Description getDescription() {

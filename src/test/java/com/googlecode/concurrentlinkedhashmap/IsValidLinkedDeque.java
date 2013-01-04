@@ -19,11 +19,15 @@ import java.util.Deque;
 import java.util.Iterator;
 import java.util.Set;
 
+import com.google.common.collect.Sets;
 import org.hamcrest.Description;
 import org.hamcrest.Factory;
 import org.hamcrest.TypeSafeDiagnosingMatcher;
 
-import com.google.common.collect.Sets;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * A matcher that evaluates a {@link LinkedDeque} to determine if it is in a
@@ -54,9 +58,9 @@ public final class IsValidLinkedDeque
 
   void checkEmpty(Deque<? extends Linked<?>> deque, DescriptionBuilder builder) {
     IsEmptyCollection.emptyCollection().matchesSafely(deque, builder.getDescription());
-    builder.expectEqual(deque.poll(), null);
-    builder.expectEqual(deque.pollFirst(), null);
-    builder.expectEqual(deque.pollLast(), null);
+    builder.expectThat(deque.pollFirst(), is(nullValue()));
+    builder.expectThat(deque.pollLast(), is(nullValue()));
+    builder.expectThat(deque.poll(), is(nullValue()));
   }
 
   void checkIterator(Deque<? extends Linked<?>> deque, Iterator<? extends Linked<?>> iterator,
@@ -65,9 +69,10 @@ public final class IsValidLinkedDeque
     while (iterator.hasNext()) {
       Linked<?> element = iterator.next();
       checkElement(deque, element, builder);
-      builder.expect(seen.add(element), "Loop detected: %s in %s", element, seen);
+      String errorMsg = String.format("Loop detected: %s in %s", element, seen);
+      builder.expectThat(errorMsg, seen.add(element), is(true));
     }
-    builder.expectEqual(deque.size(), seen.size());
+    builder.expectThat(deque, hasSize(seen.size()));
   }
 
   void checkElement(Deque<? extends Linked<?>> deque, Linked<?> element,
@@ -75,14 +80,14 @@ public final class IsValidLinkedDeque
     Linked<?> first = deque.peekFirst();
     Linked<?> last = deque.peekLast();
     if (element == first) {
-      builder.expectEqual(element.getPrevious(), null, "not null prev");
+      builder.expectThat("not null prev", element.getPrevious(), is(nullValue()));
     }
     if (element == last) {
-      builder.expectEqual(element.getNext(), null, "not null next");
+      builder.expectThat("not null next", element.getNext(), is(nullValue()));
     }
     if ((element != first) && (element != last)) {
-      builder.expectNotEqual(element.getPrevious(), null, "null prev");
-      builder.expectNotEqual(element.getNext(), null, "null next");
+      builder.expectThat(element.getPrevious(), is(not(nullValue())));
+      builder.expectThat(element.getNext(), is(not(nullValue())));
     }
   }
 

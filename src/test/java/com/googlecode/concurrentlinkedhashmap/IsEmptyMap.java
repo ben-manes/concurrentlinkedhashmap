@@ -15,12 +15,18 @@
  */
 package com.googlecode.concurrentlinkedhashmap;
 
+import java.util.Collections;
 import java.util.Map;
 
 import com.google.common.collect.ImmutableMap;
 import org.hamcrest.Description;
 import org.hamcrest.Factory;
 import org.hamcrest.TypeSafeDiagnosingMatcher;
+
+import static com.googlecode.concurrentlinkedhashmap.IsEmptyCollection.emptyCollection;
+import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * A matcher that performs an exhaustive empty check throughout the {@link Map}
@@ -36,16 +42,17 @@ public final class IsEmptyMap extends TypeSafeDiagnosingMatcher<Map<?, ?>> {
   }
 
   @Override
+  @SuppressWarnings("unchecked")
   protected boolean matchesSafely(Map<?, ?> map, Description description) {
     DescriptionBuilder builder = new DescriptionBuilder(description);
 
-    builder.expect(new IsEmptyCollection().matchesSafely(map.keySet(), description));
-    builder.expect(new IsEmptyCollection().matchesSafely(map.values(), description));
-    builder.expect(new IsEmptyCollection().matchesSafely(map.entrySet(), description));
-    builder.expect(map.isEmpty(), "Not empty");
-    builder.expectEqual(map, ImmutableMap.of(), "Not equal to empty map");
-    builder.expectEqual(map.hashCode(), ImmutableMap.of().hashCode(), "hashcode");
-    builder.expectEqual(map.toString(), ImmutableMap.of().toString(), "toString");
+    builder.expectThat(map.keySet(), is(emptyCollection()));
+    builder.expectThat(map.values(), is(emptyCollection()));
+    builder.expectThat(map.entrySet(), is(emptyCollection()));
+    builder.expectThat("Not empty", map.isEmpty(), is(true));
+    builder.expectThat((Map<Object, Object>) map, is(Collections.emptyMap()));
+    builder.expectThat("hashcode", map.hashCode(), is(ImmutableMap.of().hashCode()));
+    builder.expectThat("toString", map, hasToString(ImmutableMap.of().toString()));
     if (map instanceof ConcurrentLinkedHashMap<?, ?>) {
       checkIsEmpty((ConcurrentLinkedHashMap<?, ?>) map, builder);
     }
@@ -55,13 +62,14 @@ public final class IsEmptyMap extends TypeSafeDiagnosingMatcher<Map<?, ?>> {
   private void checkIsEmpty(ConcurrentLinkedHashMap<?, ?> map, DescriptionBuilder builder) {
     map.drainBuffers();
 
-    builder.expectEqual(map.size(), 0, "Size != 0");
-    builder.expect(map.data.isEmpty(), "Internal not empty");
-    builder.expectEqual(map.data.size(), 0, "Internal size != 0");
-    builder.expectEqual(map.weightedSize(), 0L, "Weighted size != 0");
-    builder.expectEqual(map.weightedSize.get(), 0L, "Internal weighted size != 0");
-    builder.expectEqual(map.evictionDeque.peekFirst(), null, "first not null: " + map.evictionDeque);
-    builder.expectEqual(map.evictionDeque.peekLast(), null, "last not null");
+    builder.expectThat("Size != 0", map.size(), is(0));
+    builder.expectThat("Internal not empty", map.data.isEmpty(), is(true));
+    builder.expectThat("Internal size != 0", map.data.size(), is(0));
+    builder.expectThat("Weighted size != 0", map.weightedSize(), is(0L));
+    builder.expectThat("Internal weighted size != 0", map.weightedSize.get(), is(0L));
+    builder.expectThat("first not null: " + map.evictionDeque,
+        map.evictionDeque.peekFirst(), is(nullValue()));
+    builder.expectThat("last not null", map.evictionDeque.peekLast(), is(nullValue()));
   }
 
   @Factory
