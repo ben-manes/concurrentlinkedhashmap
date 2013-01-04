@@ -45,8 +45,7 @@ public final class DescriptionBuilder {
         .appendText("\n     but: ");
       matcher.describeMismatch(actual, description);
       description.appendText("\nLocation: ")
-        .appendText(Throwables.getStackTraceAsString(new Exception()))
-        .appendText("\n");
+        .appendText(Throwables.getStackTraceAsString(new Exception()));
 
       matches = false;
     }
