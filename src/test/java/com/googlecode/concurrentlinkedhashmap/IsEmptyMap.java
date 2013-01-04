@@ -19,6 +19,7 @@ import java.util.Collections;
 import java.util.Map;
 
 import com.google.common.collect.ImmutableMap;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.LirsPolicy;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.LruPolicy;
 import org.hamcrest.Description;
 import org.hamcrest.Factory;
@@ -82,13 +83,19 @@ public final class IsEmptyMap<K, V>
 
   private void checkLruPolicy(ConcurrentLinkedHashMap<?, ?> map, DescriptionBuilder builder) {
     LruPolicy<?, ?> policy = (LruPolicy<?, ?>) map.policy;
-    builder.expectThat("first not null: " + policy.evictionQueue,
-        policy.evictionQueue.peekFirst(), is(nullValue()));
-    builder.expectThat("last not null", policy.evictionQueue.peekLast(), is(nullValue()));
+    checkEmptyDeque(policy.evictionQueue, builder);
   }
 
   private void checkLirsPolicy(ConcurrentLinkedHashMap<?, ?> map, DescriptionBuilder builder) {
-    // TBD
+    LirsPolicy<?, ?> policy = (LirsPolicy<?, ?>) map.policy;
+    builder.expectThat("Weighted size != 0", policy.weightedSize, is(0L));
+    checkEmptyDeque(policy.recencyStack, builder);
+    checkEmptyDeque(policy.coldQueue, builder);
+  }
+
+  private void checkEmptyDeque(AbstractLinkedDeque<?> deque, DescriptionBuilder builder) {
+    builder.expectThat("first not null: " + deque, deque.peekFirst(), is(nullValue()));
+    builder.expectThat("last not null", deque.peekLast(), is(nullValue()));
   }
 
   @Factory
