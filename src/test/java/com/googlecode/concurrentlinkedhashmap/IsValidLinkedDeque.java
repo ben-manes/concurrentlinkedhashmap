@@ -24,6 +24,7 @@ import org.hamcrest.Description;
 import org.hamcrest.Factory;
 import org.hamcrest.TypeSafeDiagnosingMatcher;
 
+import static com.googlecode.concurrentlinkedhashmap.IsEmptyCollection.emptyCollection;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -35,8 +36,8 @@ import static org.hamcrest.Matchers.nullValue;
  *
  * @author ben.manes@gmail.com (Ben Manes)
  */
-public final class IsValidLinkedDeque
-    extends TypeSafeDiagnosingMatcher<LinkedDeque<?>> {
+public final class IsValidLinkedDeque<E>
+    extends TypeSafeDiagnosingMatcher<LinkedDeque<? extends E>> {
 
   @Override
   public void describeTo(Description description) {
@@ -44,7 +45,7 @@ public final class IsValidLinkedDeque
   }
 
   @Override
-  protected boolean matchesSafely(LinkedDeque<?> deque, Description description) {
+  protected boolean matchesSafely(LinkedDeque<? extends E> deque, Description description) {
     DescriptionBuilder builder = new DescriptionBuilder(description);
 
     if (deque.isEmpty()) {
@@ -56,15 +57,15 @@ public final class IsValidLinkedDeque
     return builder.matches();
   }
 
-  void checkEmpty(Deque<? extends Linked<?>> deque, DescriptionBuilder builder) {
-    IsEmptyCollection.emptyCollection().matchesSafely(deque, builder.getDescription());
+  void checkEmpty(Deque<? extends Linked<? extends E>> deque, DescriptionBuilder builder) {
+    builder.expectThat(deque, emptyCollection());
     builder.expectThat(deque.pollFirst(), is(nullValue()));
     builder.expectThat(deque.pollLast(), is(nullValue()));
     builder.expectThat(deque.poll(), is(nullValue()));
   }
 
-  void checkIterator(Deque<? extends Linked<?>> deque, Iterator<? extends Linked<?>> iterator,
-      DescriptionBuilder builder) {
+  void checkIterator(Deque<? extends Linked<? extends E>> deque,
+      Iterator<? extends Linked<? extends E>> iterator, DescriptionBuilder builder) {
     Set<Linked<?>> seen = Sets.newIdentityHashSet();
     while (iterator.hasNext()) {
       Linked<?> element = iterator.next();
@@ -75,7 +76,7 @@ public final class IsValidLinkedDeque
     builder.expectThat(deque, hasSize(seen.size()));
   }
 
-  void checkElement(Deque<? extends Linked<?>> deque, Linked<?> element,
+  void checkElement(Deque<? extends Linked<? extends E>> deque, Linked<?> element,
       DescriptionBuilder builder) {
     Linked<?> first = deque.peekFirst();
     Linked<?> last = deque.peekLast();
@@ -92,7 +93,7 @@ public final class IsValidLinkedDeque
   }
 
   @Factory
-  public static IsValidLinkedDeque validLinkedDeque() {
-    return new IsValidLinkedDeque();
+  public static <E> IsValidLinkedDeque<E> validLinkedDeque() {
+    return new IsValidLinkedDeque<E>();
   }
 }

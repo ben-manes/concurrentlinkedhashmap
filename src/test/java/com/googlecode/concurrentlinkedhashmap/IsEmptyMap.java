@@ -34,7 +34,8 @@ import static org.hamcrest.Matchers.nullValue;
  *
  * @author ben.manes@gmail.com (Ben Manes)
  */
-public final class IsEmptyMap extends TypeSafeDiagnosingMatcher<Map<?, ?>> {
+public final class IsEmptyMap<K, V>
+    extends TypeSafeDiagnosingMatcher<Map<? extends K, ? extends V>> {
 
   @Override
   public void describeTo(Description description) {
@@ -42,15 +43,15 @@ public final class IsEmptyMap extends TypeSafeDiagnosingMatcher<Map<?, ?>> {
   }
 
   @Override
-  @SuppressWarnings("unchecked")
-  protected boolean matchesSafely(Map<?, ?> map, Description description) {
+  protected boolean matchesSafely(Map<? extends K, ? extends V> map, Description description) {
     DescriptionBuilder builder = new DescriptionBuilder(description);
 
     builder.expectThat(map.keySet(), is(emptyCollection()));
     builder.expectThat(map.values(), is(emptyCollection()));
     builder.expectThat(map.entrySet(), is(emptyCollection()));
+    builder.expectThat(map, is(Collections.EMPTY_MAP));
+    builder.expectThat("Size != 0", map.size(), is(0));
     builder.expectThat("Not empty", map.isEmpty(), is(true));
-    builder.expectThat((Map<Object, Object>) map, is(Collections.emptyMap()));
     builder.expectThat("hashcode", map.hashCode(), is(ImmutableMap.of().hashCode()));
     builder.expectThat("toString", map, hasToString(ImmutableMap.of().toString()));
     if (map instanceof ConcurrentLinkedHashMap<?, ?>) {
@@ -62,7 +63,6 @@ public final class IsEmptyMap extends TypeSafeDiagnosingMatcher<Map<?, ?>> {
   private void checkIsEmpty(ConcurrentLinkedHashMap<?, ?> map, DescriptionBuilder builder) {
     map.drainBuffers();
 
-    builder.expectThat("Size != 0", map.size(), is(0));
     builder.expectThat("Internal not empty", map.data.isEmpty(), is(true));
     builder.expectThat("Internal size != 0", map.data.size(), is(0));
     builder.expectThat("Weighted size != 0", map.weightedSize(), is(0L));
@@ -73,7 +73,7 @@ public final class IsEmptyMap extends TypeSafeDiagnosingMatcher<Map<?, ?>> {
   }
 
   @Factory
-  public static IsEmptyMap emptyMap() {
-    return new IsEmptyMap();
+  public static <K, V> IsEmptyMap<K, V> emptyMap() {
+    return new IsEmptyMap<K, V>();
   }
 }

@@ -47,8 +47,8 @@ import static org.hamcrest.Matchers.nullValue;
  * @author ben.manes@gmail.com (Ben Manes)
  */
 @SuppressWarnings("unchecked")
-public final class IsValidConcurrentLinkedHashMap
-    extends TypeSafeDiagnosingMatcher<ConcurrentLinkedHashMap<?, ?>> {
+public final class IsValidConcurrentLinkedHashMap<K, V>
+    extends TypeSafeDiagnosingMatcher<ConcurrentLinkedHashMap<? extends K, ? extends V>> {
 
   @Override
   public void describeTo(Description description) {
@@ -56,7 +56,8 @@ public final class IsValidConcurrentLinkedHashMap
   }
 
   @Override
-  protected boolean matchesSafely(ConcurrentLinkedHashMap<?, ?> map, Description description) {
+  protected boolean matchesSafely(ConcurrentLinkedHashMap<? extends K, ? extends V> map,
+      Description description) {
     DescriptionBuilder builder = new DescriptionBuilder(description);
 
     drain(map);
@@ -65,7 +66,7 @@ public final class IsValidConcurrentLinkedHashMap
     return builder.matches();
   }
 
-  private void drain(ConcurrentLinkedHashMap<?, ?> map) {
+  private void drain(ConcurrentLinkedHashMap<? extends K, ? extends V> map) {
     for (;;) {
       map.drainBuffers();
       assertThat(map.tasks, is(equalTo(new Task[AMORTIZED_DRAIN_THRESHOLD])));
@@ -80,7 +81,8 @@ public final class IsValidConcurrentLinkedHashMap
     }
   }
 
-  private void checkMap(ConcurrentLinkedHashMap<?, ?> map, DescriptionBuilder builder) {
+  private void checkMap(ConcurrentLinkedHashMap<? extends K, ? extends V> map,
+      DescriptionBuilder builder) {
     for (int i = 0; i < map.buffers.length; i++) {
       builder.expectThat("recencyQueue not empty", map.buffers[i].isEmpty(), is(true));
       builder.expectThat("recencyQueueLength != 0", map.bufferLengths.get(i), is(0));
@@ -97,7 +99,8 @@ public final class IsValidConcurrentLinkedHashMap
     }
   }
 
-  private void checkEvictionDeque(ConcurrentLinkedHashMap<?, ?> map, DescriptionBuilder builder) {
+  private void checkEvictionDeque(ConcurrentLinkedHashMap<? extends K, ? extends V> map,
+      DescriptionBuilder builder) {
     LinkedDeque<?> deque = map.evictionDeque;
 
     checkLinks(map, builder);
@@ -106,7 +109,8 @@ public final class IsValidConcurrentLinkedHashMap
   }
 
   @SuppressWarnings("rawtypes")
-  private void checkLinks(ConcurrentLinkedHashMap<?, ?> map, DescriptionBuilder builder) {
+  private void checkLinks(ConcurrentLinkedHashMap<? extends K, ? extends V> map,
+      DescriptionBuilder builder) {
     long weightedSize = 0;
     Set<Node> seen = Sets.newIdentityHashSet();
     for (Node node : map.evictionDeque) {
@@ -124,7 +128,7 @@ public final class IsValidConcurrentLinkedHashMap
   }
 
   @SuppressWarnings("rawtypes")
-  private void checkNode(ConcurrentLinkedHashMap<?, ?> map, Node node,
+  private void checkNode(ConcurrentLinkedHashMap<? extends K, ? extends V> map, Node node,
       DescriptionBuilder builder) {
     builder.expectThat(node.key, is(not(nullValue())));
     builder.expectThat(node.get(), is(not(nullValue())));
@@ -138,7 +142,7 @@ public final class IsValidConcurrentLinkedHashMap
   }
 
   @Factory
-  public static IsValidConcurrentLinkedHashMap valid() {
-    return new IsValidConcurrentLinkedHashMap();
+  public static <K, V> IsValidConcurrentLinkedHashMap<K, V> valid() {
+    return new IsValidConcurrentLinkedHashMap<K, V>();
   }
 }

@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.nullValue;
  *
  * @author ben.manes@gmail.com (Ben Manes)
  */
-public final class IsEmptyCollection extends TypeSafeDiagnosingMatcher<Collection<?>> {
+public final class IsEmptyCollection<E> extends TypeSafeDiagnosingMatcher<Collection<? extends E>> {
 
   @Override
   public void describeTo(Description description) {
@@ -48,29 +48,29 @@ public final class IsEmptyCollection extends TypeSafeDiagnosingMatcher<Collectio
   }
 
   @Override
-  protected boolean matchesSafely(Collection<?> c, Description description) {
+  protected boolean matchesSafely(Collection<? extends E> c, Description description) {
     DescriptionBuilder builder = new DescriptionBuilder(description);
 
     checkCollection(c, builder);
     if (c instanceof Set<?>) {
-      checkSet((Set<?>) c, builder);
+      checkSet((Set<? extends E>) c, builder);
     }
     if (c instanceof List<?>) {
-      checkList((List<?>) c, builder);
+      checkList((List<? extends E>) c, builder);
     }
     if (c instanceof Queue<?>) {
-      checkQueue((Queue<?>) c, builder);
+      checkQueue((Queue<? extends E>) c, builder);
     }
     if (c instanceof Deque<?>) {
-      checkDeque((Deque<?>) c, builder);
+      checkDeque((Deque<? extends E>) c, builder);
     }
     if (c instanceof LinkedDeque<?>) {
-      checkLinkedDeque((LinkedDeque<?>) c, builder);
+      checkLinkedDeque((LinkedDeque<? extends E>) c, builder);
     }
     return builder.matches();
   }
 
-  private void checkCollection(Collection<?> c, DescriptionBuilder builder) {
+  private void checkCollection(Collection<? extends E> c, DescriptionBuilder builder) {
     builder.expectThat(c, hasSize(0));
     builder.expectThat("not empty", c.isEmpty(), is(true));
     builder.expectThat("iterator has data", c.iterator().hasNext(), is(false));
@@ -79,24 +79,24 @@ public final class IsEmptyCollection extends TypeSafeDiagnosingMatcher<Collectio
   }
 
   @SuppressWarnings("unchecked")
-  private void checkSet(Set<?> set, DescriptionBuilder builder) {
+  private void checkSet(Set<? extends E> set, DescriptionBuilder builder) {
     builder.expectThat("hashcode", set.hashCode(), is(equalTo(emptySet().hashCode())));
     builder.expectThat("collection not equal to empty set", (Set<Object>) set, is(emptySet()));
     builder.expectThat("empty set not equal to collection", emptySet(), is((Set<Object>) set));
   }
 
   @SuppressWarnings("unchecked")
-  private void checkList(List<?> list, DescriptionBuilder builder) {
+  private void checkList(List<? extends E> list, DescriptionBuilder builder) {
     builder.expectThat("hashcode", list.hashCode(), is(equalTo(emptyList().hashCode())));
     builder.expectThat("collection not equal to empty list", (List<Object>) list, is(emptyList()));
     builder.expectThat("empty list not equal to collection", emptyList(), is((List<Object>) list));
   }
 
-  private void checkQueue(Queue<?> queue, DescriptionBuilder builder) {
+  private void checkQueue(Queue<? extends E> queue, DescriptionBuilder builder) {
     builder.expectThat(queue.peek(), is(nullValue()));
   }
 
-  private void checkDeque(Deque<?> deque, DescriptionBuilder builder) {
+  private void checkDeque(Deque<? extends E> deque, DescriptionBuilder builder) {
     builder.expectThat(deque.peekFirst(), is(nullValue()));
     builder.expectThat(deque.peekLast(), is(nullValue()));
     builder.expectThat(deque.iterator().hasNext(), is(false));
@@ -109,7 +109,7 @@ public final class IsEmptyCollection extends TypeSafeDiagnosingMatcher<Collectio
   }
 
   @Factory
-  public static IsEmptyCollection emptyCollection() {
-    return new IsEmptyCollection();
+  public static <E> IsEmptyCollection<E> emptyCollection() {
+    return new IsEmptyCollection<E>();
   }
 }
