@@ -15,6 +15,7 @@
  */
 package com.googlecode.concurrentlinkedhashmap;
 
+import com.google.common.base.Throwables;
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 
@@ -42,8 +43,12 @@ public final class DescriptionBuilder {
         .appendText("\nExpected: ")
         .appendDescriptionOf(matcher)
         .appendText("\n     but: ");
-      matches = false;
       matcher.describeMismatch(actual, description);
+      description.appendText("\nLocation: ")
+        .appendText(Throwables.getStackTraceAsString(new Exception()))
+        .appendText("\n");
+
+      matches = false;
     }
   }
 
