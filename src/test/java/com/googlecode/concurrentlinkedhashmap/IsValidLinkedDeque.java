@@ -67,7 +67,7 @@ public final class IsValidLinkedDeque<E>
   void checkIterator(AbstractLinkedDeque<? extends E> deque, Iterator<? extends E> iterator,
       DescriptionBuilder builder) {
     Set<E> seen = Sets.newIdentityHashSet();
-    while (iterator.hasNext()) {
+    while (iterator.hasNext() && builder.matches()) {
       E element = iterator.next();
       checkElement((AbstractLinkedDeque<E>) deque, element, builder);
       String errorMsg = String.format("Loop detected: %s in %s", element, seen);

@@ -15,14 +15,15 @@
  */
 package com.googlecode.concurrentlinkedhashmap;
 
+import java.util.Iterator;
 import java.util.Set;
 import java.util.concurrent.locks.ReentrantLock;
 
 import com.google.common.collect.Sets;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.LirsPolicy;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.LruPolicy;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Node;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Task;
-import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.WeightedValue;
 import org.hamcrest.Description;
 import org.hamcrest.Factory;
 import org.hamcrest.TypeSafeDiagnosingMatcher;
@@ -31,6 +32,7 @@ import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.AMO
 import static com.googlecode.concurrentlinkedhashmap.IsEmptyMap.emptyMap;
 import static com.googlecode.concurrentlinkedhashmap.IsValidLinkedDeque.validLinkedDeque;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasEntry;
@@ -85,10 +87,10 @@ public final class IsValidConcurrentLinkedHashMap<K, V>
   private void checkMap(ConcurrentLinkedHashMap<? extends K, ? extends V> map,
       DescriptionBuilder builder) {
     for (int i = 0; i < map.buffers.length; i++) {
-      builder.expectThat("recencyQueue not empty", map.buffers[i].isEmpty(), is(true));
+      builder.expectThat("recencyQueue not empty", map.buffers[i], is(empty()));
       builder.expectThat("recencyQueueLength != 0", map.bufferLengths.get(i), is(0));
     }
-    builder.expectThat("listenerQueue", map.pendingNotifications.isEmpty(), is(true));
+    builder.expectThat("listenerQueue", map.pendingNotifications, is(empty()));
     builder.expectThat("Inconsistent size", map.data.size(), is(map.size()));
     builder.expectThat("weightedSize", map.weightedSize(), is(map.weightedSize.get()));
     builder.expectThat("capacity", map.capacity(), is(map.capacity));
@@ -102,32 +104,44 @@ public final class IsValidConcurrentLinkedHashMap<K, V>
 
   private void checkPolicy(ConcurrentLinkedHashMap<? extends K, ? extends V> map,
       DescriptionBuilder builder) {
+    checkLinks((ConcurrentLinkedHashMap<K, V>) map, builder);
+
     if (map.policy instanceof LruPolicy) {
-      checkLruPolicy(map, builder);
+      checkLruPolicy(map, (LruPolicy<K, V>) map.policy, builder);
     } else {
-      checkLirsPolicy(map, builder);
+      checkLirsPolicy(map, (LirsPolicy<K, V>) map.policy, builder);
     }
   }
 
   private void checkLruPolicy(ConcurrentLinkedHashMap<? extends K, ? extends V> map,
-      DescriptionBuilder builder) {
-    LruPolicy<?, ?> policy = (LruPolicy<?, ?>) map.policy;
-    AbstractLinkedDeque<?> deque = policy.evictionQueue;
-
-    checkLinks(map, policy, builder);
+      LruPolicy<K, V> policy, DescriptionBuilder builder) {
+    LirsQueue<?> deque = policy.evictionQueue;
     builder.expectThat(deque, hasSize(map.size()));
-    validLinkedDeque().matchesSafely(deque, builder.getDescription());
+    builder.expectThat(deque, is(validLinkedDeque()));
   }
 
-  @SuppressWarnings("rawtypes")
-  private void checkLinks(ConcurrentLinkedHashMap<? extends K, ? extends V> map,
-      LruPolicy<?, ?> policy, DescriptionBuilder builder) {
+  private void checkLirsPolicy(ConcurrentLinkedHashMap<? extends K, ? extends V> map,
+      LirsPolicy<K, V> policy, DescriptionBuilder builder) {
+    builder.expectThat(policy.recencyStack, is(validLinkedDeque()));
+    builder.expectThat(policy.coldQueue, is(validLinkedDeque()));
+
+    for (Iterator<Node<K, V>> iter = policy.ascendingIterator();
+        iter.hasNext() && builder.matches();) {
+      Node<K, V> node = iter.next();
+      builder.expectThat(node.status, is(not(nullValue())));
+      builder.expectThat(node.lirsWeight, is(node.get().weight));
+    }
+  }
+
+  private void checkLinks(ConcurrentLinkedHashMap<K, V> map, DescriptionBuilder builder) {
     long weightedSize = 0;
-    Set<Node> seen = Sets.newIdentityHashSet();
-    for (Node node : policy.evictionQueue) {
+    Set<Node<K, V>> seen = Sets.newIdentityHashSet();
+    for (Iterator<Node<K, V>> iter = map.policy.ascendingIterator();
+        iter.hasNext() && builder.matches();) {
+      Node<K, V> node = iter.next();
       String errorMsg = String.format("Loop detected: %s, saw %s in %s", node, seen, map);
       builder.expectThat(errorMsg, seen.add(node), is(true));
-      weightedSize += ((WeightedValue) node.get()).weight;
+      weightedSize += node.get().weight;
       checkNode(map, node, builder);
     }
 
@@ -138,22 +152,17 @@ public final class IsValidConcurrentLinkedHashMap<K, V>
         map.weightedSize(), is(weightedSize));
   }
 
-  @SuppressWarnings("rawtypes")
-  private void checkNode(ConcurrentLinkedHashMap<? extends K, ? extends V> map, Node node,
+  private void checkNode(ConcurrentLinkedHashMap<K, V> map, Node<K, V> node,
       DescriptionBuilder builder) {
     builder.expectThat(node.key, is(not(nullValue())));
     builder.expectThat(node.get(), is(not(nullValue())));
     builder.expectThat(node.getValue(), is(not(nullValue())));
-    builder.expectThat("weight", ((WeightedValue) node.get()).weight,
-        is(((EntryWeigher) map.weigher).weightOf(node.key, node.getValue())));
+    builder.expectThat("weight", node.get().weight,
+        is(map.weigher.weightOf(node.key, node.getValue())));
 
     builder.expectThat("inconsistent", map, hasKey(node.key));
     builder.expectThat("Could not find value: " + node.getValue(), map, hasValue(node.getValue()));
     builder.expectThat("found wrong node", map.data, hasEntry(node.key, node));
-  }
-
-  private void checkLirsPolicy(ConcurrentLinkedHashMap<?, ?> map, DescriptionBuilder builder) {
-    // TBD
   }
 
   @Factory

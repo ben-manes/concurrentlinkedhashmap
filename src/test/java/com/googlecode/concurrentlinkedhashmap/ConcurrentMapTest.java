@@ -36,7 +36,7 @@ import static com.googlecode.concurrentlinkedhashmap.IsEmptyMap.emptyMap;
 import static com.googlecode.concurrentlinkedhashmap.IsReserializable.reserializable;
 import static java.util.Arrays.asList;
 import static java.util.Collections.singletonList;
-import static org.apache.commons.lang.StringUtils.countMatches;
+import static org.apache.commons.lang3.StringUtils.countMatches;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -432,14 +432,14 @@ public final class ConcurrentMapTest extends AbstractTest {
 
   @Test(dataProvider = "builder")
   public void serialize_whenPopulated(Builder<Integer, Integer> builder) {
-    Map<Integer, Integer> map = builder.build();
+    ConcurrentLinkedHashMap<Integer, Integer> map = builder.build();
     warmUp(map, 0, capacity());
     assertThat(map, is(reserializable()));
   }
 
-  @Test
-  public void serialize_withCustomSettings() {
-    Map<Integer, Collection<Integer>> map = new Builder<Integer, Collection<Integer>>()
+  @Test(dataProvider = "builder")
+  public void serialize_withCustomSettings(Builder<Integer, Collection<Integer>> builder) {
+    ConcurrentLinkedHashMap<Integer, Collection<Integer>> map = builder
         .listener(new SerializableEvictionListener())
         .weigher(Weighers.<Integer>collection())
         .maximumWeightedCapacity(500)
@@ -720,6 +720,6 @@ public final class ConcurrentMapTest extends AbstractTest {
   @Test(dataProvider = "warmedMap")
   public void writeThroughEntry_serialize(Map<Integer, Integer> map) {
     Entry<Integer, Integer> entry = map.entrySet().iterator().next();
-    assertThat(entry, is(reserializable()));
+    assertThat((Serializable) entry, is(reserializable()));
   }
 }

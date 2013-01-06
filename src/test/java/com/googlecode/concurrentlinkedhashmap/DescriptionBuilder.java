@@ -38,7 +38,7 @@ public final class DescriptionBuilder {
   }
 
   public <T> void expectThat(String reason, T actual, Matcher<? super T> matcher) {
-    if (!matcher.matches(actual)) {
+    if (matches && !matcher.matches(actual)) {
       description.appendText(reason)
         .appendText("\nExpected: ")
         .appendDescriptionOf(matcher)

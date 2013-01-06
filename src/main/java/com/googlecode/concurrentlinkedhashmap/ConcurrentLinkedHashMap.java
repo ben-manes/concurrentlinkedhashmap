@@ -1587,7 +1587,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       } else {
         // "(2) If X is not in stack S, we leave its status in HIR and move
         // it to the end of list Q."
-        recencyStack.linkFirst(node);
+        recencyStack.offerFirst(node);
         coldQueue.moveToBack(node);
       }
     }
@@ -1660,7 +1660,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
         recencyStack.moveToFront(node);
       } else {
         hotWeightedSize += Math.abs(node.lirsWeight);
-        recencyStack.linkFirst(node);
+        recencyStack.offerFirst(node);
         node.status = Status.HOT;
       }
     }
@@ -1718,9 +1718,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
         // resident entries must remain in the queue).
         if (!coldQueue.isEmpty()) {
           Node<K, V> last = coldQueue.unlinkLast();
-          if (!recencyStack.contains(last)) {
-            recencyStack.linkLast(last);
-          }
+          recencyStack.offerLast(last);
           makeHot(last);
         }
       }

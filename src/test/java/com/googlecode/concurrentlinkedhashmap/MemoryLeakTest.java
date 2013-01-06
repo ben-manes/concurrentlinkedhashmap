@@ -15,22 +15,21 @@
  */
 package com.googlecode.concurrentlinkedhashmap;
 
-import static com.googlecode.concurrentlinkedhashmap.ConcurrentTestHarness.timeTasks;
-import static java.util.concurrent.TimeUnit.SECONDS;
-import static org.apache.commons.lang.time.DurationFormatUtils.formatDuration;
-
 import java.text.NumberFormat;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
 
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Parameters;
 import org.testng.annotations.Test;
 
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
-import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
+import static com.googlecode.concurrentlinkedhashmap.ConcurrentTestHarness.timeTasks;
+import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.apache.commons.lang3.time.DurationFormatUtils.formatDuration;
 
 /**
  * A unit-test to assert that the cache does not have a memory leak by not being

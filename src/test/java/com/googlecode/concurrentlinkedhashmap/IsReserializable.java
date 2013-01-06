@@ -19,8 +19,8 @@ import java.io.Serializable;
 import java.util.Map;
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.BoundedEntryWeigher;
-import org.apache.commons.lang.SerializationUtils;
-import org.apache.commons.lang.builder.EqualsBuilder;
+import org.apache.commons.lang3.SerializationUtils;
+import org.apache.commons.lang3.builder.EqualsBuilder;
 import org.hamcrest.Description;
 import org.hamcrest.Factory;
 import org.hamcrest.Matcher;
@@ -37,7 +37,7 @@ import static com.googlecode.concurrentlinkedhashmap.IsValidConcurrentLinkedHash
  *
  * @author ben.manes@gmail.com (Ben Manes)
  */
-public final class IsReserializable<T> extends TypeSafeMatcher<T> {
+public final class IsReserializable<T extends Serializable> extends TypeSafeMatcher<T> {
 
   @Override
   public void describeTo(Description description) {
@@ -79,13 +79,12 @@ public final class IsReserializable<T> extends TypeSafeMatcher<T> {
         .append(original, data);
   }
 
-  @SuppressWarnings("unchecked")
   private T reserialize(T object) {
-    return (T) SerializationUtils.clone((Serializable) object);
+    return SerializationUtils.clone(object);
   }
 
   @Factory
-  public static <T> Matcher<T> reserializable() {
+  public static <T extends Serializable> Matcher<T> reserializable() {
     return new IsReserializable<T>();
   }
 }
