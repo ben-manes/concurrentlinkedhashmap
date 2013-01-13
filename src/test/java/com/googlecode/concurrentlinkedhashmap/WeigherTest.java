@@ -169,7 +169,6 @@ public final class WeigherTest extends AbstractTest {
       LirsPolicy<?, ?> policy = (LirsPolicy<?, ?>) map.policy;
       policy.maximumHotWeightedSize = LirsPolicy.calculateMaxHotWeightedSize(MAXIMUM_CAPACITY);
       policy.hotWeightedSize = policy.maximumHotWeightedSize;
-      policy.weightedSize = MAXIMUM_CAPACITY;
     }
 
     map.put(3, 3);

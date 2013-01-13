@@ -1447,11 +1447,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     @GuardedBy("evictionLock")
     long maximumHotWeightedSize;
 
-    // TODO: Should be the outer class's; duplicated to follow LirsMap more strictly for now
-    @GuardedBy("evictionLock")
-    long maximumWeightedSize; // aka 'capacity'
-    @GuardedBy("evictionLock")
-    long weightedSize;
     @GuardedBy("evictionLock")
     final ConcurrentLinkedHashMap<K, V> map;
 
@@ -1459,8 +1454,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       this.map = map;
       this.coldQueue = new LirsQueue<Node<K, V>>();
       this.recencyStack = new LirsStack<Node<K, V>>();
-      this.maximumWeightedSize = map.capacity;
-      this.maximumHotWeightedSize = calculateMaxHotWeightedSize(maximumWeightedSize);
+      this.maximumHotWeightedSize = calculateMaxHotWeightedSize(map.capacity);
     }
 
     /**
@@ -1497,7 +1491,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
      */
     @GuardedBy("evictionLock")
     void evict(Node<K, V> node) {
-      weightedSize -= node.lirsWeight;
+      //weightedSize -= node.lirsWeight;
       coldQueue.remove(node);
 
       if (!recencyStack.remove(node)) {
@@ -1527,6 +1521,9 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
         if (node.isResident()) {
           onHit(node);
         } else {
+          // now the missed item is in the cache
+          map.weightedSize.lazySet(map.weightedSize.get() + node.lirsWeight);
+
           onMiss(node);
         }
       }
@@ -1602,7 +1599,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     @GuardedBy("evictionLock")
     void onMiss(Node<K, V> node) {
       // now the missed item is in the cache
-      weightedSize += node.lirsWeight;
+      //map.weightedSize.lazySet(map.weightedSize.get() + node.lirsWeight);
 
       if (hotWeightedSize < maximumHotWeightedSize) {
         warmupMiss(node);
@@ -1648,7 +1645,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
       // This condition is unspecified in the paper, but appears to be
       // necessary.
-      while (weightedSize > maximumWeightedSize) {
+      while (map.weightedSize.get() > map.capacity) {
         // "We remove the HIR resident block at the front of list Q (it then
         // becomes a non-resident block), and replace it out of the cache."
         Node<K, V> evicted = evict();
@@ -1692,7 +1689,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
         case HOT:
           hotWeightedSize -= Math.abs(node.lirsWeight);
         case COLD:
-          weightedSize -= Math.abs(node.lirsWeight);
+          map.weightedSize.lazySet(map.weightedSize.get() - Math.abs(node.lirsWeight));
         default:
           node.status = Status.NON_RESIDENT;
       }
@@ -1738,10 +1735,9 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       if (node.status == Status.HOT) {
         hotWeightedSize += weightDifference;
       }
-      weightedSize += weightDifference;
       node.lirsWeight += weightDifference;
 
-      while (weightedSize >= maximumWeightedSize) {
+      while (map.weightedSize.get() >= map.capacity) {
         Node<K, V> evicted = evict();
 
         // If weighted values are used, then the pending operations will adjust

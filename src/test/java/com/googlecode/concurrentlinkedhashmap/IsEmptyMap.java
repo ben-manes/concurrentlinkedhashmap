@@ -88,7 +88,6 @@ public final class IsEmptyMap<K, V>
 
   private void checkLirsPolicy(ConcurrentLinkedHashMap<?, ?> map, DescriptionBuilder builder) {
     LirsPolicy<?, ?> policy = (LirsPolicy<?, ?>) map.policy;
-    builder.expectThat("Weighted size != 0", policy.weightedSize, is(0L));
     checkEmptyDeque(policy.recencyStack, builder);
     checkEmptyDeque(policy.coldQueue, builder);
   }

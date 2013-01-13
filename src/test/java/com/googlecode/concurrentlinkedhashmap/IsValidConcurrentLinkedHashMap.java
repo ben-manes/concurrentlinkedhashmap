@@ -102,13 +102,12 @@ public final class IsValidConcurrentLinkedHashMap<K, V>
   }
 
   private void checkPolicy(ConcurrentLinkedHashMap<K, V> map, DescriptionBuilder builder) {
-    checkLinks(map, builder);
-
     if (map.policy instanceof LruPolicy) {
       checkLruPolicy(map, (LruPolicy<K, V>) map.policy, builder);
     } else {
       checkLirsPolicy(map, (LirsPolicy<K, V>) map.policy, builder);
     }
+    checkLinks(map, builder);
   }
 
   private void checkLruPolicy(ConcurrentLinkedHashMap<K, V> map, LruPolicy<K, V> policy,
