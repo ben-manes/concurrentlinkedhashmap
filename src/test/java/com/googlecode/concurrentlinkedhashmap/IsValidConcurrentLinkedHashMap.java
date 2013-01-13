@@ -26,6 +26,7 @@ import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Node;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Task;
 import org.hamcrest.Description;
 import org.hamcrest.Factory;
+import org.hamcrest.Matcher;
 import org.hamcrest.TypeSafeDiagnosingMatcher;
 
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.AMORTIZED_DRAIN_THRESHOLD;
@@ -51,7 +52,7 @@ import static org.hamcrest.Matchers.nullValue;
  */
 @SuppressWarnings("unchecked")
 public final class IsValidConcurrentLinkedHashMap<K, V>
-    extends TypeSafeDiagnosingMatcher<ConcurrentLinkedHashMap<? extends K, ? extends V>> {
+    extends TypeSafeDiagnosingMatcher<ConcurrentLinkedHashMap<K, V>> {
 
   @Override
   public void describeTo(Description description) {
@@ -59,8 +60,7 @@ public final class IsValidConcurrentLinkedHashMap<K, V>
   }
 
   @Override
-  protected boolean matchesSafely(ConcurrentLinkedHashMap<? extends K, ? extends V> map,
-      Description description) {
+  protected boolean matchesSafely(ConcurrentLinkedHashMap<K, V> map, Description description) {
     DescriptionBuilder builder = new DescriptionBuilder(description);
 
     drain(map);
@@ -69,7 +69,7 @@ public final class IsValidConcurrentLinkedHashMap<K, V>
     return builder.matches();
   }
 
-  private void drain(ConcurrentLinkedHashMap<? extends K, ? extends V> map) {
+  private void drain(ConcurrentLinkedHashMap<K, V> map) {
     for (;;) {
       map.drainBuffers();
       assertThat(map.tasks, is(equalTo(new Task[AMORTIZED_DRAIN_THRESHOLD])));
@@ -84,8 +84,7 @@ public final class IsValidConcurrentLinkedHashMap<K, V>
     }
   }
 
-  private void checkMap(ConcurrentLinkedHashMap<? extends K, ? extends V> map,
-      DescriptionBuilder builder) {
+  private void checkMap(ConcurrentLinkedHashMap<K, V> map, DescriptionBuilder builder) {
     for (int i = 0; i < map.buffers.length; i++) {
       builder.expectThat("recencyQueue not empty", map.buffers[i], is(empty()));
       builder.expectThat("recencyQueueLength != 0", map.bufferLengths.get(i), is(0));
@@ -102,9 +101,8 @@ public final class IsValidConcurrentLinkedHashMap<K, V>
     }
   }
 
-  private void checkPolicy(ConcurrentLinkedHashMap<? extends K, ? extends V> map,
-      DescriptionBuilder builder) {
-    checkLinks((ConcurrentLinkedHashMap<K, V>) map, builder);
+  private void checkPolicy(ConcurrentLinkedHashMap<K, V> map, DescriptionBuilder builder) {
+    checkLinks(map, builder);
 
     if (map.policy instanceof LruPolicy) {
       checkLruPolicy(map, (LruPolicy<K, V>) map.policy, builder);
@@ -113,21 +111,22 @@ public final class IsValidConcurrentLinkedHashMap<K, V>
     }
   }
 
-  private void checkLruPolicy(ConcurrentLinkedHashMap<? extends K, ? extends V> map,
-      LruPolicy<K, V> policy, DescriptionBuilder builder) {
+  private void checkLruPolicy(ConcurrentLinkedHashMap<K, V> map, LruPolicy<K, V> policy,
+      DescriptionBuilder builder) {
     LirsQueue<?> deque = policy.evictionQueue;
     builder.expectThat(deque, hasSize(map.size()));
     builder.expectThat(deque, is(validLinkedDeque()));
   }
 
-  private void checkLirsPolicy(ConcurrentLinkedHashMap<? extends K, ? extends V> map,
-      LirsPolicy<K, V> policy, DescriptionBuilder builder) {
+  private void checkLirsPolicy(ConcurrentLinkedHashMap<K, V> map, LirsPolicy<K, V> policy,
+      DescriptionBuilder builder) {
     builder.expectThat(policy.recencyStack, is(validLinkedDeque()));
     builder.expectThat(policy.coldQueue, is(validLinkedDeque()));
 
     for (Iterator<Node<K, V>> iter = policy.ascendingIterator();
         iter.hasNext() && builder.matches();) {
       Node<K, V> node = iter.next();
+      builder.expectThat(map.data, hasEntry(node.key, node));
       builder.expectThat(node.status, is(not(nullValue())));
       builder.expectThat(node.lirsWeight, is(node.get().weight));
     }
@@ -166,7 +165,8 @@ public final class IsValidConcurrentLinkedHashMap<K, V>
   }
 
   @Factory
-  public static <K, V> IsValidConcurrentLinkedHashMap<K, V> valid() {
-    return new IsValidConcurrentLinkedHashMap<K, V>();
+  @SuppressWarnings("rawtypes")
+  public static Matcher<ConcurrentLinkedHashMap<?, ?>> valid() {
+    return new IsValidConcurrentLinkedHashMap();
   }
 }

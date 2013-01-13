@@ -121,7 +121,7 @@ public abstract class AbstractTest {
   public Object[][] providesBuilder() {
     return new Object[][] {
       { new Builder<Object, Object>().maximumWeightedCapacity(capacity()) },
-//      { new Builder<Object, Object>().maximumWeightedCapacity(capacity()).lirs(true) }
+      { new Builder<Object, Object>().maximumWeightedCapacity(capacity()).lirs(true) }
     };
   }
 

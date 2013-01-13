@@ -1523,10 +1523,12 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     @Override
     @GuardedBy("evictionLock")
     public void onAccess(Node<K, V> node) {
-      if (node.isResident()) {
-        onHit(node);
-      } else {
-        onMiss(node);
+      if (recencyStack.contains(node) || coldQueue.contains(node)) {
+        if (node.isResident()) {
+          onHit(node);
+        } else {
+          onMiss(node);
+        }
       }
     }
 
@@ -1649,7 +1651,13 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       while (weightedSize > maximumWeightedSize) {
         // "We remove the HIR resident block at the front of list Q (it then
         // becomes a non-resident block), and replace it out of the cache."
-        evict();
+        Node<K, V> evicted = evict();
+
+        // If weighted values are used, then the pending operations will adjust
+        // the size to reflect the correct weight
+        if (evicted == null) {
+          break;
+        }
       }
     }
 
@@ -1734,7 +1742,13 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       node.lirsWeight += weightDifference;
 
       while (weightedSize >= maximumWeightedSize) {
-        evict();
+        Node<K, V> evicted = evict();
+
+        // If weighted values are used, then the pending operations will adjust
+        // the size to reflect the correct weight
+        if (evicted == null) {
+          break;
+        }
       }
     }
 
