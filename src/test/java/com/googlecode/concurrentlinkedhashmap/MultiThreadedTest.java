@@ -99,7 +99,7 @@ public final class MultiThreadedTest extends AbstractTest {
   }
 
   @Test(dataProvider = "builder")
-  public void weightedConcurrency(Builder<Integer, List<Integer>> builder) {
+  public void concurrency_weighted(Builder<Integer, List<Integer>> builder) {
     final ConcurrentLinkedHashMap<Integer, List<Integer>> map = builder
         .weigher(Weighers.<Integer>list())
         .maximumWeightedCapacity(threads)

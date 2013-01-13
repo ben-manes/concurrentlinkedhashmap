@@ -91,7 +91,7 @@ public final class IsValidConcurrentLinkedHashMap<K, V>
     }
     builder.expectThat("listenerQueue", map.pendingNotifications, is(empty()));
     builder.expectThat("Inconsistent size", map.data.size(), is(map.size()));
-    builder.expectThat("weightedSize", map.weightedSize(), is(map.weightedSize.get()));
+    builder.expectThat("weightedSize", map.weightedSize.get(), is(map.weightedSize()));
     builder.expectThat("capacity", map.capacity(), is(map.capacity));
     builder.expectThat("overflow", map.capacity, is(greaterThanOrEqualTo(map.weightedSize())));
     builder.expectThat(((ReentrantLock) map.evictionLock).isLocked(), is(false));
@@ -147,7 +147,7 @@ public final class IsValidConcurrentLinkedHashMap<K, V>
     builder.expectThat("WeightedSize != link weights"
         + " [" + map.weightedSize() + " vs. " + weightedSize + "]"
         + " {size: " + map.size() + " vs. " + seen.size() + "}",
-        map.weightedSize(), is(weightedSize));
+        weightedSize, is(map.weightedSize()));
   }
 
   private void checkNode(ConcurrentLinkedHashMap<K, V> map, Node<K, V> node,

@@ -1499,6 +1499,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
         // backingMap.remove(key, this);
         // node.value = null
         makeNonResident(node);
+      } else if (node.status == Status.HOT) {
+        hotWeightedSize -= Math.abs(node.lirsWeight);
       }
 
       // Notify the listener only if the entry was evicted
@@ -1606,6 +1608,20 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       } else {
         fullMiss(node);
       }
+
+      // This condition is unspecified in the paper, but appears to be
+      // necessary.
+      while (map.weightedSize.get() > map.capacity) {
+        // "We remove the HIR resident block at the front of list Q (it then
+        // becomes a non-resident block), and replace it out of the cache."
+        Node<K, V> evicted = evict();
+
+        // If weighted values are used, then the pending operations will adjust
+        // the size to reflect the correct weight
+        if (evicted == null) {
+          break;
+        }
+      }
     }
 
     /** Records a miss when the hot entry set is not full. */
@@ -1641,20 +1657,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
         recencyStack.linkFirst(node);
         node.status = Status.COLD;
         //makeCold(node);
-      }
-
-      // This condition is unspecified in the paper, but appears to be
-      // necessary.
-      while (map.weightedSize.get() > map.capacity) {
-        // "We remove the HIR resident block at the front of list Q (it then
-        // becomes a non-resident block), and replace it out of the cache."
-        Node<K, V> evicted = evict();
-
-        // If weighted values are used, then the pending operations will adjust
-        // the size to reflect the correct weight
-        if (evicted == null) {
-          break;
-        }
       }
     }
 
