@@ -655,7 +655,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
       // ignore out-of-order write operations
       if (node.get().isAlive()) {
-        policy.onAdd(node);
+        policy.onAdd(node, weight);
         //evict();
       }
     }
@@ -1354,7 +1354,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   // Used to gradually transition over to LIRS without breaking tests
   interface Policy<K, V> {
     Node<K, V> evict();
-    void onAdd(Node<K, V> node);
+    void onAdd(Node<K, V> node, int weight);
     void onAccess(Node<K, V> node);
     void onRemove(Node<K, V> node);
     void onUpdate(Node<K, V> node, int weightDifference);
@@ -1380,7 +1380,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
     @Override
     @GuardedBy("evictionLock")
-    public void onAdd(Node<K, V> node) {
+    public void onAdd(Node<K, V> node, int weight) {
       evictionQueue.add(node);
       map.evict();
     }
@@ -1512,8 +1512,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
     @Override
     @GuardedBy("evictionLock")
-    public void onAdd(Node<K, V> node) {
-      onMiss(node);
+    public void onAdd(Node<K, V> node, int weight) {
+      onMiss(node, weight);
     }
 
     @Override
@@ -1526,7 +1526,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
           // now the missed item is in the cache
           map.weightedSize.lazySet(map.weightedSize.get() + node.lirsWeight);
 
-          onMiss(node);
+          onMiss(node, node.lirsWeight);
         }
       }
     }
@@ -1574,7 +1574,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       // "There are two cases for block X:"
       if (recencyStack.contains(node)) {
         // "(1) If X is in the stack S, we change its status to LIR."
-        makeHot(node);
+        makeHot(node, node.lirsWeight);
 
         // "This block is also removed from list Q."
         coldQueue.remove(node);
@@ -1599,14 +1599,14 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
      * non-resident entry is re-computed.
      */
     @GuardedBy("evictionLock")
-    void onMiss(Node<K, V> node) {
+    void onMiss(Node<K, V> node, int weight) {
       // now the missed item is in the cache
       //map.weightedSize.lazySet(map.weightedSize.get() + node.lirsWeight);
 
       if (hotWeightedSize < maximumHotWeightedSize) {
-        warmupMiss(node);
+        warmupMiss(node, weight);
       } else {
-        fullMiss(node);
+        fullMiss(node, weight);
       }
 
       // This condition is unspecified in the paper, but appears to be
@@ -1626,17 +1626,17 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
     /** Records a miss when the hot entry set is not full. */
     @GuardedBy("evictionLock")
-    void warmupMiss(Node<K, V> node) {
+    void warmupMiss(Node<K, V> node, int weight) {
       // See section 3.3:
       // "When LIR block set is not full, all the referenced blocks are
       // given an LIR status until its size reaches L_lirs."
-      makeHot(node);
+      makeHot(node, weight);
     }
 
     // TODO: Appears to have duplicate code with coldHit(node)
     /** Records a miss when the hot entry set is full. */
     @GuardedBy("evictionLock")
-    private void fullMiss(Node<K, V> node) {
+    private void fullMiss(Node<K, V> node, int weight) {
       // See section 3.3 case 3:
       // "Upon accessing an HIR non-resident block X:
       // This is a miss."
@@ -1648,8 +1648,10 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
         // "(1) If X is in stack S, we change its status to LIR and move the
         // LIR block in the bottom of stack S to the end of list Q with its
         // status changed to HIR. A stack pruning is then conducted.
-        makeHot(node);
-        migrateToQueue(recencyStack.getLast());
+        makeHot(node, weight);
+        if (node != recencyStack.getLast()) {
+          migrateToQueue(recencyStack.getLast());
+        }
         pruneStack();
       } else {
         // "(2) If X is not in stack S, we leave its status in HIR and place
@@ -1662,11 +1664,11 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
     /**  Marks this entry as hot. */
     @GuardedBy("evictionLock")
-    void makeHot(Node<K, V> node) {
+    void makeHot(Node<K, V> node, int weight) {
       if (node.status == Status.HOT) {
         recencyStack.moveToFront(node);
       } else {
-        hotWeightedSize += Math.abs(node.lirsWeight);
+        hotWeightedSize += weight;
         recencyStack.offerFirst(node);
         node.status = Status.HOT;
       }
@@ -1726,7 +1728,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
         if (!coldQueue.isEmpty()) {
           Node<K, V> last = coldQueue.unlinkLast();
           recencyStack.offerLast(last);
-          makeHot(last);
+          makeHot(last, node.lirsWeight);
         }
       }
     }
