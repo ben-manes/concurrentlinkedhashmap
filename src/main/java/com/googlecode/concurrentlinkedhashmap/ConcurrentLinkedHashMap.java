@@ -598,14 +598,14 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * @param node the entry in the page replacement policy
    */
   @GuardedBy("evictionLock")
-  void makeDead(Node<K, V> node) {
+  int makeDead(Node<K, V> node) {
     for (;;) {
       WeightedValue<V> current = node.get();
       WeightedValue<V> dead = new WeightedValue<V>(current.value, 0);
       if (node.compareAndSet(current, dead)) {
         weightedSize.lazySet(weightedSize.get() - Math.abs(current.weight));
         node.lirsWeight = 0;
-        return;
+        return current.weight;
       }
     }
   }
@@ -1493,21 +1493,21 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     void evict(Node<K, V> node) {
       //weightedSize -= node.lirsWeight;
       coldQueue.remove(node);
+      int weight = map.makeDead(node);
 
       if (!recencyStack.remove(node)) {
         // TOOD: store a tombstone to revive non-resident entries and don't modify the node
         // backingMap.remove(key, this);
         // node.value = null
-        makeNonResident(node);
+        makeNonResident(node, weight);
       } else if (node.status == Status.HOT) {
-        hotWeightedSize -= Math.abs(node.lirsWeight);
+        hotWeightedSize -= Math.abs(weight);
       }
 
       // Notify the listener only if the entry was evicted
       if (map.data.remove(node.key, node)) {
         map.pendingNotifications.add(node);
       }
-      map.makeDead(node);
     }
 
     @Override
@@ -1649,9 +1649,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
         // LIR block in the bottom of stack S to the end of list Q with its
         // status changed to HIR. A stack pruning is then conducted.
         makeHot(node, weight);
-        if (node != recencyStack.getLast()) {
-          migrateToQueue(recencyStack.getLast());
-        }
+        migrateToQueue(recencyStack.getLast());
         pruneStack();
       } else {
         // "(2) If X is not in stack S, we leave its status in HIR and place
@@ -1688,12 +1686,12 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     /**  Marks this entry as non-resident. */
     @GuardedBy("evictionLock")
     @SuppressWarnings("fallthrough")
-    void makeNonResident(Node<K, V> node) {
+    void makeNonResident(Node<K, V> node, int weight) {
       switch (node.status) {
         case HOT:
-          hotWeightedSize -= Math.abs(node.lirsWeight);
+          hotWeightedSize -= Math.abs(weight);
         case COLD:
-          map.weightedSize.lazySet(map.weightedSize.get() - Math.abs(node.lirsWeight));
+          map.weightedSize.lazySet(map.weightedSize.get() - Math.abs(weight));
         default:
           node.status = Status.NON_RESIDENT;
       }
