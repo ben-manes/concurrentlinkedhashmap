@@ -23,6 +23,7 @@ import java.text.NumberFormat;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.locks.LockSupport;
 
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
@@ -80,6 +81,7 @@ public final class MemoryLeakTest {
         for (;;) {
           map.get(id);
           Thread.yield();
+          LockSupport.parkNanos(1L);
         }
       }
     });

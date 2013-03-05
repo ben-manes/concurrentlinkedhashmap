@@ -147,7 +147,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   static final long MAXIMUM_CAPACITY = Long.MAX_VALUE - Integer.MAX_VALUE;
 
   /** The maximum number of pending operations per buffer. */
-  static final int MAXIMUM_BUFFER_SIZE = 1 << 20;
+  static final int MAXIMUM_BUFFER_SIZE = 1024;
 
   /** The number of pending operations per buffer before attempting to drain. */
   static final int BUFFER_THRESHOLD = 16;
