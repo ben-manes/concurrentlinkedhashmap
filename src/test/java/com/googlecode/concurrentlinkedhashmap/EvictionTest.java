@@ -18,33 +18,30 @@ package com.googlecode.concurrentlinkedhashmap;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Node;
-import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Task;
 import com.googlecode.concurrentlinkedhashmap.benchmark.Benchmarks.EfficiencyRun;
 import com.googlecode.concurrentlinkedhashmap.caches.Cache;
 import com.googlecode.concurrentlinkedhashmap.caches.CacheBuilder;
 import com.googlecode.concurrentlinkedhashmap.generator.Generator;
 import com.googlecode.concurrentlinkedhashmap.generator.ScrambledZipfianGenerator;
-import org.mockito.invocation.InvocationOnMock;
-import org.mockito.stubbing.Answer;
+import org.mockito.Mockito;
 import org.testng.annotations.Test;
 
 import static com.google.common.collect.Maps.newLinkedHashMap;
 import static com.google.common.collect.Sets.newLinkedHashSet;
-import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.AMORTIZED_DRAIN_THRESHOLD;
-import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.BUFFER_THRESHOLD;
-import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.MAXIMUM_BUFFER_SIZE;
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.MAXIMUM_CAPACITY;
-import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.bufferIndex;
+import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.READ_BUFFER_THRESHOLD;
+import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.writeCounterIndex;
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.DrainStatus.REQUIRED;
 import static com.googlecode.concurrentlinkedhashmap.EvictionTest.Status.ALIVE;
 import static com.googlecode.concurrentlinkedhashmap.EvictionTest.Status.DEAD;
@@ -61,16 +58,15 @@ import static java.util.Collections.singletonMap;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.anyInt;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 /**
  * A unit-test for the page replacement algorithm and its public methods.
@@ -209,7 +205,7 @@ public final class EvictionTest extends AbstractTest {
         .maximumWeightedCapacity(MAXIMUM_CAPACITY)
         .build();
     map.put(1, 2);
-    map.capacity = MAXIMUM_CAPACITY;
+    map.capacity.set(MAXIMUM_CAPACITY);
     map.weightedSize.set(MAXIMUM_CAPACITY);
 
     map.put(2, 3);
@@ -347,13 +343,14 @@ public final class EvictionTest extends AbstractTest {
   public void updateRecency_onGetQuietly(final ConcurrentLinkedHashMap<Integer, Integer> map) {
     final Node<Integer, Integer> first = map.evictionDeque.peek();
     final Node<Integer, Integer> last = map.evictionDeque.peekLast();
+    final long drained = map.drainedCount.get();
 
     map.getQuietly(first.key);
-    int maxTaskIndex = map.moveTasksFromBuffers(new Task[AMORTIZED_DRAIN_THRESHOLD]);
+    map.drainBuffers();
 
     assertThat(map.evictionDeque.peekFirst(), is(first));
     assertThat(map.evictionDeque.peekLast(), is(last));
-    assertThat(maxTaskIndex, is(-1));
+    assertThat(map.drainedCount.get(), is(drained));
   }
 
   @Test(dataProvider = "warmedMap")
@@ -409,67 +406,54 @@ public final class EvictionTest extends AbstractTest {
   }
 
   @Test(dataProvider = "guardedMap")
-  public void applyInRecencyOrder(final ConcurrentLinkedHashMap<Integer, Integer> map) {
-    final int[] expected = { map.nextOrder };
-    int maxTasks = 2 * BUFFER_THRESHOLD;
-
-    for (int i = 0; i < maxTasks; i++) {
-      final int id = map.nextOrdering();
-      Task task = mock(Task.class);
-      when(task.getOrder()).thenReturn(id);
-      doAnswer(new Answer<Void>() {
-        @Override public Void answer(InvocationOnMock invocation) {
-          assertThat(id, is(expected[0]++));
-          return null;
-        }
-      }).when(task).run();
-
-      int index = i % map.buffers.length;
-      map.buffers[index].add(task);
-      map.bufferLengths.getAndIncrement(index);
-    }
-
-    map.drainBuffers();
-    for (Queue<?> buffer : map.buffers) {
-      assertThat(buffer.isEmpty(), is(true));
-    }
-  }
-
-  @Test(dataProvider = "guardedMap")
   public void exceedsMaximumBufferSize_onRead(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    map.bufferLengths.set(bufferIndex(), MAXIMUM_BUFFER_SIZE);
+    map.readBufferWriteCount[writeCounterIndex()].set(READ_BUFFER_THRESHOLD - 1);
 
-    Task task = mock(Task.class);
-    map.afterCompletion(task);
-    verify(task, never()).run();
+    map.afterRead(null);
+    assertThat(map.drainedCount.get(), is(0L));
 
-    assertThat(map.buffers[bufferIndex()].size(), is(0));
-    map.bufferLengths.set(bufferIndex(), 0);
+    map.afterRead(null);
+    assertThat(map.drainedCount.get(), is(READ_BUFFER_THRESHOLD + 1L));
   }
 
   @Test(dataProvider = "guardedMap")
   public void exceedsMaximumBufferSize_onWrite(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    map.bufferLengths.set(bufferIndex(), MAXIMUM_BUFFER_SIZE);
+    Runnable task = Mockito.mock(Runnable.class);
+    map.afterWrite(task);
+    verify(task).run();
 
-    Task task = mock(Task.class);
-    when(task.isWrite()).thenReturn(true);
-    map.afterCompletion(task);
-    verify(task, times(1)).run();
-
-    assertThat(map.buffers[bufferIndex()].size(), is(0));
-    map.bufferLengths.set(bufferIndex(), 0);
+    assertThat(map.writeBuffer, hasSize(0));
   }
 
   @Test(dataProvider = "warmedMap")
-  public void drain(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    for (int i = 0; i < BUFFER_THRESHOLD; i++) {
+  public void drain_onRead(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    AtomicLong writeCounter = map.readBufferWriteCount[writeCounterIndex()];
+
+    for (int i = 0; i < READ_BUFFER_THRESHOLD; i++) {
       map.get(1);
     }
-    int index = bufferIndex();
-    assertThat(map.bufferLengths.get(index), is(equalTo(BUFFER_THRESHOLD)));
+
+    int pending = 0;
+    for (AtomicReference<?> slot : map.readBuffer) {
+      if (slot.get() != null) {
+        pending++;
+      }
+    }
+    assertThat(pending, is(equalTo(READ_BUFFER_THRESHOLD)));
+    assertThat((int) writeCounter.get(), is(equalTo(pending)));
+
     map.get(1);
-    assertThat(map.bufferLengths.get(index), is(equalTo(0)));
-    assertThat(map.tasks, is(equalTo(new Task[AMORTIZED_DRAIN_THRESHOLD])));
+    assertThat(map.readBufferReadCount, is(equalTo(writeCounter.get())));
+    for (int i = 0; i < map.readBuffer.length; i++) {
+      assertThat(map.readBuffer[i].get(), is(nullValue()));
+    }
+  }
+
+  @Test(dataProvider = "guardedMap")
+  public void drain_onWrite(ConcurrentLinkedHashMap<Integer, Integer> map) {
+    map.put(1, 1);
+    assertThat(map.writeBuffer, hasSize(0));
+    assertThat(map.evictionDeque, hasSize(1));
   }
 
   @Test(dataProvider = "guardedMap")

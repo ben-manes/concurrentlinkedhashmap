@@ -33,7 +33,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.atomic.AtomicIntegerArray;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Lock;
@@ -119,11 +119,12 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * the ConcurrentHashMap operation.
    *
    * A memento of the reads and writes that were performed on the map are
-   * recorded in a buffer. These buffers are drained at the first opportunity
-   * after a write or when a buffer exceeds a threshold size. A mostly strict
-   * ordering is achieved by observing that each buffer is in a weakly sorted
-   * order relative to the last drain. This allows the buffers to be merged in
-   * O(n) time so that the operations are run in the expected order.
+   * recorded in buffers. These buffers are drained at the first opportunity
+   * after a write or when the read buffer exceeds a threshold size. The reads
+   * are recorded in a lossy buffer, allowing the reordering operations to be
+   * discarded if the draining process cannot keep up. Due to the concurrent
+   * nature of the read and write operations a strict policy ordering is not
+   * possible, but is observably strict when single threaded.
    *
    * Due to a lack of a strict ordering guarantee, a task can be executed
    * out-of-order, such as a removal followed by its addition. The state of the
@@ -143,32 +144,35 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * complexity.
    */
 
+  /** The number of CPUs */
+  static final int NCPU = Runtime.getRuntime().availableProcessors();
+
   /** The maximum weighted capacity of the map. */
   static final long MAXIMUM_CAPACITY = Long.MAX_VALUE - Integer.MAX_VALUE;
 
-  /** The maximum number of pending operations per buffer. */
-  static final int MAXIMUM_BUFFER_SIZE = 1024;
+  /** The number of write counters for tracking additions to the read buffer. */
+  static final int READ_BUFFER_WRITE_COUNTERS = ceilingNextPowerOfTwo(NCPU);
 
-  /** The number of pending operations per buffer before attempting to drain. */
-  static final int BUFFER_THRESHOLD = 16;
+  /** Mask value for indexing into the write counters. */
+  static final int READ_BUFFER_WRITE_COUNTERS_MASK = READ_BUFFER_WRITE_COUNTERS - 1;
 
-  /** The number of buffers to use. */
-  static final int NUMBER_OF_BUFFERS;
+  /** The number of pending read operations before attempting to drain. */
+  static final int READ_BUFFER_THRESHOLD = 16;
+
+  /** The maximum number of read operations to perform per amortized drain. */
+  static final int READ_BUFFER_DRAIN_THRESHOLD = (1 + NCPU) * READ_BUFFER_THRESHOLD;
+
+  /** The maximum number of pending reads per buffer. */
+  static final int READ_BUFFER_SIZE = ceilingNextPowerOfTwo(READ_BUFFER_DRAIN_THRESHOLD);
 
   /** Mask value for indexing into the buffers. */
-  static final int BUFFER_MASK;
+  static final int READ_BUFFER_MASK = READ_BUFFER_SIZE - 1;
 
-  /** The maximum number of operations to perform per amortized drain. */
-  static final int AMORTIZED_DRAIN_THRESHOLD;
+  /** The maximum number of write operations to perform per amortized drain. */
+  static final int WRITE_BUFFER_DRAIN_THRESHOLD = 16;
 
   /** A queue that discards all entries. */
   static final Queue<?> DISCARDING_QUEUE = new DiscardingQueue();
-
-  static {
-    NUMBER_OF_BUFFERS = ceilingNextPowerOfTwo(Runtime.getRuntime().availableProcessors());
-    AMORTIZED_DRAIN_THRESHOLD = (1 + NUMBER_OF_BUFFERS) * BUFFER_THRESHOLD;
-    BUFFER_MASK = NUMBER_OF_BUFFERS - 1;
-  }
 
   static int ceilingNextPowerOfTwo(int x) {
     // From Hacker's Delight, Chapter 3, Harry S. Warren Jr.
@@ -186,18 +190,19 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   @GuardedBy("evictionLock") // must write under lock
   final AtomicLong weightedSize;
   @GuardedBy("evictionLock") // must write under lock
-  volatile long capacity;
-
-  volatile int nextOrder;
-  @GuardedBy("evictionLock")
-  int drainedOrder;
-  @GuardedBy("evictionLock")
-  final Task[] tasks;
+  final AtomicLong capacity;
+  @GuardedBy("evictionLock") // must write under lock
+  long readBufferReadCount;
 
   final Lock evictionLock;
-  final Queue<Task>[] buffers;
-  final AtomicIntegerArray bufferLengths;
+  final Queue<Runnable> writeBuffer;
+  final AtomicLong[] readBufferWriteCount;
+  final AtomicReference<Node<K, V>>[] readBuffer;
+
+  @GuardedBy("evictionLock")
+  final AtomicLong drainedCount;
   final AtomicReference<DrainStatus> drainStatus;
+
   final EntryWeigher<? super K, ? super V> weigher;
 
   // These fields provide support for notifying a listener.
@@ -215,27 +220,26 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   private ConcurrentLinkedHashMap(Builder<K, V> builder) {
     // The data store and its maximum capacity
     concurrencyLevel = builder.concurrencyLevel;
-    capacity = Math.min(builder.capacity, MAXIMUM_CAPACITY);
-    data = new ConcurrentHashMap<K, Node<K, V>>(builder.initialCapacity, 0.75f, concurrencyLevel);
+    capacity = new PaddedAtomicLong(Math.min(builder.capacity, MAXIMUM_CAPACITY));
+    data = new ConcurrentHashMapV8<K, Node<K, V>>(builder.initialCapacity, 0.75f, concurrencyLevel);
 
     // The eviction support
     weigher = builder.weigher;
-    nextOrder = Integer.MIN_VALUE;
-    weightedSize = new AtomicLong();
-    drainedOrder = Integer.MIN_VALUE;
     evictionLock = new ReentrantLock();
+    drainedCount = new PaddedAtomicLong();
+    weightedSize = new PaddedAtomicLong();
     evictionDeque = new LinkedDeque<Node<K, V>>();
-    drainStatus = new AtomicReference<DrainStatus>(IDLE);
+    writeBuffer = new ConcurrentLinkedQueue<Runnable>();
+    drainStatus = new PaddedAtomicReference<DrainStatus>(IDLE);
 
-    bufferLengths = new AtomicIntegerArray(NUMBER_OF_BUFFERS);
-    buffers = (Queue<Task>[]) new Queue[NUMBER_OF_BUFFERS];
-    for (int i = 0; i < NUMBER_OF_BUFFERS; i++) {
-      buffers[i] = new ConcurrentLinkedQueue<Task>();
+    readBufferWriteCount = new PaddedAtomicLong[READ_BUFFER_WRITE_COUNTERS];
+    for (int i = 0; i < READ_BUFFER_WRITE_COUNTERS; i++) {
+      readBufferWriteCount[i] = new PaddedAtomicLong();
     }
-
-    // The drain is capped to the expected number of tasks plus additional
-    // slack to optimistically handle the concurrent additions to the buffers.
-    tasks = new Task[AMORTIZED_DRAIN_THRESHOLD];
+    readBuffer = new PaddedAtomicReference[READ_BUFFER_SIZE];
+    for (int i = 0; i < readBuffer.length; i++) {
+      readBuffer[i] = new PaddedAtomicReference<Node<K, V>>();
+    }
 
     // The notification queue and listener
     listener = builder.listener;
@@ -273,7 +277,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * @return the maximum weighted capacity
    */
   public long capacity() {
-    return capacity;
+    return capacity.get();
   }
 
   /**
@@ -287,7 +291,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     checkArgument(capacity >= 0);
     evictionLock.lock();
     try {
-      this.capacity = Math.min(capacity, MAXIMUM_CAPACITY);
+      this.capacity.lazySet(Math.min(capacity, MAXIMUM_CAPACITY));
       drainBuffers();
       evict();
     } finally {
@@ -298,7 +302,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
   /** Determines whether the map has exceeded its capacity. */
   boolean hasOverflowed() {
-    return weightedSize.get() > capacity;
+    return weightedSize.get() > capacity.get();
   }
 
   /**
@@ -332,59 +336,41 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   }
 
   /**
-   * Performs the post-processing work required after the map operation.
+   * Performs the post-processing work required after a read.
    *
-   * @param task the pending operation to be applied
+   * @param node the entry in the page replacement policy
    */
-  void afterCompletion(Task task) {
-    boolean delayable = schedule(task);
+  void afterRead(Node<K, V> node) {
+    AtomicLong counter = readBufferWriteCount[writeCounterIndex()];
+    long writeCount = counter.get();
+    counter.lazySet(writeCount + 1);
+
+    int index = (int) (writeCount & READ_BUFFER_MASK);
+    readBuffer[index].lazySet(node);
+
     DrainStatus status = drainStatus.get();
+    boolean delayable = (writeCount - drainedCount.get()) < READ_BUFFER_THRESHOLD;
     if (status.shouldDrainBuffers(delayable)) {
       tryToDrainBuffers();
     }
     notifyListener();
   }
 
+  /** Returns the index of the write counter to use when recording a read. */
+  static int writeCounterIndex() {
+    return ((int) Thread.currentThread().getId()) & READ_BUFFER_WRITE_COUNTERS_MASK;
+  }
+
   /**
-   * Schedules the task to be applied to the page replacement policy.
+   * Performs the post-processing work required after a write.
    *
-   * @param task the pending operation
-   * @return if the draining of the buffers can be delayed
+   * @param task the pending operation to be applied
    */
-  boolean schedule(Task task) {
-    int index = bufferIndex();
-    int buffered = bufferLengths.incrementAndGet(index);
-
-    if (task.isWrite()) {
-      buffers[index].add(task);
-      drainStatus.set(REQUIRED);
-      return false;
-    }
-
-    // A buffer may discard a read task if its length exceeds a tolerance level
-    if (buffered <= MAXIMUM_BUFFER_SIZE) {
-      buffers[index].add(task);
-      return (buffered <= BUFFER_THRESHOLD);
-    } else { // not optimized for fail-safe scenario
-      bufferLengths.decrementAndGet(index);
-      return false;
-    }
-  }
-
-  /** Returns the index to the buffer that the task should be scheduled on. */
-  static int bufferIndex() {
-    // A buffer is chosen by the thread's id so that tasks are distributed in a
-    // pseudo evenly manner. This helps avoid hot entries causing contention due
-    // to other threads trying to append to the same buffer.
-    return (int) Thread.currentThread().getId() & BUFFER_MASK;
-  }
-
-  /** Returns the ordering value to assign to a task. */
-  int nextOrdering() {
-    // The next ordering is acquired in a racy fashion as the increment is not
-    // atomic with the insertion into a buffer. This means that concurrent tasks
-    // can have the same ordering and the buffers are in a weakly sorted order.
-    return nextOrder++;
+  void afterWrite(Runnable task) {
+    writeBuffer.add(task);
+    drainStatus.lazySet(REQUIRED);
+    tryToDrainBuffers();
+    notifyListener();
   }
 
   /**
@@ -394,7 +380,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   void tryToDrainBuffers() {
     if (evictionLock.tryLock()) {
       try {
-        drainStatus.set(PROCESSING);
+        drainStatus.lazySet(PROCESSING);
         drainBuffers();
       } finally {
         drainStatus.compareAndSet(PROCESSING, IDLE);
@@ -403,136 +389,52 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     }
   }
 
-  /**
-   * Drains the buffers up to the amortized threshold and applies the pending
-   * operations.
-   */
+  /** Drains the read and write buffers up to an amortized threshold. */
   @GuardedBy("evictionLock")
   void drainBuffers() {
-    // A mostly strict ordering is achieved by observing that each buffer
-    // contains tasks in a weakly sorted order starting from the last drain.
-    // The buffers can be merged into a sorted array in O(n) time by using
-    // counting sort and chaining on a collision.
-
-    // Moves the tasks into the output array, applies them, and updates the
-    // marker for the starting order of the next drain.
-    int maxTaskIndex = moveTasksFromBuffers(tasks);
-    updateDrainedOrder(tasks, maxTaskIndex);
-    runTasks(tasks, maxTaskIndex);
+    drainReadBuffer();
+    drainWriteBuffer();
   }
 
-  /**
-   * Moves the tasks from the buffers into the output array.
-   *
-   * @param tasks the ordered array of the pending operations
-   * @return the highest index location of a task that was added to the array
-   */
+  /** Drains the read buffer up to an amortized threshold. */
   @GuardedBy("evictionLock")
-  int moveTasksFromBuffers(Task[] tasks) {
-    int maxTaskIndex = -1;
-    for (int i = 0; i < buffers.length; i++) {
-      int maxIndex = moveTasksFromBuffer(tasks, i);
-      maxTaskIndex = Math.max(maxIndex, maxTaskIndex);
-    }
-    return maxTaskIndex;
-  }
-
-  /**
-   * Moves the tasks from the specified buffer into the output array.
-   *
-   * @param tasks the ordered array of the pending operations
-   * @param bufferIndex the buffer to drain into the tasks array
-   * @return the highest index location of a task that was added to the array
-   */
-  @GuardedBy("evictionLock")
-  int moveTasksFromBuffer(Task[] tasks, int bufferIndex) {
-    // While a buffer is being drained it may be concurrently appended to. The
-    // number of tasks removed are tracked so that the length can be decremented
-    // by the delta rather than set to zero.
-    Queue<Task> buffer = buffers[bufferIndex];
-    int removedFromBuffer = 0;
-
-    Task task;
-    int maxIndex = -1;
-    while ((task = buffer.poll()) != null) {
-      removedFromBuffer++;
-
-      // The index into the output array is determined by calculating the offset
-      // since the last drain
-      int index = task.getOrder() - drainedOrder;
-      if (index < 0) {
-        // The task was missed by the last drain and can be run immediately
-        task.run();
-      } else if (index >= tasks.length) {
-        // Due to concurrent additions, the order exceeds the capacity of the
-        // output array. It is added to the end as overflow and the remaining
-        // tasks in the buffer will be handled by the next drain.
-        maxIndex = tasks.length - 1;
-        addTaskToChain(tasks, task, maxIndex);
+  void drainReadBuffer() {
+    long writeCount = readBufferWriteCount[writeCounterIndex()].get();
+    for (int i = 0; i < READ_BUFFER_DRAIN_THRESHOLD; i++) {
+      int index = (int) (readBufferReadCount & READ_BUFFER_MASK);
+      AtomicReference<Node<K, V>> slot = readBuffer[index];
+      Node<K, V> node = slot.get();
+      if (node == null) {
         break;
-      } else {
-        // Add the task to the array so that it is run in sequence
-        maxIndex = Math.max(index, maxIndex);
-        addTaskToChain(tasks, task, index);
       }
+
+      slot.lazySet(null);
+      applyRead(node);
+      readBufferReadCount++;
     }
-    bufferLengths.addAndGet(bufferIndex, -removedFromBuffer);
-    return maxIndex;
+    drainedCount.lazySet(writeCount);
   }
 
-  /**
-   * Adds the task as the head of the chain at the index location.
-   *
-   * @param tasks the ordered array of the pending operations
-   * @param task the pending operation to add
-   * @param index the array location
-   */
-  @GuardedBy("evictionLock")
-  void addTaskToChain(Task[] tasks, Task task, int index) {
-    task.setNext(tasks[index]);
-    tasks[index] = task;
-  }
-
-  /**
-   * Runs the pending page replacement policy operations.
-   *
-   * @param tasks the ordered array of the pending operations
-   * @param maxTaskIndex the maximum index of the array
-   */
-  @GuardedBy("evictionLock")
-  void runTasks(Task[] tasks, int maxTaskIndex) {
-    for (int i = 0; i <= maxTaskIndex; i++) {
-      runTasksInChain(tasks[i]);
-      tasks[i] = null;
+  /** Updates the node's location in the page replacement policy. */
+  void applyRead(Node<K, V> node) {
+    // An entry may be scheduled for reordering despite having been removed.
+    // This can occur when the entry was concurrently read while a writer was
+    // removing it. If the entry is no longer linked then it does not need to
+    // be processed.
+    if (evictionDeque.contains(node)) {
+      evictionDeque.moveToBack(node);
     }
   }
 
-  /**
-   * Runs the pending operations on the linked chain.
-   *
-   * @param task the first task in the chain of operations
-   */
+  /** Drains the read buffer up to an amortized threshold. */
   @GuardedBy("evictionLock")
-  void runTasksInChain(Task task) {
-    while (task != null) {
-      Task current = task;
-      task = task.getNext();
-      current.setNext(null);
-      current.run();
-    }
-  }
-
-  /**
-   * Updates the order to start the next drain from.
-   *
-   * @param tasks the ordered array of operations
-   * @param maxTaskIndex the maximum index of the array
-   */
-  @GuardedBy("evictionLock")
-  void updateDrainedOrder(Task[] tasks, int maxTaskIndex) {
-    if (maxTaskIndex >= 0) {
-      Task task = tasks[maxTaskIndex];
-      drainedOrder = task.getOrder() + 1;
+  void drainWriteBuffer() {
+    for (int i = 0; i < WRITE_BUFFER_DRAIN_THRESHOLD; i++) {
+      Runnable task = writeBuffer.poll();
+      if (task == null) {
+        break;
+      }
+      task.run();
     }
   }
 
@@ -597,34 +499,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     }
   }
 
-  /** Updates the node's location in the page replacement policy. */
-  class ReadTask extends AbstractTask {
-    final Node<K, V> node;
-
-    ReadTask(Node<K, V> node) {
-      this.node = node;
-    }
-
-    @Override
-    @GuardedBy("evictionLock")
-    public void run() {
-      // An entry may be scheduled for reordering despite having been removed.
-      // This can occur when the entry was concurrently read while a writer was
-      // removing it. If the entry is no longer linked then it does not need to
-      // be processed.
-      if (evictionDeque.contains(node)) {
-        evictionDeque.moveToBack(node);
-      }
-    }
-
-    @Override
-    public boolean isWrite() {
-      return false;
-    }
-  }
-
   /** Adds the node to the page replacement policy. */
-  final class AddTask extends AbstractTask {
+  final class AddTask implements Runnable {
     final Node<K, V> node;
     final int weight;
 
@@ -644,15 +520,10 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
         evict();
       }
     }
-
-    @Override
-    public boolean isWrite() {
-      return true;
-    }
   }
 
   /** Removes a node from the page replacement policy. */
-  final class RemovalTask extends AbstractTask {
+  final class RemovalTask implements Runnable {
     final Node<K, V> node;
 
     RemovalTask(Node<K, V> node) {
@@ -666,33 +537,24 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       evictionDeque.remove(node);
       makeDead(node);
     }
-
-    @Override
-    public boolean isWrite() {
-      return true;
-    }
   }
 
   /** Updates the weighted size and evicts an entry on overflow. */
-  final class UpdateTask extends ReadTask {
+  final class UpdateTask implements Runnable {
     final int weightDifference;
+    final Node<K, V> node;
 
     public UpdateTask(Node<K, V> node, int weightDifference) {
-      super(node);
       this.weightDifference = weightDifference;
+      this.node = node;
     }
 
     @Override
     @GuardedBy("evictionLock")
     public void run() {
       weightedSize.lazySet(weightedSize.get() + weightDifference);
-      super.run();
+      applyRead(node);
       evict();
-    }
-
-    @Override
-    public boolean isWrite() {
-      return true;
     }
   }
 
@@ -719,28 +581,24 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
   @Override
   public void clear() {
-    // The alternative is to iterate through the keys and call #remove(), which
-    // adds unnecessary contention on the eviction lock and buffers.
     evictionLock.lock();
     try {
+      // Discard all entries
       Node<K, V> node;
       while ((node = evictionDeque.poll()) != null) {
         data.remove(node.key, node);
         makeDead(node);
       }
 
-      // Drain the buffers and run only the write tasks
-      for (int i = 0; i < buffers.length; i++) {
-        Queue<Task> buffer = buffers[i];
-        int removed = 0;
-        Task task;
-        while ((task = buffer.poll()) != null) {
-          if (task.isWrite()) {
-            task.run();
-          }
-          removed++;
-        }
-        bufferLengths.addAndGet(i, -removed);
+      // Discard all pending reads
+      for (AtomicReference<Node<K, V>> slot : readBuffer) {
+        slot.lazySet(null);
+      }
+
+      // Apply all pending writes
+      Runnable task;
+      while ((task = writeBuffer.poll()) != null) {
+        task.run();
       }
     } finally {
       evictionLock.unlock();
@@ -770,7 +628,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     if (node == null) {
       return null;
     }
-    afterCompletion(new ReadTask(node));
+    afterRead(node);
     return node.getValue();
   }
 
@@ -821,10 +679,10 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     for (;;) {
       final Node<K, V> prior = data.putIfAbsent(node.key, node);
       if (prior == null) {
-        afterCompletion(new AddTask(node, weight));
+        afterWrite(new AddTask(node, weight));
         return null;
       } else if (onlyIfAbsent) {
-        afterCompletion(new ReadTask(prior));
+        afterRead(prior);
         return prior.getValue();
       }
       for (;;) {
@@ -835,10 +693,11 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
         if (prior.compareAndSet(oldWeightedValue, weightedValue)) {
           final int weightedDifference = weight - oldWeightedValue.weight;
-          final Task task = (weightedDifference == 0)
-              ? new ReadTask(prior)
-              : new UpdateTask(prior, weightedDifference);
-          afterCompletion(task);
+          if (weightedDifference == 0) {
+            afterRead(prior);
+          } else {
+            afterWrite(new UpdateTask(prior, weightedDifference));
+          }
           return oldWeightedValue.value;
         }
       }
@@ -853,7 +712,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     }
 
     makeRetired(node);
-    afterCompletion(new RemovalTask(node));
+    afterWrite(new RemovalTask(node));
     return node.getValue();
   }
 
@@ -869,7 +728,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       if (weightedValue.contains(value)) {
         if (tryToRetire(node, weightedValue)) {
           if (data.remove(key, node)) {
-            afterCompletion(new RemovalTask(node));
+            afterWrite(new RemovalTask(node));
             return true;
           }
         } else {
@@ -904,10 +763,11 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       }
       if (node.compareAndSet(oldWeightedValue, weightedValue)) {
         int weightedDifference = weight - oldWeightedValue.weight;
-        final Task task = (weightedDifference == 0)
-            ? new ReadTask(node)
-            : new UpdateTask(node, weightedDifference);
-        afterCompletion(task);
+        if (weightedDifference == 0) {
+          afterRead(node);
+        } else {
+          afterWrite(new UpdateTask(node, weightedDifference));
+        }
         return oldWeightedValue.value;
       }
     }
@@ -933,10 +793,11 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       }
       if (node.compareAndSet(weightedValue, newWeightedValue)) {
         int weightedDifference = weight - weightedValue.weight;
-        final Task task = (weightedDifference == 0)
-            ? new ReadTask(node)
-            : new UpdateTask(node, weightedDifference);
-        afterCompletion(task);
+        if (weightedDifference == 0) {
+          afterRead(node);
+        } else {
+          afterWrite(new UpdateTask(node, weightedDifference));
+        }
         return true;
       }
     }
@@ -1512,44 +1373,57 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     @Override public void onEviction(Object key, Object value) {}
   }
 
-  /** An operation that can be lazily applied to the page replacement policy. */
-  interface Task extends Runnable {
+  /**
+   * An AtomicReference with heuristic padding to lessen cache effects of this heavily CAS'ed
+   * location. While the padding adds noticeable space, the improved throughput outweighs
+   * using extra space.
+   */
+  static class PaddedAtomicReference<T> extends AtomicReference<T> {
+    private static final long serialVersionUID = 1L;
 
-    /** The priority order. */
-    int getOrder();
+    // Improve likelihood of isolation on <= 64 byte cache lines
+    long q0, q1, q2, q3, q4, q5, q6, q7, q8, q9, qa, qb, qc, qd, qe;
 
-    /** If the task represents an add, modify, or remove operation. */
-    boolean isWrite();
+    PaddedAtomicReference() {}
 
-    /** Returns the next task on the link chain. */
-    Task getNext();
-
-    /** Sets the next task on the link chain. */
-    void setNext(Task task);
+    PaddedAtomicReference(T value) {
+      super(value);
+    }
   }
 
-  /** A skeletal implementation of the <tt>Task</tt> interface. */
-  abstract class AbstractTask implements Task {
-    final int order;
-    Task task;
+  /**
+   * An AtomicLong with heuristic padding to lessen cache effects of this heavily CAS'ed
+   * location. While the padding adds noticeable space, the improved throughput outweighs
+   * using extra space.
+   */
+  static class PaddedAtomicLong extends AtomicLong {
+    private static final long serialVersionUID = 1L;
 
-    AbstractTask() {
-      order = nextOrdering();
+    // Improve likelihood of isolation on <= 64 byte cache lines
+    long q0, q1, q2, q3, q4, q5, q6, q7, q8, q9, qa, qb, qc, qd, qe;
+
+    PaddedAtomicLong() {}
+
+    PaddedAtomicLong(long value) {
+      super(value);
     }
+  }
 
-    @Override
-    public int getOrder() {
-      return order;
-    }
+  /**
+   * An AtomicLong with heuristic padding to lessen cache effects of this heavily CAS'ed
+   * location. While the padding adds noticeable space, the improved throughput outweighs
+   * using extra space.
+   */
+  static class PaddedAtomicInteger extends AtomicInteger {
+    private static final long serialVersionUID = 1L;
 
-    @Override
-    public Task getNext() {
-      return task;
-    }
+    // Improve likelihood of isolation on <= 64 byte cache lines
+    long q0, q1, q2, q3, q4, q5, q6, q7, q8, q9, qa, qb, qc, qd, qe;
 
-    @Override
-    public void setNext(Task task) {
-      this.task = task;
+    PaddedAtomicInteger() {}
+
+    PaddedAtomicInteger(int value) {
+      super(value);
     }
   }
 
@@ -1582,7 +1456,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     SerializationProxy(ConcurrentLinkedHashMap<K, V> map) {
       concurrencyLevel = map.concurrencyLevel;
       data = new HashMap<K, V>(map);
-      capacity = map.capacity;
+      capacity = map.capacity.get();
       listener = map.listener;
       weigher = map.weigher;
     }

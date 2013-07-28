@@ -20,17 +20,13 @@ import java.util.concurrent.locks.ReentrantLock;
 
 import com.google.common.collect.Sets;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Node;
-import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Task;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.WeightedValue;
 import org.hamcrest.Description;
 import org.hamcrest.Factory;
 import org.hamcrest.TypeSafeDiagnosingMatcher;
 
-import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.AMORTIZED_DRAIN_THRESHOLD;
 import static com.googlecode.concurrentlinkedhashmap.IsEmptyMap.emptyMap;
 import static com.googlecode.concurrentlinkedhashmap.IsValidLinkedDeque.validLinkedDeque;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
@@ -69,29 +65,26 @@ public final class IsValidConcurrentLinkedHashMap<K, V>
   private void drain(ConcurrentLinkedHashMap<? extends K, ? extends V> map) {
     for (;;) {
       map.drainBuffers();
-      assertThat(map.tasks, is(equalTo(new Task[AMORTIZED_DRAIN_THRESHOLD])));
 
-      int pending = 0;
-      for (int i = 0; i < map.bufferLengths.length(); i++) {
-        pending += map.bufferLengths.get(i);
+      boolean fullyDrained = map.writeBuffer.isEmpty();
+      for (int i = 0; i < map.readBuffer.length; i++) {
+        fullyDrained &= (map.readBuffer[i].get() == null);
       }
-      if (pending == 0) {
+      if (fullyDrained) {
         break;
       }
+      map.readBufferReadCount++;
     }
   }
 
   private void checkMap(ConcurrentLinkedHashMap<? extends K, ? extends V> map,
       DescriptionBuilder builder) {
-    for (int i = 0; i < map.buffers.length; i++) {
-      builder.expectThat("recencyQueue not empty", map.buffers[i].isEmpty(), is(true));
-      builder.expectThat("recencyQueueLength != 0", map.bufferLengths.get(i), is(0));
-    }
     builder.expectThat("listenerQueue", map.pendingNotifications.isEmpty(), is(true));
     builder.expectThat("Inconsistent size", map.data.size(), is(map.size()));
     builder.expectThat("weightedSize", map.weightedSize(), is(map.weightedSize.get()));
-    builder.expectThat("capacity", map.capacity(), is(map.capacity));
-    builder.expectThat("overflow", map.capacity, is(greaterThanOrEqualTo(map.weightedSize())));
+    builder.expectThat("capacity", map.capacity(), is(map.capacity.get()));
+    builder.expectThat("overflow", map.capacity.get(),
+        is(greaterThanOrEqualTo(map.weightedSize())));
     builder.expectThat(((ReentrantLock) map.evictionLock).isLocked(), is(false));
 
     if (map.isEmpty()) {

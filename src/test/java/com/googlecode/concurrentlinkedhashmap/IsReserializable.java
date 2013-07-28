@@ -15,13 +15,10 @@
  */
 package com.googlecode.concurrentlinkedhashmap;
 
-import static com.google.common.collect.Maps.newHashMap;
-import static com.googlecode.concurrentlinkedhashmap.IsEmptyMap.emptyMap;
-import static com.googlecode.concurrentlinkedhashmap.IsValidConcurrentLinkedHashMap.valid;
-
 import java.io.Serializable;
 import java.util.Map;
 
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.BoundedEntryWeigher;
 import org.apache.commons.lang.SerializationUtils;
 import org.apache.commons.lang.builder.EqualsBuilder;
 import org.hamcrest.Description;
@@ -29,7 +26,9 @@ import org.hamcrest.Factory;
 import org.hamcrest.Matcher;
 import org.hamcrest.TypeSafeMatcher;
 
-import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.BoundedEntryWeigher;
+import static com.google.common.collect.Maps.newHashMap;
+import static com.googlecode.concurrentlinkedhashmap.IsEmptyMap.emptyMap;
+import static com.googlecode.concurrentlinkedhashmap.IsValidConcurrentLinkedHashMap.valid;
 
 /**
  * A matcher that evaluates an object by creating a serialized copy and checking
@@ -76,7 +75,7 @@ public final class IsReserializable<T> extends TypeSafeMatcher<T> {
         .append(original.listener.getClass(), copy.listener.getClass())
         .append(original.concurrencyLevel, copy.concurrencyLevel)
         .append(original.hashCode(), copy.hashCode())
-        .append(original.capacity, copy.capacity)
+        .append(original.capacity(), copy.capacity())
         .append(original, data)
         .isEquals();
   }

@@ -18,16 +18,6 @@ tests:
           - RingBufferTest
           - MemoryLeakTest
           - MultiThreadedTest
-          
-  - name: Experimental
-    parameters:
-      iterations: 400
-      capacity: 128
-      threshold: 64
-      threads: 20
-      timeOut: 30 # in seconds
-    classes:
-      - com.googlecode.concurrentlinkedhashmap.RingBufferTest
 
   - name: Load Tests
     parameters:
@@ -66,8 +56,7 @@ tests:
       runMillis: 5000
       timeUnit: ns
     classes:
-      - com.googlecode.concurrentlinkedhashmap.benchmark.BufferBenchmark
-      #- com.googlecode.concurrentlinkedhashmap.benchmark.GetPutBenchmark
+      - com.googlecode.concurrentlinkedhashmap.benchmark.GetPutBenchmark
 
   - name: Efficiency Benchmark
     parameters:

@@ -15,23 +15,22 @@
  */
 package com.googlecode.concurrentlinkedhashmap;
 
-import static com.googlecode.concurrentlinkedhashmap.ConcurrentTestHarness.timeTasks;
-import static java.util.concurrent.TimeUnit.SECONDS;
-import static org.apache.commons.lang.time.DurationFormatUtils.formatDuration;
-
 import java.text.NumberFormat;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.locks.LockSupport;
 
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Parameters;
 import org.testng.annotations.Test;
 
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
-import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
+import static com.googlecode.concurrentlinkedhashmap.ConcurrentTestHarness.timeTasks;
+import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.apache.commons.lang.time.DurationFormatUtils.formatDuration;
 
 /**
  * A unit-test to assert that the cache does not have a memory leak by not being
@@ -91,16 +90,21 @@ public final class MemoryLeakTest {
     return new Runnable() {
       long runningTime;
 
-      @Override public void run() {
-        long pending = 0;
-        for (int i = 0; i < map.buffers.length; i++) {
-          pending += map.bufferLengths.get(i);
+      @Override
+      public void run() {
+        long reads = 0;
+        for (int i = 0; i < map.readBuffer.length; i++) {
+          if (map.readBuffer[i].get() != null) {
+            reads++;
+          }
         }
         runningTime += SECONDS.toMillis(statusInterval);
         String elapsedTime = formatDuration(runningTime, "H:mm:ss");
-        String pendingReads = NumberFormat.getInstance().format(pending);
+        String pendingReads = NumberFormat.getInstance().format(reads);
+        String pendingWrites = NumberFormat.getInstance().format(map.writeBuffer.size());
         System.out.printf("---------- %s ----------\n", elapsedTime);
-        System.out.printf("Pending tasks = %s\n", pendingReads);
+        System.out.printf("Pending reads = %s\n", pendingReads);
+        System.out.printf("Pending write = %s\n", pendingWrites);
         System.out.printf("Drain status = %s\n", map.drainStatus);
       }
     };
