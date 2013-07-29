@@ -150,20 +150,20 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   /** The maximum weighted capacity of the map. */
   static final long MAXIMUM_CAPACITY = Long.MAX_VALUE - Integer.MAX_VALUE;
 
-  /** The number of write counters for tracking additions to the read buffer. */
-  static final int READ_BUFFER_WRITE_COUNTERS = ceilingNextPowerOfTwo(NCPU);
+  /** The number of read buffers to use. */
+  static final int NUMBER_OF_BUFFERS = ceilingNextPowerOfTwo(NCPU);
 
-  /** Mask value for indexing into the write counters. */
-  static final int READ_BUFFER_WRITE_COUNTERS_MASK = READ_BUFFER_WRITE_COUNTERS - 1;
+  /** Mask value for indexing into the read buffers. */
+  static final int BUFFER_MASK = NUMBER_OF_BUFFERS - 1;
 
   /** The number of pending read operations before attempting to drain. */
-  static final int READ_BUFFER_THRESHOLD = 16;
+  static final int READ_BUFFER_THRESHOLD = 32;
 
   /** The maximum number of read operations to perform per amortized drain. */
-  static final int READ_BUFFER_DRAIN_THRESHOLD = (1 + NCPU) * READ_BUFFER_THRESHOLD;
+  static final int READ_BUFFER_DRAIN_THRESHOLD = 2 * READ_BUFFER_THRESHOLD;
 
   /** The maximum number of pending reads per buffer. */
-  static final int READ_BUFFER_SIZE = ceilingNextPowerOfTwo(READ_BUFFER_DRAIN_THRESHOLD);
+  static final int READ_BUFFER_SIZE = 2 * READ_BUFFER_DRAIN_THRESHOLD;
 
   /** Mask value for indexing into the buffers. */
   static final int READ_BUFFER_MASK = READ_BUFFER_SIZE - 1;
@@ -188,21 +188,19 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   final LinkedDeque<Node<K, V>> evictionDeque;
 
   @GuardedBy("evictionLock") // must write under lock
-  final AtomicLong weightedSize;
+  final PaddedAtomicLong weightedSize;
   @GuardedBy("evictionLock") // must write under lock
-  final AtomicLong capacity;
+  final PaddedAtomicLong capacity;
   @GuardedBy("evictionLock") // must write under lock
-  long readBufferReadCount;
+  final long[] readBufferReadCount;
 
   final Lock evictionLock;
   final Queue<Runnable> writeBuffer;
-  final AtomicLong[] readBufferWriteCount;
-  final AtomicReference<Node<K, V>>[] readBuffer;
+  final PaddedAtomicLong[] readBufferWriteCount;
+  final PaddedAtomicLong[] readBufferDrainAtWriteCount;
+  final PaddedAtomicReference<Node<K, V>>[][] readBuffer;
 
-  @GuardedBy("evictionLock")
-  final AtomicLong drainedCount;
-  final AtomicReference<DrainStatus> drainStatus;
-
+  final PaddedAtomicReference<DrainStatus> drainStatus;
   final EntryWeigher<? super K, ? super V> weigher;
 
   // These fields provide support for notifying a listener.
@@ -226,19 +224,22 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     // The eviction support
     weigher = builder.weigher;
     evictionLock = new ReentrantLock();
-    drainedCount = new PaddedAtomicLong();
     weightedSize = new PaddedAtomicLong();
     evictionDeque = new LinkedDeque<Node<K, V>>();
     writeBuffer = new ConcurrentLinkedQueue<Runnable>();
     drainStatus = new PaddedAtomicReference<DrainStatus>(IDLE);
 
-    readBufferWriteCount = new PaddedAtomicLong[READ_BUFFER_WRITE_COUNTERS];
-    for (int i = 0; i < READ_BUFFER_WRITE_COUNTERS; i++) {
+    readBufferReadCount = new long[NUMBER_OF_BUFFERS];
+    readBufferWriteCount = new PaddedAtomicLong[NUMBER_OF_BUFFERS];
+    readBufferDrainAtWriteCount = new PaddedAtomicLong[NUMBER_OF_BUFFERS];
+    readBuffer = new PaddedAtomicReference[NUMBER_OF_BUFFERS][READ_BUFFER_SIZE];
+    for (int i = 0; i < NUMBER_OF_BUFFERS; i++) {
       readBufferWriteCount[i] = new PaddedAtomicLong();
-    }
-    readBuffer = new PaddedAtomicReference[READ_BUFFER_SIZE];
-    for (int i = 0; i < readBuffer.length; i++) {
-      readBuffer[i] = new PaddedAtomicReference<Node<K, V>>();
+      readBufferDrainAtWriteCount[i] = new PaddedAtomicLong();
+      readBuffer[i] = new PaddedAtomicReference[READ_BUFFER_SIZE];
+      for (int j = 0; j < READ_BUFFER_SIZE; j++) {
+        readBuffer[i][j] = new PaddedAtomicReference<Node<K, V>>();
+      }
     }
 
     // The notification queue and listener
@@ -318,7 +319,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     // that if an eviction is still required then a new victim will be chosen
     // for removal.
     while (hasOverflowed()) {
-      Node<K, V> node = evictionDeque.poll();
+      final Node<K, V> node = evictionDeque.poll();
 
       // If weighted values are used, then the pending operations will adjust
       // the size to reflect the correct weight
@@ -341,24 +342,48 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * @param node the entry in the page replacement policy
    */
   void afterRead(Node<K, V> node) {
-    AtomicLong counter = readBufferWriteCount[writeCounterIndex()];
-    long writeCount = counter.get();
-    counter.lazySet(writeCount + 1);
-
-    int index = (int) (writeCount & READ_BUFFER_MASK);
-    readBuffer[index].lazySet(node);
-
-    DrainStatus status = drainStatus.get();
-    boolean delayable = (writeCount - drainedCount.get()) < READ_BUFFER_THRESHOLD;
-    if (status.shouldDrainBuffers(delayable)) {
-      tryToDrainBuffers();
-    }
+    final int bufferIndex = bufferIndex();
+    final long writeCount = recordRead(node, bufferIndex);
+    drainOnReadIfNeeded(bufferIndex, writeCount);
     notifyListener();
   }
 
-  /** Returns the index of the write counter to use when recording a read. */
-  static int writeCounterIndex() {
-    return ((int) Thread.currentThread().getId()) & READ_BUFFER_WRITE_COUNTERS_MASK;
+  /** Returns the index of the read buffer to use when recording a read. */
+  static int bufferIndex() {
+    return ((int) Thread.currentThread().getId()) & BUFFER_MASK;
+  }
+
+  /**
+   * Records a read in the buffer and return its write count.
+   *
+   * @param node the entry in the page replacement policy
+   * @param bufferIndex the index to the chosen read buffer
+   * @return the number of writes on the chosen read buffer
+   */
+  long recordRead(Node<K, V> node, int bufferIndex) {
+    final PaddedAtomicLong counter = readBufferWriteCount[bufferIndex];
+    final long writeCount = counter.get();
+    counter.lazySet(writeCount + 1);
+
+    final int index = (int) (writeCount & READ_BUFFER_MASK);
+    readBuffer[bufferIndex][index].lazySet(node);
+
+    return writeCount;
+  }
+
+  /**
+   * Determines if a drain should be attempted when post-processing a read.
+   *
+   * @param bufferIndex the index to the chosen read buffer
+   * @param writeCount the number of writes on the chosen read buffer
+   */
+  void drainOnReadIfNeeded(int bufferIndex, long writeCount) {
+    final long pending = (writeCount - readBufferDrainAtWriteCount[bufferIndex].get());
+    final boolean delayable = (pending < READ_BUFFER_THRESHOLD);
+    final DrainStatus status = drainStatus.get();
+    if (status.shouldDrainBuffers(delayable)) {
+      tryToDrainBuffers();
+    }
   }
 
   /**
@@ -392,27 +417,36 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   /** Drains the read and write buffers up to an amortized threshold. */
   @GuardedBy("evictionLock")
   void drainBuffers() {
-    drainReadBuffer();
+    drainReadBuffers();
     drainWriteBuffer();
+  }
+
+  /** Drains the read buffers, each up to an amortized threshold. */
+  @GuardedBy("evictionLock")
+  void drainReadBuffers() {
+    final int startIndex = (int) Thread.currentThread().getId();
+    for (int i = startIndex; i < startIndex + NUMBER_OF_BUFFERS; i++) {
+      drainReadBuffer(i & BUFFER_MASK);
+    }
   }
 
   /** Drains the read buffer up to an amortized threshold. */
   @GuardedBy("evictionLock")
-  void drainReadBuffer() {
-    long writeCount = readBufferWriteCount[writeCounterIndex()].get();
+  void drainReadBuffer(int bufferIndex) {
+    final long writeCount = readBufferWriteCount[bufferIndex].get();
     for (int i = 0; i < READ_BUFFER_DRAIN_THRESHOLD; i++) {
-      int index = (int) (readBufferReadCount & READ_BUFFER_MASK);
-      AtomicReference<Node<K, V>> slot = readBuffer[index];
-      Node<K, V> node = slot.get();
+      final int index = (int) (readBufferReadCount[bufferIndex] & READ_BUFFER_MASK);
+      final PaddedAtomicReference<Node<K, V>> slot = readBuffer[bufferIndex][index];
+      final Node<K, V> node = slot.get();
       if (node == null) {
         break;
       }
 
       slot.lazySet(null);
       applyRead(node);
-      readBufferReadCount++;
+      readBufferReadCount[bufferIndex]++;
     }
-    drainedCount.lazySet(writeCount);
+    readBufferDrainAtWriteCount[bufferIndex].lazySet(writeCount);
   }
 
   /** Updates the node's location in the page replacement policy. */
@@ -430,7 +464,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   @GuardedBy("evictionLock")
   void drainWriteBuffer() {
     for (int i = 0; i < WRITE_BUFFER_DRAIN_THRESHOLD; i++) {
-      Runnable task = writeBuffer.poll();
+      final Runnable task = writeBuffer.poll();
       if (task == null) {
         break;
       }
@@ -448,7 +482,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    */
   boolean tryToRetire(Node<K, V> node, WeightedValue<V> expect) {
     if (expect.isAlive()) {
-      WeightedValue<V> retired = new WeightedValue<V>(expect.value, -expect.weight);
+      final WeightedValue<V> retired = new WeightedValue<V>(expect.value, -expect.weight);
       return node.compareAndSet(expect, retired);
     }
     return false;
@@ -462,11 +496,11 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    */
   void makeRetired(Node<K, V> node) {
     for (;;) {
-      WeightedValue<V> current = node.get();
+      final WeightedValue<V> current = node.get();
       if (!current.isAlive()) {
         return;
       }
-      WeightedValue<V> retired = new WeightedValue<V>(current.value, -current.weight);
+      final WeightedValue<V> retired = new WeightedValue<V>(current.value, -current.weight);
       if (node.compareAndSet(current, retired)) {
         return;
       }
@@ -481,14 +515,10 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    */
   @GuardedBy("evictionLock")
   void makeDead(Node<K, V> node) {
-    for (;;) {
-      WeightedValue<V> current = node.get();
-      WeightedValue<V> dead = new WeightedValue<V>(current.value, 0);
-      if (node.compareAndSet(current, dead)) {
-        weightedSize.lazySet(weightedSize.get() - Math.abs(current.weight));
-        return;
-      }
-    }
+    WeightedValue<V> current = node.get();
+    WeightedValue<V> dead = new WeightedValue<V>(current.value, 0);
+    weightedSize.lazySet(weightedSize.get() - Math.abs(current.weight));
+    node.lazySet(dead);
   }
 
   /** Notifies the listener of entries that were evicted. */
@@ -591,8 +621,10 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       }
 
       // Discard all pending reads
-      for (AtomicReference<Node<K, V>> slot : readBuffer) {
-        slot.lazySet(null);
+      for (AtomicReference<Node<K, V>>[] buffer : readBuffer) {
+        for (AtomicReference<Node<K, V>> slot : buffer) {
+          slot.lazySet(null);
+        }
       }
 
       // Apply all pending writes
@@ -757,12 +789,12 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       return null;
     }
     for (;;) {
-      WeightedValue<V> oldWeightedValue = node.get();
+      final WeightedValue<V> oldWeightedValue = node.get();
       if (!oldWeightedValue.isAlive()) {
         return null;
       }
       if (node.compareAndSet(oldWeightedValue, weightedValue)) {
-        int weightedDifference = weight - oldWeightedValue.weight;
+        final int weightedDifference = weight - oldWeightedValue.weight;
         if (weightedDifference == 0) {
           afterRead(node);
         } else {
@@ -792,7 +824,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
         return false;
       }
       if (node.compareAndSet(weightedValue, newWeightedValue)) {
-        int weightedDifference = weight - weightedValue.weight;
+        final int weightedDifference = weight - weightedValue.weight;
         if (weightedDifference == 0) {
           afterRead(node);
         } else {
@@ -805,7 +837,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
   @Override
   public Set<K> keySet() {
-    Set<K> ks = keySet;
+    final Set<K> ks = keySet;
     return (ks == null) ? (keySet = new KeySet()) : ks;
   }
 
@@ -887,11 +919,11 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     try {
       drainBuffers();
 
-      int initialCapacity = (weigher == Weighers.entrySingleton())
+      final int initialCapacity = (weigher == Weighers.entrySingleton())
           ? Math.min(limit, (int) weightedSize())
           : 16;
-      Set<K> keys = new LinkedHashSet<K>(initialCapacity);
-      Iterator<Node<K, V>> iterator = ascending
+      final Set<K> keys = new LinkedHashSet<K>(initialCapacity);
+      final Iterator<Node<K, V>> iterator = ascending
           ? evictionDeque.iterator()
           : evictionDeque.descendingIterator();
       while (iterator.hasNext() && (limit > keys.size())) {
@@ -905,13 +937,13 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
   @Override
   public Collection<V> values() {
-    Collection<V> vs = values;
+    final Collection<V> vs = values;
     return (vs == null) ? (values = new Values()) : vs;
   }
 
   @Override
   public Set<Entry<K, V>> entrySet() {
-    Set<Entry<K, V>> es = entrySet;
+    final Set<Entry<K, V>> es = entrySet;
     return (es == null) ? (entrySet = new EntrySet()) : es;
   }
 
@@ -997,11 +1029,11 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     try {
       drainBuffers();
 
-      int initialCapacity = (weigher == Weighers.entrySingleton())
+      final int initialCapacity = (weigher == Weighers.entrySingleton())
           ? Math.min(limit, (int) weightedSize())
           : 16;
-      Map<K, V> map = new LinkedHashMap<K, V>(initialCapacity);
-      Iterator<Node<K, V>> iterator = ascending
+      final Map<K, V> map = new LinkedHashMap<K, V>(initialCapacity);
+      final Iterator<Node<K, V>> iterator = ascending
           ? evictionDeque.iterator()
           : evictionDeque.descendingIterator();
       while (iterator.hasNext() && (limit > map.size())) {
@@ -1091,7 +1123,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * the page-replacement algorithm's data structures.
    */
   @SuppressWarnings("serial")
-  static final class Node<K, V> extends AtomicReference<WeightedValue<V>>
+  static final class Node<K, V> extends PaddedAtomicReference<WeightedValue<V>>
       implements Linked<Node<K, V>> {
     final K key;
     @GuardedBy("evictionLock")

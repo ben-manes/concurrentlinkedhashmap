@@ -15,10 +15,13 @@
  */
 package com.googlecode.concurrentlinkedhashmap;
 
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.base.Stopwatch;
+import com.google.common.cache.CacheBuilder;
+import com.google.common.collect.Maps;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 import com.twitter.jsr166e.LongAdder;
 
@@ -30,14 +33,14 @@ import com.twitter.jsr166e.LongAdder;
 public final class Profile {
   static final int NUM_THREADS = 25;
   static final int DISPLAY_DELAY_SEC = 5;
-  static final LongAdder calls = new LongAdder();
+  static final int INITIAL_DELAY_SEC = 30;
+  static final MapType type = MapType.CLHM;
+  static volatile LongAdder calls = new LongAdder();
 
   public static void main(String[] args) throws Exception {
-    final ConcurrentLinkedHashMap<Long, Long> map = new Builder<Long, Long>()
-        .maximumWeightedCapacity(NUM_THREADS)
-        .build();
     scheduleStatusTask();
-    ConcurrentTestHarness.timeTasks(25, new Runnable() {
+    final ConcurrentMap<Long, Long> map = makeMap(type);
+    ConcurrentTestHarness.timeTasks(NUM_THREADS, new Runnable() {
       @Override public void run() {
         Long id = Thread.currentThread().getId();
         map.put(id, id);
@@ -49,14 +52,39 @@ public final class Profile {
     });
   }
 
+  enum MapType {
+    CHM, CHMv8, CLHM, CACHE_BUILDER
+  }
+
+  static ConcurrentMap<Long, Long> makeMap(MapType type) {
+    switch (type) {
+      case CHM:
+        return Maps.newConcurrentMap();
+      case CHMv8:
+        return new ConcurrentHashMapV8<Long, Long>();
+      case CLHM:
+        return new Builder<Long, Long>().maximumWeightedCapacity(NUM_THREADS).build();
+      case CACHE_BUILDER:
+        return CacheBuilder.newBuilder().maximumSize(NUM_THREADS).<Long, Long>build().asMap();
+      default:
+        throw new UnsupportedOperationException();
+    }
+  }
+
   static void scheduleStatusTask() {
     Executors.newSingleThreadScheduledExecutor().scheduleWithFixedDelay(new Runnable() {
-      final Stopwatch stopwatch = new Stopwatch().start();
+      final Stopwatch stopwatch = new Stopwatch();
       @Override public void run() {
+        if (!stopwatch.isRunning()) {
+          System.out.println("Warmup complete");
+          calls = new LongAdder();
+          stopwatch.start();
+          return;
+        }
         long count = calls.longValue();
         long rate = count / stopwatch.elapsedTime(TimeUnit.SECONDS);
         System.out.printf("%s - %,d [%,d / sec]\n", stopwatch, count, rate);
       }
-    }, DISPLAY_DELAY_SEC, DISPLAY_DELAY_SEC, TimeUnit.SECONDS);
+    }, INITIAL_DELAY_SEC, DISPLAY_DELAY_SEC, TimeUnit.SECONDS);
   }
 }

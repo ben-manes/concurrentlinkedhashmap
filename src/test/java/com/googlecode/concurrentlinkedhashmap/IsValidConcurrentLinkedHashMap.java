@@ -63,17 +63,19 @@ public final class IsValidConcurrentLinkedHashMap<K, V>
   }
 
   private void drain(ConcurrentLinkedHashMap<? extends K, ? extends V> map) {
-    for (;;) {
-      map.drainBuffers();
+    for (int i = 0; i < map.readBuffer.length; i++) {
+      for (;;) {
+        map.drainBuffers();
 
-      boolean fullyDrained = map.writeBuffer.isEmpty();
-      for (int i = 0; i < map.readBuffer.length; i++) {
-        fullyDrained &= (map.readBuffer[i].get() == null);
+        boolean fullyDrained = map.writeBuffer.isEmpty();
+        for (int j = 0; j < map.readBuffer.length; j++) {
+          fullyDrained &= (map.readBuffer[i][j].get() == null);
+        }
+        if (fullyDrained) {
+          break;
+        }
+        map.readBufferReadCount[i]++;
       }
-      if (fullyDrained) {
-        break;
-      }
-      map.readBufferReadCount++;
     }
   }
 

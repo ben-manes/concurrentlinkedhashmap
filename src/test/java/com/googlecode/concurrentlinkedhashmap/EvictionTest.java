@@ -41,7 +41,7 @@ import static com.google.common.collect.Maps.newLinkedHashMap;
 import static com.google.common.collect.Sets.newLinkedHashSet;
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.MAXIMUM_CAPACITY;
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.READ_BUFFER_THRESHOLD;
-import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.writeCounterIndex;
+import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.bufferIndex;
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.DrainStatus.REQUIRED;
 import static com.googlecode.concurrentlinkedhashmap.EvictionTest.Status.ALIVE;
 import static com.googlecode.concurrentlinkedhashmap.EvictionTest.Status.DEAD;
@@ -341,16 +341,18 @@ public final class EvictionTest extends AbstractTest {
 
   @Test(dataProvider = "warmedMap")
   public void updateRecency_onGetQuietly(final ConcurrentLinkedHashMap<Integer, Integer> map) {
-    final Node<Integer, Integer> first = map.evictionDeque.peek();
-    final Node<Integer, Integer> last = map.evictionDeque.peekLast();
-    final long drained = map.drainedCount.get();
+    AtomicLong drainCounter = map.readBufferDrainAtWriteCount[bufferIndex()];
+
+    Node<Integer, Integer> first = map.evictionDeque.peek();
+    Node<Integer, Integer> last = map.evictionDeque.peekLast();
+    long drained = drainCounter.get();
 
     map.getQuietly(first.key);
     map.drainBuffers();
 
     assertThat(map.evictionDeque.peekFirst(), is(first));
     assertThat(map.evictionDeque.peekLast(), is(last));
-    assertThat(map.drainedCount.get(), is(drained));
+    assertThat(drainCounter.get(), is(drained));
   }
 
   @Test(dataProvider = "warmedMap")
@@ -407,13 +409,14 @@ public final class EvictionTest extends AbstractTest {
 
   @Test(dataProvider = "guardedMap")
   public void exceedsMaximumBufferSize_onRead(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    map.readBufferWriteCount[writeCounterIndex()].set(READ_BUFFER_THRESHOLD - 1);
+    AtomicLong drainCounter = map.readBufferDrainAtWriteCount[bufferIndex()];
+    map.readBufferWriteCount[bufferIndex()].set(READ_BUFFER_THRESHOLD - 1);
 
     map.afterRead(null);
-    assertThat(map.drainedCount.get(), is(0L));
+    assertThat(drainCounter.get(), is(0L));
 
     map.afterRead(null);
-    assertThat(map.drainedCount.get(), is(READ_BUFFER_THRESHOLD + 1L));
+    assertThat(drainCounter.get(), is(READ_BUFFER_THRESHOLD + 1L));
   }
 
   @Test(dataProvider = "guardedMap")
@@ -427,14 +430,15 @@ public final class EvictionTest extends AbstractTest {
 
   @Test(dataProvider = "warmedMap")
   public void drain_onRead(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    AtomicLong writeCounter = map.readBufferWriteCount[writeCounterIndex()];
+    AtomicReference<Node<Integer, Integer>>[] buffer = map.readBuffer[bufferIndex()];
+    AtomicLong writeCounter = map.readBufferWriteCount[bufferIndex()];
 
     for (int i = 0; i < READ_BUFFER_THRESHOLD; i++) {
       map.get(1);
     }
 
     int pending = 0;
-    for (AtomicReference<?> slot : map.readBuffer) {
+    for (AtomicReference<?> slot : buffer) {
       if (slot.get() != null) {
         pending++;
       }
@@ -443,9 +447,9 @@ public final class EvictionTest extends AbstractTest {
     assertThat((int) writeCounter.get(), is(equalTo(pending)));
 
     map.get(1);
-    assertThat(map.readBufferReadCount, is(equalTo(writeCounter.get())));
+    assertThat(map.readBufferReadCount[bufferIndex()], is(equalTo(writeCounter.get())));
     for (int i = 0; i < map.readBuffer.length; i++) {
-      assertThat(map.readBuffer[i].get(), is(nullValue()));
+      assertThat(map.readBuffer[bufferIndex()][i].get(), is(nullValue()));
     }
   }
 

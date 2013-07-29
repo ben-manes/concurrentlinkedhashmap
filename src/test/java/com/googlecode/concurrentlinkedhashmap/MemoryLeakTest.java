@@ -94,8 +94,10 @@ public final class MemoryLeakTest {
       public void run() {
         long reads = 0;
         for (int i = 0; i < map.readBuffer.length; i++) {
-          if (map.readBuffer[i].get() != null) {
-            reads++;
+          for (int j = 0; j < map.readBuffer[i].length; j++) {
+            if (map.readBuffer[i][j].get() != null) {
+              reads++;
+            }
           }
         }
         runningTime += SECONDS.toMillis(statusInterval);
