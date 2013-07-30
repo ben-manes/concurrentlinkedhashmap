@@ -348,8 +348,11 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     notifyListener();
   }
 
-  /** Returns the index of the read buffer to use when recording a read. */
+  /** Returns the index to the read buffer to read record the read into. */
   static int bufferIndex() {
+    // A buffer is chosen by the thread's id so that tasks are distributed in a
+    // pseudo evenly manner. This helps avoid hot entries causing contention
+    // due to other threads trying to append to the same buffer.
     return ((int) Thread.currentThread().getId()) & BUFFER_MASK;
   }
 
@@ -361,6 +364,9 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * @return the number of writes on the chosen read buffer
    */
   long recordRead(Node<K, V> node, int bufferIndex) {
+    // The location in the buffer is chosen in a racy fashion as the increment
+    // is not atomic with the insertion. This means that concurrent reads can
+    // overlap and overwrite one another, resulting in a lossy buffer.
     final PaddedAtomicLong counter = readBufferWriteCount[bufferIndex];
     final long writeCount = counter.get();
     counter.lazySet(writeCount + 1);
@@ -515,10 +521,14 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    */
   @GuardedBy("evictionLock")
   void makeDead(Node<K, V> node) {
-    WeightedValue<V> current = node.get();
-    WeightedValue<V> dead = new WeightedValue<V>(current.value, 0);
-    weightedSize.lazySet(weightedSize.get() - Math.abs(current.weight));
-    node.lazySet(dead);
+    for (;;) {
+      WeightedValue<V> current = node.get();
+      WeightedValue<V> dead = new WeightedValue<V>(current.value, 0);
+      if (node.compareAndSet(current, dead)) {
+        weightedSize.lazySet(weightedSize.get() - Math.abs(current.weight));
+        return;
+      }
+    }
   }
 
   /** Notifies the listener of entries that were evicted. */
@@ -1406,9 +1416,9 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   }
 
   /**
-   * An AtomicReference with heuristic padding to lessen cache effects of this heavily CAS'ed
-   * location. While the padding adds noticeable space, the improved throughput outweighs
-   * using extra space.
+   * An AtomicReference with heuristic padding to lessen cache effects of this
+   * heavily CAS'ed location. While the padding adds noticeable space, the
+   * improved throughput outweighs using extra space.
    */
   static class PaddedAtomicReference<T> extends AtomicReference<T> {
     private static final long serialVersionUID = 1L;
@@ -1424,9 +1434,9 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   }
 
   /**
-   * An AtomicLong with heuristic padding to lessen cache effects of this heavily CAS'ed
-   * location. While the padding adds noticeable space, the improved throughput outweighs
-   * using extra space.
+   * An AtomicLong with heuristic padding to lessen cache effects of this
+   * heavily CAS'ed location. While the padding adds noticeable space, the
+   * improved throughput outweighs using extra space.
    */
   static class PaddedAtomicLong extends AtomicLong {
     private static final long serialVersionUID = 1L;
@@ -1442,9 +1452,9 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   }
 
   /**
-   * An AtomicLong with heuristic padding to lessen cache effects of this heavily CAS'ed
-   * location. While the padding adds noticeable space, the improved throughput outweighs
-   * using extra space.
+   * An AtomicLong with heuristic padding to lessen cache effects of this
+   * heavily CAS'ed location. While the padding adds noticeable space, the
+   * improved throughput outweighs using extra space.
    */
   static class PaddedAtomicInteger extends AtomicInteger {
     private static final long serialVersionUID = 1L;
