@@ -15,7 +15,9 @@
  */
 package com.googlecode.concurrentlinkedhashmap;
 
-import java.util.concurrent.ConcurrentMap;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
@@ -32,6 +34,7 @@ import com.twitter.jsr166e.LongAdder;
  */
 public final class Profile {
   static final int NUM_THREADS = 25;
+  static final int MAX_SIZE = 2* NUM_THREADS;
   static final int DISPLAY_DELAY_SEC = 5;
   static final int INITIAL_DELAY_SEC = 30;
   static final MapType type = MapType.CLHM;
@@ -39,7 +42,7 @@ public final class Profile {
 
   public static void main(String[] args) throws Exception {
     scheduleStatusTask();
-    final ConcurrentMap<Long, Long> map = makeMap(type);
+    final Map<Long, Long> map = makeMap(type);
     ConcurrentTestHarness.timeTasks(NUM_THREADS, new Runnable() {
       @Override public void run() {
         Long id = Thread.currentThread().getId();
@@ -53,19 +56,28 @@ public final class Profile {
   }
 
   enum MapType {
-    CHM, CHMv8, CLHM, CACHE_BUILDER
+    LHM, CHM, CHMv8, CLHM, CACHE_BUILDER
   }
 
-  static ConcurrentMap<Long, Long> makeMap(MapType type) {
+  static Map<Long, Long> makeMap(MapType type) {
     switch (type) {
+      case LHM:
+        return Collections.synchronizedMap(new LinkedHashMap<Long, Long>(MAX_SIZE, 0.75f, true) {
+          private static final long serialVersionUID = 1L;
+          @Override protected boolean removeEldestEntry(Map.Entry<Long, Long> eldest) {
+            return size() > MAX_SIZE;
+          }
+        });
       case CHM:
         return Maps.newConcurrentMap();
       case CHMv8:
         return new ConcurrentHashMapV8<Long, Long>();
       case CLHM:
-        return new Builder<Long, Long>().maximumWeightedCapacity(NUM_THREADS).build();
+        return new Builder<Long, Long>().maximumWeightedCapacity(MAX_SIZE).build();
       case CACHE_BUILDER:
-        return CacheBuilder.newBuilder().maximumSize(NUM_THREADS).<Long, Long>build().asMap();
+        return CacheBuilder.newBuilder()
+            .maximumSize(MAX_SIZE)
+            .<Long, Long>build().asMap();
       default:
         throw new UnsupportedOperationException();
     }

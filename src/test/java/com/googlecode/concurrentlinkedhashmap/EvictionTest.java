@@ -430,7 +430,7 @@ public final class EvictionTest extends AbstractTest {
 
   @Test(dataProvider = "warmedMap")
   public void drain_onRead(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    AtomicReference<Node<Integer, Integer>>[] buffer = map.readBuffer[bufferIndex()];
+    AtomicReference<Node<Integer, Integer>>[] buffer = map.readBuffers[bufferIndex()];
     AtomicLong writeCounter = map.readBufferWriteCount[bufferIndex()];
 
     for (int i = 0; i < READ_BUFFER_THRESHOLD; i++) {
@@ -448,8 +448,8 @@ public final class EvictionTest extends AbstractTest {
 
     map.get(1);
     assertThat(map.readBufferReadCount[bufferIndex()], is(equalTo(writeCounter.get())));
-    for (int i = 0; i < map.readBuffer.length; i++) {
-      assertThat(map.readBuffer[bufferIndex()][i].get(), is(nullValue()));
+    for (int i = 0; i < map.readBuffers.length; i++) {
+      assertThat(map.readBuffers[bufferIndex()][i].get(), is(nullValue()));
     }
   }
 

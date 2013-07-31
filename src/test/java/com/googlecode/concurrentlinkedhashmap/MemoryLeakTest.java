@@ -93,9 +93,9 @@ public final class MemoryLeakTest {
       @Override
       public void run() {
         long reads = 0;
-        for (int i = 0; i < map.readBuffer.length; i++) {
-          for (int j = 0; j < map.readBuffer[i].length; j++) {
-            if (map.readBuffer[i][j].get() != null) {
+        for (int i = 0; i < map.readBuffers.length; i++) {
+          for (int j = 0; j < map.readBuffers[i].length; j++) {
+            if (map.readBuffers[i][j].get() != null) {
               reads++;
             }
           }

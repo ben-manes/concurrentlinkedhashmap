@@ -151,10 +151,10 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   static final long MAXIMUM_CAPACITY = Long.MAX_VALUE - Integer.MAX_VALUE;
 
   /** The number of read buffers to use. */
-  static final int NUMBER_OF_BUFFERS = ceilingNextPowerOfTwo(NCPU);
+  static final int NUMBER_OF_READ_BUFFERS = ceilingNextPowerOfTwo(NCPU);
 
   /** Mask value for indexing into the read buffers. */
-  static final int BUFFER_MASK = NUMBER_OF_BUFFERS - 1;
+  static final int READ_BUFFERS_MASK = NUMBER_OF_READ_BUFFERS - 1;
 
   /** The number of pending read operations before attempting to drain. */
   static final int READ_BUFFER_THRESHOLD = 32;
@@ -165,8 +165,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   /** The maximum number of pending reads per buffer. */
   static final int READ_BUFFER_SIZE = 2 * READ_BUFFER_DRAIN_THRESHOLD;
 
-  /** Mask value for indexing into the buffers. */
-  static final int READ_BUFFER_MASK = READ_BUFFER_SIZE - 1;
+  /** Mask value for indexing into the read buffer. */
+  static final int READ_BUFFER_INDEX_MASK = READ_BUFFER_SIZE - 1;
 
   /** The maximum number of write operations to perform per amortized drain. */
   static final int WRITE_BUFFER_DRAIN_THRESHOLD = 16;
@@ -198,7 +198,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   final Queue<Runnable> writeBuffer;
   final PaddedAtomicLong[] readBufferWriteCount;
   final PaddedAtomicLong[] readBufferDrainAtWriteCount;
-  final PaddedAtomicReference<Node<K, V>>[][] readBuffer;
+  final PaddedAtomicReference<Node<K, V>>[][] readBuffers;
 
   final PaddedAtomicReference<DrainStatus> drainStatus;
   final EntryWeigher<? super K, ? super V> weigher;
@@ -229,16 +229,16 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     writeBuffer = new ConcurrentLinkedQueue<Runnable>();
     drainStatus = new PaddedAtomicReference<DrainStatus>(IDLE);
 
-    readBufferReadCount = new long[NUMBER_OF_BUFFERS];
-    readBufferWriteCount = new PaddedAtomicLong[NUMBER_OF_BUFFERS];
-    readBufferDrainAtWriteCount = new PaddedAtomicLong[NUMBER_OF_BUFFERS];
-    readBuffer = new PaddedAtomicReference[NUMBER_OF_BUFFERS][READ_BUFFER_SIZE];
-    for (int i = 0; i < NUMBER_OF_BUFFERS; i++) {
+    readBufferReadCount = new long[NUMBER_OF_READ_BUFFERS];
+    readBufferWriteCount = new PaddedAtomicLong[NUMBER_OF_READ_BUFFERS];
+    readBufferDrainAtWriteCount = new PaddedAtomicLong[NUMBER_OF_READ_BUFFERS];
+    readBuffers = new PaddedAtomicReference[NUMBER_OF_READ_BUFFERS][READ_BUFFER_SIZE];
+    for (int i = 0; i < NUMBER_OF_READ_BUFFERS; i++) {
       readBufferWriteCount[i] = new PaddedAtomicLong();
       readBufferDrainAtWriteCount[i] = new PaddedAtomicLong();
-      readBuffer[i] = new PaddedAtomicReference[READ_BUFFER_SIZE];
+      readBuffers[i] = new PaddedAtomicReference[READ_BUFFER_SIZE];
       for (int j = 0; j < READ_BUFFER_SIZE; j++) {
-        readBuffer[i][j] = new PaddedAtomicReference<Node<K, V>>();
+        readBuffers[i][j] = new PaddedAtomicReference<Node<K, V>>();
       }
     }
 
@@ -353,7 +353,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     // A buffer is chosen by the thread's id so that tasks are distributed in a
     // pseudo evenly manner. This helps avoid hot entries causing contention
     // due to other threads trying to append to the same buffer.
-    return ((int) Thread.currentThread().getId()) & BUFFER_MASK;
+    return ((int) Thread.currentThread().getId()) & READ_BUFFERS_MASK;
   }
 
   /**
@@ -371,8 +371,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     final long writeCount = counter.get();
     counter.lazySet(writeCount + 1);
 
-    final int index = (int) (writeCount & READ_BUFFER_MASK);
-    readBuffer[bufferIndex][index].lazySet(node);
+    final int index = (int) (writeCount & READ_BUFFER_INDEX_MASK);
+    readBuffers[bufferIndex][index].lazySet(node);
 
     return writeCount;
   }
@@ -430,9 +430,10 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   /** Drains the read buffers, each up to an amortized threshold. */
   @GuardedBy("evictionLock")
   void drainReadBuffers() {
-    final int startIndex = (int) Thread.currentThread().getId();
-    for (int i = startIndex; i < startIndex + NUMBER_OF_BUFFERS; i++) {
-      drainReadBuffer(i & BUFFER_MASK);
+    final int start = (int) Thread.currentThread().getId();
+    final int end = start + NUMBER_OF_READ_BUFFERS;
+    for (int i = start; i < end; i++) {
+      drainReadBuffer(i & READ_BUFFERS_MASK);
     }
   }
 
@@ -441,8 +442,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   void drainReadBuffer(int bufferIndex) {
     final long writeCount = readBufferWriteCount[bufferIndex].get();
     for (int i = 0; i < READ_BUFFER_DRAIN_THRESHOLD; i++) {
-      final int index = (int) (readBufferReadCount[bufferIndex] & READ_BUFFER_MASK);
-      final PaddedAtomicReference<Node<K, V>> slot = readBuffer[bufferIndex][index];
+      final int index = (int) (readBufferReadCount[bufferIndex] & READ_BUFFER_INDEX_MASK);
+      final PaddedAtomicReference<Node<K, V>> slot = readBuffers[bufferIndex][index];
       final Node<K, V> node = slot.get();
       if (node == null) {
         break;
@@ -631,7 +632,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
       }
 
       // Discard all pending reads
-      for (AtomicReference<Node<K, V>>[] buffer : readBuffer) {
+      for (AtomicReference<Node<K, V>>[] buffer : readBuffers) {
         for (AtomicReference<Node<K, V>> slot : buffer) {
           slot.lazySet(null);
         }
