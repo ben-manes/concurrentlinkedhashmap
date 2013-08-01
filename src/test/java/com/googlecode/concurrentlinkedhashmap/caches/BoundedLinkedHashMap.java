@@ -39,7 +39,7 @@ public final class BoundedLinkedHashMap<K, V> extends LinkedHashMap<K, V> {
     }
   }
 
-  public BoundedLinkedHashMap(AccessOrder accessOrder, CacheBuilder builder) {
+  public BoundedLinkedHashMap(AccessOrder accessOrder, CacheFactory builder) {
     this(accessOrder, builder.initialCapacity, builder.maximumCapacity);
   }
 

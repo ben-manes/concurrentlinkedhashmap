@@ -11,14 +11,15 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
 
+import com.googlecode.concurrentlinkedhashmap.CacheType;
+
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 import org.testng.annotations.Optional;
 import org.testng.annotations.Parameters;
 import org.testng.annotations.Test;
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap;
-import com.googlecode.concurrentlinkedhashmap.caches.Cache;
-import com.googlecode.concurrentlinkedhashmap.caches.CacheBuilder;
+import com.googlecode.concurrentlinkedhashmap.caches.CacheFactory;
 import com.googlecode.concurrentlinkedhashmap.caches.CacheConcurrentLIRS;
 
 public class PerfHashBenchmark extends Thread {
@@ -35,7 +36,7 @@ public class PerfHashBenchmark extends Thread {
     case 4: return null; // new ConcurrentHashMap<String,String>(_table_size,0.75f, 256); // force to  256 striping
     case 5: return null; // new ConcurrentHashMap<String,String>(_table_size,0.75f,4096); // force to 4096 striping
     case 6: return new NonBlockingHashMap<String,String>();
-    case 7: return new CacheBuilder().maximumCapacity(Integer.MAX_VALUE).makeCache(Cache.LinkedHashMap_Lru_Sync);
+    case 7: return new CacheFactory().maximumCapacity(Integer.MAX_VALUE).makeCache(CacheType.LinkedHashMap_Lru_Sync);
     case 8:
       return new ConcurrentLinkedHashMap.Builder<String, String>()
           .concurrencyLevel(16) // force to 16 striping

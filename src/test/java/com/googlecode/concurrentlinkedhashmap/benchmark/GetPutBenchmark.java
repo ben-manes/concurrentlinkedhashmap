@@ -18,11 +18,12 @@ package com.googlecode.concurrentlinkedhashmap.benchmark;
 import java.util.List;
 import java.util.concurrent.ConcurrentMap;
 
+import com.googlecode.concurrentlinkedhashmap.CacheType;
+
 import com.google.caliper.Param;
 import com.google.caliper.Runner;
 import com.google.caliper.SimpleBenchmark;
-import com.googlecode.concurrentlinkedhashmap.caches.Cache;
-import com.googlecode.concurrentlinkedhashmap.caches.CacheBuilder;
+import com.googlecode.concurrentlinkedhashmap.caches.CacheFactory;
 import com.googlecode.concurrentlinkedhashmap.generator.ScrambledZipfianGenerator;
 import org.testng.annotations.Parameters;
 import org.testng.annotations.Test;
@@ -45,14 +46,14 @@ public final class GetPutBenchmark extends SimpleBenchmark {
     "ConcurrentHashMap",
     "LinkedHashMap_Lru_Lock",
     "ConcurrentLinkedHashMap"})
-  private Cache cache;
+  private CacheType cache;
 
   private ConcurrentMap<Integer, Integer> map;
   private int index;
 
   @Override
   protected void setUp() {
-    map = new CacheBuilder()
+    map = new CacheFactory()
         .maximumCapacity(Integer.MAX_VALUE)
         .makeCache(cache);
     for (int i = 0; i < ints.size(); i++) {

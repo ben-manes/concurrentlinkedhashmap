@@ -78,7 +78,7 @@ public final class ProductionMap<K, V> extends AbstractMap<K, V>
   final Lock lock;
 
   @SuppressWarnings("unchecked")
-  public ProductionMap(EvictionPolicy policy, CacheBuilder builder) {
+  public ProductionMap(EvictionPolicy policy, CacheFactory builder) {
     this.data = new ConcurrentHashMap<K, Node<K, V>>(
         builder.initialCapacity,  0.75f, builder.concurrencyLevel);
     this.capacity = new AtomicInteger(builder.maximumCapacity);

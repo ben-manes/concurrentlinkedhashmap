@@ -18,9 +18,7 @@ package com.googlecode.concurrentlinkedhashmap.benchmark;
 import static com.googlecode.concurrentlinkedhashmap.benchmark.Benchmarks.createWorkingSet;
 import static com.googlecode.concurrentlinkedhashmap.benchmark.Benchmarks.determineEfficiency;
 
-import com.googlecode.concurrentlinkedhashmap.caches.Cache;
-import com.googlecode.concurrentlinkedhashmap.caches.Cache.Policy;
-import com.googlecode.concurrentlinkedhashmap.caches.CacheBuilder;
+import com.googlecode.concurrentlinkedhashmap.caches.CacheFactory;
 import com.googlecode.concurrentlinkedhashmap.generator.Generator;
 import com.googlecode.concurrentlinkedhashmap.generator.ScrambledZipfianGenerator;
 
@@ -32,6 +30,9 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import com.googlecode.concurrentlinkedhashmap.CacheType;
+import com.googlecode.concurrentlinkedhashmap.CacheType.Policy;
 
 /**
  * This benchmark compares the hit rate of different cache implementations.
@@ -52,11 +53,11 @@ public final class EfficiencyBenchmark {
     }
 
     Set<Policy> seen = EnumSet.noneOf(Policy.class);
-    for (Cache cache : Cache.values()) {
+    for (CacheType cache : CacheType.values()) {
       if (!seen.add(cache.policy())) {
         continue;
       }
-      Map<String, String> map = new CacheBuilder()
+      Map<String, String> map = new CacheFactory()
           .maximumCapacity(capacity)
           .makeCache(cache);
       System.out.println(cache.policy().toString() + ":");

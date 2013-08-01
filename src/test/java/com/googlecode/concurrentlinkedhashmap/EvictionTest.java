@@ -30,8 +30,7 @@ import com.google.common.collect.Lists;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Node;
 import com.googlecode.concurrentlinkedhashmap.benchmark.Benchmarks.EfficiencyRun;
-import com.googlecode.concurrentlinkedhashmap.caches.Cache;
-import com.googlecode.concurrentlinkedhashmap.caches.CacheBuilder;
+import com.googlecode.concurrentlinkedhashmap.caches.CacheFactory;
 import com.googlecode.concurrentlinkedhashmap.generator.Generator;
 import com.googlecode.concurrentlinkedhashmap.generator.ScrambledZipfianGenerator;
 import org.mockito.Mockito;
@@ -312,9 +311,9 @@ public final class EvictionTest extends AbstractTest {
 
   @Test
   public void evict_efficiency() {
-    Map<String, String> expected = new CacheBuilder()
+    Map<String, String> expected = new CacheFactory()
         .maximumCapacity((int) capacity())
-        .makeCache(Cache.LinkedHashMap_Lru_Sync);
+        .makeCache(CacheType.LinkedHashMap_Lru_Sync);
     Map<String, String> actual = new Builder<String, String>()
         .maximumWeightedCapacity(capacity())
         .build();

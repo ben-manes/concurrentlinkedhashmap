@@ -185,14 +185,14 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
 
   // These fields provide support to bound the map by a maximum capacity
   @GuardedBy("evictionLock")
+  final long[] readBufferReadCount;
+  @GuardedBy("evictionLock")
   final LinkedDeque<Node<K, V>> evictionDeque;
 
   @GuardedBy("evictionLock") // must write under lock
   final PaddedAtomicLong weightedSize;
   @GuardedBy("evictionLock") // must write under lock
   final PaddedAtomicLong capacity;
-  @GuardedBy("evictionLock") // must write under lock
-  final long[] readBufferReadCount;
 
   final Lock evictionLock;
   final Queue<Runnable> writeBuffer;

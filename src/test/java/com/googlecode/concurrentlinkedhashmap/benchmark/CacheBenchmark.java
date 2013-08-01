@@ -17,9 +17,7 @@ package com.googlecode.concurrentlinkedhashmap.benchmark;
 
 import static com.google.common.base.Strings.isNullOrEmpty;
 
-import com.googlecode.concurrentlinkedhashmap.caches.Cache;
-import com.googlecode.concurrentlinkedhashmap.caches.Cache.Policy;
-import com.googlecode.concurrentlinkedhashmap.caches.CacheBuilder;
+import com.googlecode.concurrentlinkedhashmap.caches.CacheFactory;
 import com.googlecode.concurrentlinkedhashmap.caches.CacheConcurrentLIRS;
 
 import org.cachebench.CacheBenchmarkRunner;
@@ -35,6 +33,9 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import com.googlecode.concurrentlinkedhashmap.CacheType;
+import com.googlecode.concurrentlinkedhashmap.CacheType.Policy;
+
 /**
  * This benchmark evaluates multi-threaded performance.
  *
@@ -45,7 +46,7 @@ public final class CacheBenchmark implements CacheWrapper {
   private static int initialCapacity;
   private static int maximumCapacity;
   private static int concurrencyLevel;
-  private static Cache cache;
+  private static CacheType cache;
   private static String run;
 
   private Map<Object, Object> map;
@@ -55,7 +56,7 @@ public final class CacheBenchmark implements CacheWrapper {
   public static void benchmark(String cache, int initialCapacity, int maximumCapacity,
       int concurrencyLevel, String run) throws IOException {
     CacheBenchmark.run = run;
-    CacheBenchmark.cache = Cache.valueOf(cache);
+    CacheBenchmark.cache = CacheType.valueOf(cache);
     CacheBenchmark.initialCapacity = initialCapacity;
     CacheBenchmark.maximumCapacity = maximumCapacity;
     CacheBenchmark.concurrencyLevel = concurrencyLevel;
@@ -82,7 +83,7 @@ public final class CacheBenchmark implements CacheWrapper {
           map = CacheConcurrentLIRS.newInstance(maximumCapacity);
       } else {
           // to test with the ConcurrentLinkedHashMap:
-          map = new CacheBuilder()
+          map = new CacheFactory()
               .concurrencyLevel(concurrencyLevel)
               .initialCapacity(initialCapacity)
               .maximumCapacity(maximumCapacity)

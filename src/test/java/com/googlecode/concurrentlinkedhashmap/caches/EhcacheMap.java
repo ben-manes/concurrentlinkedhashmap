@@ -15,14 +15,6 @@
  */
 package com.googlecode.concurrentlinkedhashmap.caches;
 
-import static net.sf.ehcache.Cache.DEFAULT_CACHE_NAME;
-
-import net.sf.ehcache.Cache;
-import net.sf.ehcache.Ehcache;
-import net.sf.ehcache.Element;
-import net.sf.ehcache.config.CacheConfiguration;
-import net.sf.ehcache.store.MemoryStoreEvictionPolicy;
-
 import java.util.AbstractMap;
 import java.util.Collection;
 import java.util.HashMap;
@@ -32,55 +24,65 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 
+import net.sf.ehcache.Cache;
+import net.sf.ehcache.CacheManager;
+import net.sf.ehcache.Ehcache;
+import net.sf.ehcache.Element;
+import net.sf.ehcache.config.CacheConfiguration;
+import net.sf.ehcache.store.MemoryStoreEvictionPolicy;
+
+import static net.sf.ehcache.Cache.DEFAULT_CACHE_NAME;
+
 /**
  * Exposes <tt>ehcache</tt> as a {@link ConcurrentMap}.
  *
  * @author ben.manes@gmail.com (Ben Manes)
  */
-final class EhcacheMap<K, V> extends AbstractMap<K, V> implements ConcurrentMap<K, V> {
-  private final Ehcache map;
+public final class EhcacheMap<K, V> extends AbstractMap<K, V> implements ConcurrentMap<K, V> {
+  private final Ehcache cache;
 
-  public EhcacheMap(MemoryStoreEvictionPolicy evictionPolicy, CacheBuilder builder) {
+  public EhcacheMap(MemoryStoreEvictionPolicy evictionPolicy, CacheFactory builder) {
     CacheConfiguration config = new CacheConfiguration(DEFAULT_CACHE_NAME, builder.maximumCapacity);
     config.setMemoryStoreEvictionPolicyFromObject(evictionPolicy);
-    map = new Cache(config);
-    map.initialise();
+    CacheManager cacheManager = new CacheManager();
+    cache = new Cache(config);
+    cache.setCacheManager(cacheManager);
+    cache.initialise();
   }
 
   @Override
   public void clear() {
-    map.removeAll();
+    cache.removeAll();
   }
 
   @Override
   public int size() {
-    return keySet().size();
+    return cache.getSize();
   }
 
   @Override
   public boolean containsKey(Object key) {
-    return map.isKeyInCache(key);
+    return cache.isKeyInCache(key);
   }
 
   @Override
   public boolean containsValue(Object value) {
-    return map.isValueInCache(value);
+    return cache.isValueInCache(value);
   }
 
   @Override
   @SuppressWarnings("unchecked")
   public V get(Object key) {
-    Element element = map.get(key);
+    Element element = cache.get(key);
     return (element == null) ? null : (V) element.getObjectValue();
   }
 
+  @SuppressWarnings("unchecked")
   public Map<K, V> getAll(Collection<? extends K> keys) {
-    Map<K, V> results = new HashMap<K, V>(keys.size());
-    for (K key : keys) {
-      V value = get(key);
-      if (value != null) {
-        results.put(key, value);
-      }
+    Map<Object, Element> cached = cache.getAll(keys);
+    Map<K, V> results = new HashMap<K, V>(cached.size());
+    for (Element element : cached.values()) {
+      results.put((K) element.getObjectKey(), (V) element.getObjectValue());
     }
     return results;
   }
@@ -88,59 +90,47 @@ final class EhcacheMap<K, V> extends AbstractMap<K, V> implements ConcurrentMap<
   @Override
   public V put(K key, V value) {
     V old = get(key);
-    map.put(new Element(key, value));
+    cache.put(new Element(key, value));
     return old;
   }
 
   @Override
+  @SuppressWarnings("unchecked")
   public V putIfAbsent(K key, V value) {
-    V old = get(key);
-    if (old == null) {
-      map.put(new Element(key, value));
-    }
-    return old;
+    Element old = cache.putIfAbsent(new Element(key, value), true);
+    return (old == null) ? null : (V) old.getObjectValue();
   }
 
   @Override
   public V remove(Object key) {
     V old = get(key);
     if (old != null) {
-      map.remove(key);
+      cache.remove(key);
     }
     return old;
   }
 
   @Override
   public boolean remove(Object key, Object value) {
-    if (value.equals(get(key))) {
-      map.remove(key);
-      return true;
-    }
-    return false;
+    return cache.removeElement(new Element(key, value));
   }
 
   @Override
+  @SuppressWarnings("unchecked")
   public V replace(K key, V value) {
-    V old = get(key);
-    if (old != null) {
-      map.put(new Element(key, value));
-    }
-    return old;
+    Element old = cache.replace(new Element(key, value));
+    return (old == null) ? null : (V) old.getObjectValue();
   }
 
   @Override
   public boolean replace(K key, V oldValue, V newValue) {
-    if (oldValue.equals(get(key))) {
-      map.put(new Element(key, newValue));
-      return true;
-    }
-    return false;
+    return cache.replace(new Element(key, oldValue), new Element(key, newValue));
   }
 
   @Override
   @SuppressWarnings("unchecked")
   public Set<K> keySet() {
-    return new KeySetAdapter<K>(map.getKeys());
+    return new KeySetAdapter<K>(cache.getKeys());
   }
 
   @Override

@@ -17,6 +17,8 @@ package com.googlecode.concurrentlinkedhashmap.caches;
 
 import java.util.concurrent.ConcurrentMap;
 
+import com.googlecode.concurrentlinkedhashmap.CacheType;
+
 /**
  * A builder that creates bounded map instances. It provides a flexible approach
  * for constructing different cache data structures with a named parameter
@@ -24,14 +26,14 @@ import java.util.concurrent.ConcurrentMap;
  *
  * @author ben.manes@gmail.com (Ben Manes)
  */
-public class CacheBuilder {
+public class CacheFactory {
   static final int DEFAULT_CONCURRENCY_LEVEL = 16;
 
-  int concurrencyLevel;
-  int initialCapacity;
-  int maximumCapacity;
+  public int concurrencyLevel;
+  public int initialCapacity;
+  public int maximumCapacity;
 
-  public CacheBuilder() {
+  public CacheFactory() {
     maximumCapacity = -1;
     concurrencyLevel = DEFAULT_CONCURRENCY_LEVEL;
   }
@@ -45,7 +47,7 @@ public class CacheBuilder {
    *     to accommodate this many entries.
    * @throws IllegalArgumentException if the initialCapacity is negative
    */
-  public CacheBuilder initialCapacity(int initialCapacity) {
+  public CacheFactory initialCapacity(int initialCapacity) {
     if (initialCapacity < 0) {
       throw new IllegalArgumentException();
     }
@@ -62,7 +64,7 @@ public class CacheBuilder {
    * @param maximumCapacity the threshold to bound the map by
    * @throws IllegalArgumentException if the maximumCapacity is negative
    */
-  public CacheBuilder maximumCapacity(int maximumCapacity) {
+  public CacheFactory maximumCapacity(int maximumCapacity) {
     if (maximumCapacity < 0) {
       throw new IllegalArgumentException();
     }
@@ -82,7 +84,7 @@ public class CacheBuilder {
    * @throws IllegalArgumentException if the concurrencyLevel is less than or
    *     equal to zero
    */
-  public CacheBuilder concurrencyLevel(int concurrencyLevel) {
+  public CacheFactory concurrencyLevel(int concurrencyLevel) {
     if (concurrencyLevel <= 0) {
       throw new IllegalArgumentException();
     }
@@ -97,7 +99,7 @@ public class CacheBuilder {
    * @throws IllegalStateException if the maximum weighted capacity was
    *     not set
    */
-  public <K, V> ConcurrentMap<K, V> makeCache(Cache cache) {
+  public <K, V> ConcurrentMap<K, V> makeCache(CacheType cache) {
     if (maximumCapacity < 0) {
       throw new IllegalStateException();
     }
