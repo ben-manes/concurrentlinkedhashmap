@@ -33,7 +33,6 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Lock;
@@ -1134,7 +1133,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * the page-replacement algorithm's data structures.
    */
   @SuppressWarnings("serial")
-  static final class Node<K, V> extends PaddedAtomicReference<WeightedValue<V>>
+  static final class Node<K, V> extends AtomicReference<WeightedValue<V>>
       implements Linked<Node<K, V>> {
     final K key;
     @GuardedBy("evictionLock")
@@ -1448,24 +1447,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     PaddedAtomicLong() {}
 
     PaddedAtomicLong(long value) {
-      super(value);
-    }
-  }
-
-  /**
-   * An AtomicLong with heuristic padding to lessen cache effects of this
-   * heavily CAS'ed location. While the padding adds noticeable space, the
-   * improved throughput outweighs using extra space.
-   */
-  static class PaddedAtomicInteger extends AtomicInteger {
-    private static final long serialVersionUID = 1L;
-
-    // Improve likelihood of isolation on <= 64 byte cache lines
-    long q0, q1, q2, q3, q4, q5, q6, q7, q8, q9, qa, qb, qc, qd, qe;
-
-    PaddedAtomicInteger() {}
-
-    PaddedAtomicInteger(int value) {
       super(value);
     }
   }
