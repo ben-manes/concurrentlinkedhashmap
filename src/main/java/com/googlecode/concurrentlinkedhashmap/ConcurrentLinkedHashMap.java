@@ -301,6 +301,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   }
 
   /** Determines whether the map has exceeded its capacity. */
+  @GuardedBy("evictionLock")
   boolean hasOverflowed() {
     return weightedSize.get() > capacity.get();
   }
@@ -342,7 +343,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    */
   void afterRead(Node<K, V> node) {
     final int bufferIndex = bufferIndex();
-    final long writeCount = recordRead(node, bufferIndex);
+    final long writeCount = recordRead(bufferIndex, node);
     drainOnReadIfNeeded(bufferIndex, writeCount);
     notifyListener();
   }
@@ -358,11 +359,11 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   /**
    * Records a read in the buffer and return its write count.
    *
-   * @param node the entry in the page replacement policy
    * @param bufferIndex the index to the chosen read buffer
+   * @param node the entry in the page replacement policy
    * @return the number of writes on the chosen read buffer
    */
-  long recordRead(Node<K, V> node, int bufferIndex) {
+  long recordRead(int bufferIndex, Node<K, V> node) {
     // The location in the buffer is chosen in a racy fashion as the increment
     // is not atomic with the insertion. This means that concurrent reads can
     // overlap and overwrite one another, resulting in a lossy buffer.
@@ -377,7 +378,8 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   }
 
   /**
-   * Determines if a drain should be attempted when post-processing a read.
+   * Attempts to drain the buffers if it is determined to be needed when
+   * post-processing a read.
    *
    * @param bufferIndex the index to the chosen read buffer
    * @param writeCount the number of writes on the chosen read buffer
@@ -456,6 +458,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   }
 
   /** Updates the node's location in the page replacement policy. */
+  @GuardedBy("evictionLock")
   void applyRead(Node<K, V> node) {
     // An entry may be scheduled for reordering despite having been removed.
     // This can occur when the entry was concurrently read while a writer was
