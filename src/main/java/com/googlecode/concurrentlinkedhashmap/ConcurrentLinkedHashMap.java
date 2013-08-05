@@ -342,14 +342,14 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
    * @param node the entry in the page replacement policy
    */
   void afterRead(Node<K, V> node) {
-    final int bufferIndex = bufferIndex();
+    final int bufferIndex = readBufferIndex();
     final long writeCount = recordRead(bufferIndex, node);
     drainOnReadIfNeeded(bufferIndex, writeCount);
     notifyListener();
   }
 
-  /** Returns the index to the read buffer to read record the read into. */
-  static int bufferIndex() {
+  /** Returns the index to the read buffer to record into. */
+  static int readBufferIndex() {
     // A buffer is chosen by the thread's id so that tasks are distributed in a
     // pseudo evenly manner. This helps avoid hot entries causing contention
     // due to other threads trying to append to the same buffer.

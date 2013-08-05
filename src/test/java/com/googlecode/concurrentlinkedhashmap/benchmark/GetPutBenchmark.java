@@ -18,14 +18,12 @@ package com.googlecode.concurrentlinkedhashmap.benchmark;
 import java.util.List;
 import java.util.concurrent.ConcurrentMap;
 
-import com.googlecode.concurrentlinkedhashmap.CacheType;
-
+import com.google.caliper.Benchmark;
 import com.google.caliper.Param;
-import com.google.caliper.Runner;
-import com.google.caliper.SimpleBenchmark;
+import com.google.caliper.runner.CaliperMain;
+import com.googlecode.concurrentlinkedhashmap.CacheType;
 import com.googlecode.concurrentlinkedhashmap.caches.CacheFactory;
 import com.googlecode.concurrentlinkedhashmap.generator.ScrambledZipfianGenerator;
-import org.testng.annotations.Parameters;
 import org.testng.annotations.Test;
 
 import static com.googlecode.concurrentlinkedhashmap.benchmark.Benchmarks.createWorkingSet;
@@ -35,7 +33,7 @@ import static com.googlecode.concurrentlinkedhashmap.benchmark.Benchmarks.create
  *
  * @author ben.manes@gmail.com (Ben Manes)
  */
-public final class GetPutBenchmark extends SimpleBenchmark {
+public final class GetPutBenchmark extends Benchmark {
   private static final int MASK = (2 << 10) - 1;
   private static final List<Integer> ints =
     createWorkingSet(new ScrambledZipfianGenerator(MASK + 1), MASK + 1);
@@ -74,13 +72,7 @@ public final class GetPutBenchmark extends SimpleBenchmark {
   }
 
   @Test(groups = "caliper")
-  @Parameters({"warmupMillis", "runMillis", "timeUnit"})
-  public static void benchmark(String warmupMillis, String runMillis, String timeUnit) {
-    String[] args = {
-      "--warmupMillis", warmupMillis,
-      "--runMillis", runMillis,
-      "--timeUnit", timeUnit
-    };
-    Runner.main(GetPutBenchmark.class, args);
+  public static void benchmark() {
+    CaliperMain.main(GetPutBenchmark.class, new String[] {});
   }
 }

@@ -41,12 +41,12 @@ tests:
       maximumCapacity: 5000
       concurrencyLevel: 32
       runId: ""
-      cache: ConcurrentLinkedHashMap
+      cache:
         # Guava
         # ConcurrentHashMap
         # NonBlockingHashMap
         # LinkedHashMap_Lru_Sync
-        # ConcurrentLinkedHashMap
+        ConcurrentLinkedHashMap
     classes:
       - com.googlecode.concurrentlinkedhashmap.benchmark.CacheBenchmark
 

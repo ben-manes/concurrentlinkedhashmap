@@ -15,11 +15,14 @@
  */
 package com.googlecode.concurrentlinkedhashmap.benchmark;
 
-import static com.google.common.base.Strings.isNullOrEmpty;
+import java.io.File;
+import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 
+import com.googlecode.concurrentlinkedhashmap.CacheType;
+import com.googlecode.concurrentlinkedhashmap.CacheType.Policy;
 import com.googlecode.concurrentlinkedhashmap.caches.CacheFactory;
-import com.googlecode.concurrentlinkedhashmap.caches.CacheConcurrentLIRS;
-
 import org.cachebench.CacheBenchmarkRunner;
 import org.cachebench.CacheWrapper;
 import org.cachebench.reportgenerators.ChartGen;
@@ -28,13 +31,7 @@ import org.cachebench.reportgenerators.PutGetChartGenerator;
 import org.testng.annotations.Parameters;
 import org.testng.annotations.Test;
 
-import java.io.File;
-import java.io.IOException;
-import java.util.List;
-import java.util.Map;
-
-import com.googlecode.concurrentlinkedhashmap.CacheType;
-import com.googlecode.concurrentlinkedhashmap.CacheType.Policy;
+import static com.google.common.base.Strings.isNullOrEmpty;
 
 /**
  * This benchmark evaluates multi-threaded performance.
@@ -72,23 +69,15 @@ public final class CacheBenchmark implements CacheWrapper {
     generator.setReportDirectory(REPORT_DIR);
     generator.generateChart();
   }
-  
-  private static final boolean TEST_CONCURRENT_LIRS = true;
 
   @Override
   @SuppressWarnings("rawtypes")
   public void init(Map parameters) throws Exception {
-      if (TEST_CONCURRENT_LIRS) {
-          // to test with the concurrent LIRS cache:
-          map = CacheConcurrentLIRS.newInstance(maximumCapacity);
-      } else {
-          // to test with the ConcurrentLinkedHashMap:
-          map = new CacheFactory()
-              .concurrencyLevel(concurrencyLevel)
-              .initialCapacity(initialCapacity)
-              .maximumCapacity(maximumCapacity)
-              .makeCache(cache);
-      }
+    map = new CacheFactory()
+        .concurrencyLevel(concurrencyLevel)
+        .initialCapacity(initialCapacity)
+        .maximumCapacity(maximumCapacity)
+        .makeCache(cache);
   }
 
   @Override
