@@ -4,7 +4,7 @@
   <artifactId>concurrentlinkedhashmap-lru</artifactId>
   <packaging>jar</packaging>
   <name>ConcurrentLinkedHashMap</name>
-  <version>1.4</version>
+  <version>1.5-SNAPSHOT</version>
   <description>
     A high performance version of java.util.LinkedHashMap for use as a software cache.
   </description>
