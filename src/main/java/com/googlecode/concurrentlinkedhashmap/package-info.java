@@ -33,10 +33,7 @@
  * The {@link com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap}
  * class supplies an efficient, scalable, thread-safe, bounded map. As with the
  * <tt>Java Collections Framework</tt> the "Concurrent" prefix is used to
- * indicate that the map is not governed by a single exclusion lock. The
- * concurrency characteristics are those provided by the
- * {@link java.util.concurrent.ConcurrentHashMap} implementation that is
- * available at runtime.
+ * indicate that the map is not governed by a single exclusion lock.
  *
  * @see <a href="http://code.google.com/p/concurrentlinkedhashmap/">
  *      http://code.google.com/p/concurrentlinkedhashmap/</a>

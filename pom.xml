@@ -4,7 +4,7 @@
   <artifactId>concurrentlinkedhashmap-lru</artifactId>
   <packaging>jar</packaging>
   <name>ConcurrentLinkedHashMap</name>
-  <version>1.5-SNAPSHOT</version>
+  <version>1.4.1-SNAPSHOT</version>
   <description>
     A high performance version of java.util.LinkedHashMap for use as a software cache.
   </description>
@@ -181,6 +181,7 @@
         <configuration>
           <instructions>
             <Export-Package>com.googlecode.concurrentlinkedhashmap.*</Export-Package>
+            <Import-Package>sun.misc.*;resolution:=optional</Import-Package>
           </instructions>
         </configuration>
       </plugin>
