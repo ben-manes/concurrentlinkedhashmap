@@ -15,6 +15,13 @@
  */
 package com.googlecode.concurrentlinkedhashmap;
 
+import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.DrainStatus.IDLE;
+import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.DrainStatus.PROCESSING;
+import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.DrainStatus.REQUIRED;
+import static java.util.Collections.emptyList;
+import static java.util.Collections.unmodifiableMap;
+import static java.util.Collections.unmodifiableSet;
+
 import java.io.InvalidObjectException;
 import java.io.ObjectInputStream;
 import java.io.Serializable;
@@ -41,13 +48,6 @@ import java.util.concurrent.locks.ReentrantLock;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
-
-import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.DrainStatus.IDLE;
-import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.DrainStatus.PROCESSING;
-import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.DrainStatus.REQUIRED;
-import static java.util.Collections.emptyList;
-import static java.util.Collections.unmodifiableMap;
-import static java.util.Collections.unmodifiableSet;
 
 /**
  * A hash table supporting full concurrency of retrievals, adjustable expected
@@ -189,17 +189,17 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   final LinkedDeque<Node<K, V>> evictionDeque;
 
   @GuardedBy("evictionLock") // must write under lock
-  final PaddedAtomicLong weightedSize;
+  final AtomicLong weightedSize;
   @GuardedBy("evictionLock") // must write under lock
-  final PaddedAtomicLong capacity;
+  final AtomicLong capacity;
 
   final Lock evictionLock;
   final Queue<Runnable> writeBuffer;
-  final PaddedAtomicLong[] readBufferWriteCount;
-  final PaddedAtomicLong[] readBufferDrainAtWriteCount;
-  final PaddedAtomicReference<Node<K, V>>[][] readBuffers;
+  final AtomicLong[] readBufferWriteCount;
+  final AtomicLong[] readBufferDrainAtWriteCount;
+  final AtomicReference<Node<K, V>>[][] readBuffers;
 
-  final PaddedAtomicReference<DrainStatus> drainStatus;
+  final AtomicReference<DrainStatus> drainStatus;
   final EntryWeigher<? super K, ? super V> weigher;
 
   // These fields provide support for notifying a listener.
@@ -217,27 +217,27 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
   private ConcurrentLinkedHashMap(Builder<K, V> builder) {
     // The data store and its maximum capacity
     concurrencyLevel = builder.concurrencyLevel;
-    capacity = new PaddedAtomicLong(Math.min(builder.capacity, MAXIMUM_CAPACITY));
+    capacity = new AtomicLong(Math.min(builder.capacity, MAXIMUM_CAPACITY));
     data = new ConcurrentHashMapV8<K, Node<K, V>>(builder.initialCapacity, 0.75f, concurrencyLevel);
 
     // The eviction support
     weigher = builder.weigher;
     evictionLock = new ReentrantLock();
-    weightedSize = new PaddedAtomicLong();
+    weightedSize = new AtomicLong();
     evictionDeque = new LinkedDeque<Node<K, V>>();
     writeBuffer = new ConcurrentLinkedQueue<Runnable>();
-    drainStatus = new PaddedAtomicReference<DrainStatus>(IDLE);
+    drainStatus = new AtomicReference<DrainStatus>(IDLE);
 
     readBufferReadCount = new long[NUMBER_OF_READ_BUFFERS];
-    readBufferWriteCount = new PaddedAtomicLong[NUMBER_OF_READ_BUFFERS];
-    readBufferDrainAtWriteCount = new PaddedAtomicLong[NUMBER_OF_READ_BUFFERS];
-    readBuffers = new PaddedAtomicReference[NUMBER_OF_READ_BUFFERS][READ_BUFFER_SIZE];
+    readBufferWriteCount = new AtomicLong[NUMBER_OF_READ_BUFFERS];
+    readBufferDrainAtWriteCount = new AtomicLong[NUMBER_OF_READ_BUFFERS];
+    readBuffers = new AtomicReference[NUMBER_OF_READ_BUFFERS][READ_BUFFER_SIZE];
     for (int i = 0; i < NUMBER_OF_READ_BUFFERS; i++) {
-      readBufferWriteCount[i] = new PaddedAtomicLong();
-      readBufferDrainAtWriteCount[i] = new PaddedAtomicLong();
-      readBuffers[i] = new PaddedAtomicReference[READ_BUFFER_SIZE];
+      readBufferWriteCount[i] = new AtomicLong();
+      readBufferDrainAtWriteCount[i] = new AtomicLong();
+      readBuffers[i] = new AtomicReference[READ_BUFFER_SIZE];
       for (int j = 0; j < READ_BUFFER_SIZE; j++) {
-        readBuffers[i][j] = new PaddedAtomicReference<Node<K, V>>();
+        readBuffers[i][j] = new AtomicReference<Node<K, V>>();
       }
     }
 
@@ -367,7 +367,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     // The location in the buffer is chosen in a racy fashion as the increment
     // is not atomic with the insertion. This means that concurrent reads can
     // overlap and overwrite one another, resulting in a lossy buffer.
-    final PaddedAtomicLong counter = readBufferWriteCount[bufferIndex];
+    final AtomicLong counter = readBufferWriteCount[bufferIndex];
     final long writeCount = counter.get();
     counter.lazySet(writeCount + 1);
 
@@ -444,7 +444,7 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     final long writeCount = readBufferWriteCount[bufferIndex].get();
     for (int i = 0; i < READ_BUFFER_DRAIN_THRESHOLD; i++) {
       final int index = (int) (readBufferReadCount[bufferIndex] & READ_BUFFER_INDEX_MASK);
-      final PaddedAtomicReference<Node<K, V>> slot = readBuffers[bufferIndex][index];
+      final AtomicReference<Node<K, V>> slot = readBuffers[bufferIndex][index];
       final Node<K, V> node = slot.get();
       if (node == null) {
         break;
@@ -1416,42 +1416,6 @@ public final class ConcurrentLinkedHashMap<K, V> extends AbstractMap<K, V>
     INSTANCE;
 
     @Override public void onEviction(Object key, Object value) {}
-  }
-
-  /**
-   * An AtomicReference with heuristic padding to lessen cache effects of this
-   * heavily CAS'ed location. While the padding adds noticeable space, the
-   * improved throughput outweighs using extra space.
-   */
-  static class PaddedAtomicReference<T> extends AtomicReference<T> {
-    private static final long serialVersionUID = 1L;
-
-    // Improve likelihood of isolation on <= 64 byte cache lines
-    long q0, q1, q2, q3, q4, q5, q6, q7, q8, q9, qa, qb, qc, qd, qe;
-
-    PaddedAtomicReference() {}
-
-    PaddedAtomicReference(T value) {
-      super(value);
-    }
-  }
-
-  /**
-   * An AtomicLong with heuristic padding to lessen cache effects of this
-   * heavily CAS'ed location. While the padding adds noticeable space, the
-   * improved throughput outweighs using extra space.
-   */
-  static class PaddedAtomicLong extends AtomicLong {
-    private static final long serialVersionUID = 1L;
-
-    // Improve likelihood of isolation on <= 64 byte cache lines
-    long q0, q1, q2, q3, q4, q5, q6, q7, q8, q9, qa, qb, qc, qd, qe;
-
-    PaddedAtomicLong() {}
-
-    PaddedAtomicLong(long value) {
-      super(value);
-    }
   }
 
   /* ---------------- Serialization Support -------------- */

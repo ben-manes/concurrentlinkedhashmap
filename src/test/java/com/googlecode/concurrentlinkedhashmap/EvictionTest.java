@@ -15,27 +15,6 @@
  */
 package com.googlecode.concurrentlinkedhashmap;
 
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.Callable;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.locks.ReentrantLock;
-
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
-import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
-import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Node;
-import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.PaddedAtomicLong;
-import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.PaddedAtomicReference;
-import com.googlecode.concurrentlinkedhashmap.benchmark.Benchmarks.EfficiencyRun;
-import com.googlecode.concurrentlinkedhashmap.caches.CacheFactory;
-import com.googlecode.concurrentlinkedhashmap.generator.Generator;
-import com.googlecode.concurrentlinkedhashmap.generator.ScrambledZipfianGenerator;
-import org.mockito.Mockito;
-import org.testng.annotations.Test;
-
 import static com.google.common.collect.Maps.newLinkedHashMap;
 import static com.google.common.collect.Sets.newLinkedHashSet;
 import static com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.MAXIMUM_CAPACITY;
@@ -66,6 +45,28 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.Callable;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantLock;
+
+import org.mockito.Mockito;
+import org.testng.annotations.Test;
+
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Builder;
+import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap.Node;
+import com.googlecode.concurrentlinkedhashmap.benchmark.Benchmarks.EfficiencyRun;
+import com.googlecode.concurrentlinkedhashmap.caches.CacheFactory;
+import com.googlecode.concurrentlinkedhashmap.generator.Generator;
+import com.googlecode.concurrentlinkedhashmap.generator.ScrambledZipfianGenerator;
 
 /**
  * A unit-test for the page replacement algorithm and its public methods.
@@ -340,7 +341,7 @@ public final class EvictionTest extends AbstractTest {
 
   @Test(dataProvider = "warmedMap")
   public void updateRecency_onGetQuietly(final ConcurrentLinkedHashMap<Integer, Integer> map) {
-    PaddedAtomicLong drainCounter = map.readBufferDrainAtWriteCount[readBufferIndex()];
+    AtomicLong drainCounter = map.readBufferDrainAtWriteCount[readBufferIndex()];
 
     Node<Integer, Integer> first = map.evictionDeque.peek();
     Node<Integer, Integer> last = map.evictionDeque.peekLast();
@@ -408,7 +409,7 @@ public final class EvictionTest extends AbstractTest {
 
   @Test(dataProvider = "guardedMap")
   public void exceedsMaximumBufferSize_onRead(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    PaddedAtomicLong drainCounter = map.readBufferDrainAtWriteCount[readBufferIndex()];
+    AtomicLong drainCounter = map.readBufferDrainAtWriteCount[readBufferIndex()];
     map.readBufferWriteCount[readBufferIndex()].set(READ_BUFFER_THRESHOLD - 1);
 
     map.afterRead(null);
@@ -429,15 +430,15 @@ public final class EvictionTest extends AbstractTest {
 
   @Test(dataProvider = "warmedMap")
   public void drain_onRead(ConcurrentLinkedHashMap<Integer, Integer> map) {
-    PaddedAtomicReference<Node<Integer, Integer>>[] buffer = map.readBuffers[readBufferIndex()];
-    PaddedAtomicLong writeCounter = map.readBufferWriteCount[readBufferIndex()];
+    AtomicReference<Node<Integer, Integer>>[] buffer = map.readBuffers[readBufferIndex()];
+    AtomicLong writeCounter = map.readBufferWriteCount[readBufferIndex()];
 
     for (int i = 0; i < READ_BUFFER_THRESHOLD; i++) {
       map.get(1);
     }
 
     int pending = 0;
-    for (PaddedAtomicReference<?> slot : buffer) {
+    for (AtomicReference<?> slot : buffer) {
       if (slot.get() != null) {
         pending++;
       }
