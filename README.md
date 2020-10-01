@@ -1,4 +1,4 @@
-[Caffeine](https://github.com/ben-manes/caffeine) is the Java 8 successor to ConcurrentLinkedHashMap and Guava's cache. Projects should
+[...................................Caffeine](https://github.com/ben-manes/caffeine) is the Java 8 successor to ConcurrentLinkedHashMap and Guava's cache. Projects should
 prefer Caffeine and migrate when requiring JDK8 or higher. The previous caching projects are supported in maintenance mode.
 
 ***
